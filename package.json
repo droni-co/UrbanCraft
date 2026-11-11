@@ -19,6 +19,7 @@
     "typecheck": "pnpm -r typecheck",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
-    "db:migrate": "pnpm --filter @urbancraft/backend exec node ace migration:run"
+    "db:migrate": "pnpm --filter @urbancraft/backend exec node ace migration:run",
+    "map:pregenerate": "pnpm --filter @urbancraft/backend exec node ace map:pregenerate"
   }
 }

@@ -18,4 +18,10 @@ export interface ApiDefinition {
       destroy: typeof routes['profile.access_tokens.destroy']
     }
   }
+  map: {
+    map: {
+      config: typeof routes['map.map.config']
+      chunk: typeof routes['map.map.chunk']
+    }
+  }
 }

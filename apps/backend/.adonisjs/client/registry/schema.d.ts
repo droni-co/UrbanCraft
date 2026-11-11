@@ -60,6 +60,32 @@ export interface Registry {
       rawResponse: ExtractRawResponse<Awaited<ReturnType<import('#controllers/access_tokens_controller').default['destroy']>>>
     }
   }
+  'map.map.config': {
+    methods: ["GET","HEAD"]
+    pattern: '/api/v1/map/config'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/map_controller').default['config']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/map_controller').default['config']>>>
+      rawResponse: ExtractRawResponse<Awaited<ReturnType<import('#controllers/map_controller').default['config']>>>
+    }
+  }
+  'map.map.chunk': {
+    methods: ["GET","HEAD"]
+    pattern: '/api/v1/map/chunks/:z/:x/:y'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue, ParamValue, ParamValue]
+      params: { z: ParamValue; x: ParamValue; y: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/map_controller').default['chunk']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/map_controller').default['chunk']>>>
+      rawResponse: ExtractRawResponse<Awaited<ReturnType<import('#controllers/map_controller').default['chunk']>>>
+    }
+  }
 }
 
 export namespace Route {

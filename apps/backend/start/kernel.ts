@@ -34,7 +34,6 @@ server.use([
  */
 router.use([
   () => import('@adonisjs/core/bodyparser_middleware'),
-  () => import('@adonisjs/session/session_middleware'),
   () => import('@adonisjs/shield/shield_middleware'),
   () => import('@adonisjs/auth/initialize_auth_middleware'),
   () => import('#middleware/silent_auth_middleware'),
@@ -46,4 +45,10 @@ router.use([
  */
 export const middleware = router.named({
   auth: () => import('#middleware/auth_middleware'),
+  /**
+   * Sesión con cookie: solo para rutas que la necesiten (guard "web").
+   * No es global para que las respuestas públicas (chunks del mapa) no lleven
+   * Set-Cookie y puedan cachearse en un CDN. La API del juego usa tokens.
+   */
+  session: () => import('@adonisjs/session/session_middleware'),
 })

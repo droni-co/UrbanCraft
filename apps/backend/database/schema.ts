@@ -8,7 +8,18 @@ import { BaseModel, column } from '@adonisjs/lucid/orm'
 import { DateTime } from 'luxon'
 
 export class AuthAccessTokenSchema extends BaseModel {
-  static $columns = ['abilities', 'createdAt', 'expiresAt', 'hash', 'id', 'lastUsedAt', 'name', 'tokenableId', 'type', 'updatedAt'] as const
+  static $columns = [
+    'abilities',
+    'createdAt',
+    'expiresAt',
+    'hash',
+    'id',
+    'lastUsedAt',
+    'name',
+    'tokenableId',
+    'type',
+    'updatedAt',
+  ] as const
   $columns = AuthAccessTokenSchema.$columns
   @column()
   declare abilities: string
@@ -30,6 +41,105 @@ export class AuthAccessTokenSchema extends BaseModel {
   declare type: string
   @column.dateTime({ autoCreate: true, autoUpdate: true })
   declare updatedAt: DateTime | null
+}
+
+export class MapChunkSchema extends BaseModel {
+  static $columns = [
+    'bounds',
+    'byteSize',
+    'createdAt',
+    'data',
+    'etag',
+    'generatorVersion',
+    'id',
+    'sourceTileId',
+    'x',
+    'y',
+    'z',
+  ] as const
+  $columns = MapChunkSchema.$columns
+  @column()
+  declare bounds: any
+  @column()
+  declare byteSize: number
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column()
+  declare data: Buffer
+  @column()
+  declare etag: string
+  @column()
+  declare generatorVersion: number
+  @column({ isPrimary: true })
+  declare id: bigint | number
+  @column()
+  declare sourceTileId: bigint | number | null
+  @column()
+  declare x: number
+  @column()
+  declare y: number
+  @column()
+  declare z: number
+}
+
+export class OsmSourceTileSchema extends BaseModel {
+  static $columns = [
+    'attempts',
+    'bounds',
+    'createdAt',
+    'data',
+    'featureCount',
+    'fetchedAt',
+    'id',
+    'lastError',
+    'lockedAt',
+    'nextAttemptAt',
+    'osmTimestamp',
+    'provider',
+    'rasterizedVersion',
+    'status',
+    'updatedAt',
+    'x',
+    'y',
+    'z',
+  ] as const
+  $columns = OsmSourceTileSchema.$columns
+  @column()
+  declare attempts: number
+  @column()
+  declare bounds: any
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column()
+  declare data: Buffer | null
+  @column()
+  declare featureCount: number | null
+  @column.dateTime()
+  declare fetchedAt: DateTime | null
+  @column({ isPrimary: true })
+  declare id: bigint | number
+  @column()
+  declare lastError: string | null
+  @column.dateTime()
+  declare lockedAt: DateTime | null
+  @column.dateTime()
+  declare nextAttemptAt: DateTime
+  @column.dateTime()
+  declare osmTimestamp: DateTime | null
+  @column()
+  declare provider: string | null
+  @column()
+  declare rasterizedVersion: number
+  @column()
+  declare status: string
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime
+  @column()
+  declare x: number
+  @column()
+  declare y: number
+  @column()
+  declare z: number
 }
 
 export class SpatialRefSySchema extends BaseModel {

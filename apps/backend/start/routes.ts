@@ -12,6 +12,8 @@ import router from '@adonisjs/core/services/router'
 import { controllers } from '#generated/controllers'
 import db from '@adonisjs/lucid/services/db'
 
+const MapController = () => import('#controllers/map_controller')
+
 router.get('/', () => {
   return { name: 'UrbanCraft API', version: 'v1' }
 })
@@ -46,5 +48,13 @@ router
       .prefix('account')
       .as('profile')
       .use(middleware.auth())
+
+    router
+      .group(() => {
+        router.get('config', [MapController, 'config'])
+        router.get('chunks/:z/:x/:y', [MapController, 'chunk'])
+      })
+      .prefix('map')
+      .as('map')
   })
   .prefix('/api/v1')

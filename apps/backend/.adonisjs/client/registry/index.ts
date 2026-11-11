@@ -32,6 +32,18 @@ const routes = {
     tokens: [[0,"api"],[0,"v1"],[0,"account"],[0,"logout"]],
     types: placeholder as Registry['profile.access_tokens.destroy']['types'],
   },
+  'map.map.config': {
+    methods: ["GET","HEAD"],
+    pattern: '/api/v1/map/config',
+    tokens: [[0,"api"],[0,"v1"],[0,"map"],[0,"config"]],
+    types: placeholder as Registry['map.map.config']['types'],
+  },
+  'map.map.chunk': {
+    methods: ["GET","HEAD"],
+    pattern: '/api/v1/map/chunks/:z/:x/:y',
+    tokens: [[0,"api"],[0,"v1"],[0,"map"],[0,"chunks"],[1,"z"],[1,"x"],[1,"y"]],
+    types: placeholder as Registry['map.map.chunk']['types'],
+  },
 } as const satisfies Record<string, AdonisEndpoint>
 
 export { routes }

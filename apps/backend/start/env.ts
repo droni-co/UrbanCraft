@@ -32,4 +32,8 @@ export default await Env.create(new URL('../', import.meta.url), {
   DB_PASSWORD: Env.schema.string.optional(),
   DB_DATABASE: Env.schema.string(),
   DB_DEBUG: Env.schema.boolean.optional(),
+
+  // Map generation (OpenStreetMap)
+  OVERPASS_URL: Env.schema.string.optional({ format: 'url', tld: false }),
+  MAP_WORKER_ENABLED: Env.schema.boolean.optional(),
 })
