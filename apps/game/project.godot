@@ -20,6 +20,7 @@ config/icon="res://icon.svg"
 [autoload]
 
 GameSettings="*res://scripts/autoload/game_settings.gd"
+LocationService="*res://scripts/autoload/location_service.gd"
 Api="*res://scripts/autoload/api_client.gd"
 
 [display]
@@ -118,3 +119,5 @@ textures/vram_compression/import_etc2_astc=true
 
 network/api_base_url="http://localhost:3333"
 debug/force_touch_controls=false
+map/default_latitude=40.42
+map/default_longitude=-3.6887

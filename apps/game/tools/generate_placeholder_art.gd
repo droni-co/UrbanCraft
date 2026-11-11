@@ -16,6 +16,9 @@ const GROUND_COLORS := {
 	WorldTiles.Ground.SAND: Color("e2cc8b"),
 	WorldTiles.Ground.WATER: Color("3b7dd8"),
 	WorldTiles.Ground.STONE: Color("9a9aa2"),
+	WorldTiles.Ground.ASPHALT: Color("4a4d55"),
+	WorldTiles.Ground.PAVEMENT: Color("c9c2b4"),
+	WorldTiles.Ground.BUILDING: Color("a8543f"),
 }
 
 
@@ -85,6 +88,23 @@ func _ground_pixel(kind: int, base: Color, x: int, y: int, n: float) -> Color:
 				return base.darkened(0.25)
 			if n < 0.1:
 				return base.darkened(0.06)
+		WorldTiles.Ground.ASPHALT:
+			if n < 0.06:
+				return base.lightened(0.12)
+			if n > 0.96:
+				return base.darkened(0.15)
+		WorldTiles.Ground.PAVEMENT:
+			# baldosas cuadradas (rombos 2:1)
+			if posmod(x / 2 + y, 16) == 0 or posmod(x / 2 - y, 16) == 0:
+				return base.darkened(0.15)
+			if n < 0.05:
+				return base.darkened(0.06)
+		WorldTiles.Ground.BUILDING:
+			# techo de tejas: franjas en diagonal y borde oscuro
+			if posmod(x / 2 - y, 4) == 0:
+				return base.darkened(0.2)
+			if n < 0.05:
+				return base.lightened(0.1)
 	return base
 
 

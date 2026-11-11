@@ -1,7 +1,8 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://scenes/ui/hud.gd" id="1_hud"]
 [ext_resource type="Script" path="res://scenes/ui/touch_action_button.gd" id="3_button"]
+[ext_resource type="Script" path="res://scenes/ui/minimap.gd" id="4_minimap"]
 
 [node name="HUD" type="CanvasLayer"]
 process_mode = 3
@@ -31,6 +32,15 @@ theme_override_constants/outline_size = 4
 theme_override_font_sizes/font_size = 10
 text = "Celda (0, 0)"
 
+[node name="AttributionLabel" type="Label" parent="TopBar/Row"]
+unique_name_in_owner = true
+layout_mode = 2
+theme_override_colors/font_color = Color(1, 1, 1, 0.8)
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 3
+theme_override_font_sizes/font_size = 8
+text = "© OpenStreetMap contributors"
+
 [node name="StatusLabel" type="Label" parent="TopBar/Row"]
 unique_name_in_owner = true
 layout_mode = 2
@@ -38,6 +48,16 @@ theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
 theme_override_constants/outline_size = 4
 theme_override_font_sizes/font_size = 10
 text = "● Sin conexión"
+
+[node name="Minimap" type="Control" parent="."]
+unique_name_in_owner = true
+layout_mode = 3
+offset_left = 8.0
+offset_top = 24.0
+offset_right = 136.0
+offset_bottom = 104.0
+mouse_filter = 2
+script = ExtResource("4_minimap")
 
 [node name="MessageLabel" type="Label" parent="."]
 unique_name_in_owner = true
@@ -56,6 +76,28 @@ mouse_filter = 2
 theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
 theme_override_constants/outline_size = 5
 theme_override_font_sizes/font_size = 12
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 3
+
+[node name="LoadingLabel" type="Label" parent="."]
+unique_name_in_owner = true
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -240.0
+offset_top = -40.0
+offset_right = 240.0
+offset_bottom = 40.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+theme_override_colors/font_outline_color = Color(0, 0, 0, 1)
+theme_override_constants/outline_size = 6
+theme_override_font_sizes/font_size = 14
+text = "Cargando..."
 horizontal_alignment = 1
 vertical_alignment = 1
 autowrap_mode = 3
