@@ -1,0 +1,21 @@
+# Node
+node_modules/
+.pnpm-store/
+
+# Env
+.env
+.env.*.local
+
+# OS / editores
+.DS_Store
+Thumbs.db
+.idea/
+*.swp
+
+# Godot (también hay .gitignore en apps/game)
+.godot/
+*.import.tmp
+export/
+*.apk
+*.aab
+*.ipa

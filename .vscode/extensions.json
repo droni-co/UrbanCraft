@@ -1,0 +1,8 @@
+{
+  "recommendations": [
+    "geequlim.godot-tools",
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "jripouteau.adonis-vscode-extension"
+  ]
+}

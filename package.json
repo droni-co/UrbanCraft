@@ -1,0 +1,21 @@
+{
+  "name": "urbancraft",
+  "private": true,
+  "packageManager": "pnpm@12.18.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @urbancraft/backend dev",
+    "dev:backend": "pnpm --filter @urbancraft/backend dev",
+    "game": "godot --path apps/game",
+    "game:editor": "godot --path apps/game --editor",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "db:migrate": "pnpm --filter @urbancraft/backend exec node ace migration:run"
+  }
+}

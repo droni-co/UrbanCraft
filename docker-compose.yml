@@ -1,0 +1,33 @@
+name: urbancraft
+
+services:
+  postgres:
+    # PostGIS: consultas geoespaciales (spawns, puntos de interés, jugadores cercanos)
+    image: postgis/postgis:17-3.5
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: urbancraft
+      POSTGRES_PASSWORD: urbancraft
+      POSTGRES_DB: urbancraft
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U urbancraft']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    # Estado en tiempo real, presencia de jugadores, pub/sub, colas
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    volumes:
+      - redisdata:/data
+
+volumes:
+  pgdata:
+  redisdata:

@@ -1,0 +1,11 @@
+{
+  "godotTools.editorPath.godot4": "godot",
+  "files.exclude": {
+    "**/.godot": true,
+    "**/*.uid": false
+  },
+  "[gdscript]": {
+    "editor.insertSpaces": false,
+    "editor.tabSize": 4
+  }
+}
