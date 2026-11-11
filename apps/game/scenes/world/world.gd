@@ -50,6 +50,8 @@ var _limit_message_cooldown := 0.0
 var _pois := {}  # celda local -> PoiMarker
 var _poi_markers := {}  # chunk -> Array[PoiMarker]
 var _location_cell := Vector2i(-99999, -99999)
+## Ciudad y país de la zona ("Madrid, España"), del backend (Nominatim/OSM).
+var _place_label := ""
 
 
 func _ready() -> void:
@@ -77,7 +79,12 @@ func _ready() -> void:
 	if not res.ok or typeof(res.data) != TYPE_DICTIONARY:
 		_start_demo("Sin conexión: mapa de demostración")
 		return
+
+	if not LocationService.is_located:
+		hud.set_loading("Buscando tu ubicación...")
+		await LocationService.locate()
 	_start_real(res.data)
+	_fetch_place()
 
 
 # --- Modos --------------------------------------------------------------------
@@ -167,12 +174,19 @@ func _process(_delta: float) -> void:
 			_location_cell = player_cell
 			hud.set_location(map_labels.location_name(grid_position))
 	# TODO(multijugador): enviar posición/celda global al servidor.
+	var parts: Array[String] = []
 	if mode == Mode.REAL:
-		var global_cell := chunks.local_to_global(player_cell)
-		var chunk := chunks.chunk_of_global(global_cell)
-		hud.set_info("Chunk %d,%d · %d FPS" % [chunk.x, chunk.y, Engine.get_frames_per_second()])
+		parts.append(_place_label if not _place_label.is_empty() else "Ubicando…")
+		if GameSettings.debug_info_visible:
+			var chunk := chunks.chunk_of_global(chunks.local_to_global(player_cell))
+			parts.append("chunk %d,%d" % [chunk.x, chunk.y])
 	else:
-		hud.set_info("Celda %s · %d FPS" % [player_cell, Engine.get_frames_per_second()])
+		parts.append("Mapa de demostración")
+		if GameSettings.debug_info_visible:
+			parts.append("celda %d,%d" % [player_cell.x, player_cell.y])
+	if GameSettings.debug_info_visible:
+		parts.append("%d FPS" % Engine.get_frames_per_second())
+	hud.set_info(" · ".join(parts))
 
 
 func _show_limit_message() -> void:
@@ -192,8 +206,7 @@ func _on_chunk_loaded(chunk: Vector2i, data: Dictionary) -> void:
 	if not player.is_physics_processing() and chunk == chunks.chunk_of_global(anchor_cell):
 		_spawn_player_at(chunks.global_to_local(anchor_cell))
 		hud.set_loading("")
-		hud.show_message("Tu zona: %.5f, %.5f · %d m para explorar" % [
-			LocationService.latitude, LocationService.longitude, int(map_config.playRadiusMeters)], 4.0)
+		hud.show_message(_welcome_message(), 5.0)
 
 
 func _on_chunk_unloaded(chunk: Vector2i) -> void:
@@ -227,6 +240,35 @@ func _add_pois(chunk: Vector2i, pois: Array) -> void:
 		markers.append(marker)
 		_pois[local_cell] = marker
 	_poi_markers[chunk] = markers
+
+
+## Ciudad y país de la zona de juego. Mientras tanto usa lo que dio la fuente
+## de ubicación (la IP ya trae ciudad); reintenta si el servicio no responde.
+func _fetch_place() -> void:
+	_place_label = LocationService.hint_label
+	for attempt in 3:
+		var path := "/api/v1/geo/place?lat=%.5f&lon=%.5f" % [LocationService.latitude, LocationService.longitude]
+		var res := await Api.request_json(HTTPClient.METHOD_GET, path)
+		if res.ok and typeof(res.data) == TYPE_DICTIONARY:
+			_place_label = str(res.data.get("label", _place_label))
+			return
+		if res.status == 404 or res.status == 422:
+			return  # zona sin ciudad conocida (mar abierto, etc.)
+		await get_tree().create_timer(15.0 * (attempt + 1)).timeout
+
+
+func _welcome_message() -> String:
+	var radius := int(map_config.playRadiusMeters)
+	var where := _place_label if not _place_label.is_empty() else "%.4f, %.4f" % [LocationService.latitude, LocationService.longitude]
+	match LocationService.source:
+		"ip":
+			return "Tu zona: %s (aproximada por IP) · %d m para explorar" % [where, radius]
+		"last":
+			return "Tu zona: %s (última ubicación conocida) · %d m para explorar" % [where, radius]
+		"default":
+			return "No se pudo obtener tu ubicación: usando %s" % where
+		_:
+			return "Tu zona: %s · %d m para explorar" % [where, radius]
 
 
 func _check_catalog(config: Dictionary) -> void:

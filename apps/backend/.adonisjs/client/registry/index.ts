@@ -44,6 +44,18 @@ const routes = {
     tokens: [[0,"api"],[0,"v1"],[0,"map"],[0,"chunks"],[1,"z"],[1,"x"],[1,"y"]],
     types: placeholder as Registry['map.map.chunk']['types'],
   },
+  'geo.geo.place': {
+    methods: ["GET","HEAD"],
+    pattern: '/api/v1/geo/place',
+    tokens: [[0,"api"],[0,"v1"],[0,"geo"],[0,"place"]],
+    types: placeholder as Registry['geo.geo.place']['types'],
+  },
+  'geo.geo.ip': {
+    methods: ["GET","HEAD"],
+    pattern: '/api/v1/geo/ip',
+    tokens: [[0,"api"],[0,"v1"],[0,"geo"],[0,"ip"]],
+    types: placeholder as Registry['geo.geo.ip']['types'],
+  },
 } as const satisfies Record<string, AdonisEndpoint>
 
 export { routes }

@@ -48,6 +48,8 @@ El cliente lee la URL del backend del ajuste `urbancraft/network/api_base_url` e
 | POST   | `/api/v1/account/logout`  | Revoca el token             |
 | GET    | `/api/v1/map/config`      | Grilla, versión y catálogo de tiles del mapa |
 | GET    | `/api/v1/map/chunks/:z/:x/:y` | Chunk del mapa real (200 listo · 202 generando) |
+| GET    | `/api/v1/geo/place?lat=&lon=` | Ciudad y país de la zona (Nominatim, cacheado por zona) |
+| GET    | `/api/v1/geo/ip`          | Ubicación aproximada por IP (respaldo sin GPS) |
 
 Mapa del mundo real (OpenStreetMap, chunks, caché y escalado): ver [docs/mapa-mundo-real.md](docs/mapa-mundo-real.md).
 
@@ -70,6 +72,23 @@ Juego **2D isométrico** (tiles 64×32, estilo pixel art) pensado para jugarse i
 Para probar los controles táctiles en PC (el ratón simula toques): `pnpm game:touch`.
 
 El mapa es el **mundo real** (OpenStreetMap) alrededor de tu ubicación, cargado por chunks desde el backend. Por defecto se usa el Retiro de Madrid; para otro lugar: `godot --path apps/game -- --lat=4.6097 --lon=-74.0817`. Sin servidor (o con `-- --demo`) se usa un mapa procedural.
+
+### Ubicación del jugador
+
+Al arrancar, `LocationService` busca tu posición en este orden:
+
+1. Argumentos `--lat/--lon` (para probar una ubicación concreta).
+2. GPS del navegador (export web; el navegador pide permiso).
+3. GPS nativo de Android/iOS (pendiente: requiere un plugin).
+4. IP pública, consultada por el backend. **Es aproximada (nivel ciudad, puede fallar por varios km)**: es lo que se usa en PC, que no tiene GPS.
+5. Última ubicación conocida (`user://location.cfg`).
+6. Ubicación por defecto de los ajustes del proyecto (Madrid).
+
+La barra superior muestra la ciudad y el país de la zona (por ejemplo "Madrid, España"), y el mensaje de bienvenida dice de dónde salió la ubicación. La información de depuración (chunk y FPS) solo aparece si `GameSettings.debug_info_visible` está activo (por defecto, en builds de depuración).
+
+```bash
+godot --path apps/game -- --lat=4.6097 --lon=-74.0817   # forzar una ubicación
+```
 
 ### Minimapa y brújula
 

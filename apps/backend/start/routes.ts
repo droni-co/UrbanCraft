@@ -13,6 +13,7 @@ import { controllers } from '#generated/controllers'
 import db from '@adonisjs/lucid/services/db'
 
 const MapController = () => import('#controllers/map_controller')
+const GeoController = () => import('#controllers/geo_controller')
 
 router.get('/', () => {
   return { name: 'UrbanCraft API', version: 'v1' }
@@ -56,5 +57,13 @@ router
       })
       .prefix('map')
       .as('map')
+
+    router
+      .group(() => {
+        router.get('place', [GeoController, 'place'])
+        router.get('ip', [GeoController, 'ip'])
+      })
+      .prefix('geo')
+      .as('geo')
   })
   .prefix('/api/v1')

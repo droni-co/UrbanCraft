@@ -10,16 +10,22 @@ export type ScannedRoutes = {
     'profile.access_tokens.destroy': { paramsTuple?: []; params?: {} }
     'map.map.config': { paramsTuple?: []; params?: {} }
     'map.map.chunk': { paramsTuple: [ParamValue,ParamValue,ParamValue]; params: {'z': ParamValue,'x': ParamValue,'y': ParamValue} }
+    'geo.geo.place': { paramsTuple?: []; params?: {} }
+    'geo.geo.ip': { paramsTuple?: []; params?: {} }
   }
   GET: {
     'profile.profile.show': { paramsTuple?: []; params?: {} }
     'map.map.config': { paramsTuple?: []; params?: {} }
     'map.map.chunk': { paramsTuple: [ParamValue,ParamValue,ParamValue]; params: {'z': ParamValue,'x': ParamValue,'y': ParamValue} }
+    'geo.geo.place': { paramsTuple?: []; params?: {} }
+    'geo.geo.ip': { paramsTuple?: []; params?: {} }
   }
   HEAD: {
     'profile.profile.show': { paramsTuple?: []; params?: {} }
     'map.map.config': { paramsTuple?: []; params?: {} }
     'map.map.chunk': { paramsTuple: [ParamValue,ParamValue,ParamValue]; params: {'z': ParamValue,'x': ParamValue,'y': ParamValue} }
+    'geo.geo.place': { paramsTuple?: []; params?: {} }
+    'geo.geo.ip': { paramsTuple?: []; params?: {} }
   }
   POST: {
     'auth.new_account.store': { paramsTuple?: []; params?: {} }

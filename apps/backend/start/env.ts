@@ -36,4 +36,8 @@ export default await Env.create(new URL('../', import.meta.url), {
   // Map generation (OpenStreetMap)
   OVERPASS_URL: Env.schema.string.optional({ format: 'url', tld: false }),
   MAP_WORKER_ENABLED: Env.schema.boolean.optional(),
+
+  // Geolocalización por IP y geocodificación inversa (ciudad/país)
+  NOMINATIM_URL: Env.schema.string.optional({ format: 'url', tld: false }),
+  GEO_IP_ENABLED: Env.schema.boolean.optional(),
 })

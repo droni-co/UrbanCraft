@@ -38,7 +38,8 @@
     "#tests/*": "./tests/*.js",
     "#start/*": "./start/*.js",
     "#config/*": "./config/*.js",
-    "#map/*": "./app/map/*.js"
+    "#map/*": "./app/map/*.js",
+    "#geo/*": "./app/geo/*.js"
   },
   "devDependencies": {
     "@adonisjs/assembler": "^8.5.2",

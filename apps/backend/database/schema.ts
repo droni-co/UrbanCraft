@@ -43,6 +43,27 @@ export class AuthAccessTokenSchema extends BaseModel {
   declare updatedAt: DateTime | null
 }
 
+export class GeoPlaceSchema extends BaseModel {
+  static $columns = ['data', 'fetchedAt', 'id', 'language', 'provider', 'x', 'y', 'z'] as const
+  $columns = GeoPlaceSchema.$columns
+  @column()
+  declare data: any | null
+  @column.dateTime()
+  declare fetchedAt: DateTime
+  @column({ isPrimary: true })
+  declare id: bigint | number
+  @column()
+  declare language: string
+  @column()
+  declare provider: string
+  @column()
+  declare x: number
+  @column()
+  declare y: number
+  @column()
+  declare z: number
+}
+
 export class MapChunkSchema extends BaseModel {
   static $columns = [
     'bounds',

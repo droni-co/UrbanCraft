@@ -24,4 +24,10 @@ export interface ApiDefinition {
       chunk: typeof routes['map.map.chunk']
     }
   }
+  geo: {
+    geo: {
+      place: typeof routes['geo.geo.place']
+      ip: typeof routes['geo.geo.ip']
+    }
+  }
 }

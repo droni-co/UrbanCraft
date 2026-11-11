@@ -86,6 +86,32 @@ export interface Registry {
       rawResponse: ExtractRawResponse<Awaited<ReturnType<import('#controllers/map_controller').default['chunk']>>>
     }
   }
+  'geo.geo.place': {
+    methods: ["GET","HEAD"]
+    pattern: '/api/v1/geo/place'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/geo_controller').default['place']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/geo_controller').default['place']>>>
+      rawResponse: ExtractRawResponse<Awaited<ReturnType<import('#controllers/geo_controller').default['place']>>>
+    }
+  }
+  'geo.geo.ip': {
+    methods: ["GET","HEAD"]
+    pattern: '/api/v1/geo/ip'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/geo_controller').default['ip']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/geo_controller').default['ip']>>>
+      rawResponse: ExtractRawResponse<Awaited<ReturnType<import('#controllers/geo_controller').default['ip']>>>
+    }
+  }
 }
 
 export namespace Route {

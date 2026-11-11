@@ -65,6 +65,10 @@ var compass_visible := true:
 		minimap_settings_changed.emit()
 
 
+## Información de depuración (chunk, FPS) en la barra superior.
+var debug_info_visible := OS.is_debug_build()
+
+
 # --- Etiquetas del mapa (nombres de calles, lugares y portales) -------------------
 
 ## Nombres de calles pintados sobre el asfalto.

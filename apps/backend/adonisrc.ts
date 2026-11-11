@@ -54,6 +54,7 @@ export default defineConfig({
     () => import('@adonisjs/auth/auth_provider'),
     () => import('#providers/api_provider'),
     () => import('#providers/map_provider'),
+    () => import('#providers/geo_provider'),
   ],
 
   /*

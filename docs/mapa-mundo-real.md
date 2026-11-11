@@ -87,7 +87,21 @@ Medido con datos reales del Retiro de Madrid:
   - Une los trozos de cada calle entre chunks en tramos rectos y reparte el nombre en puntos fijos de cada tramo, pintado en el suelo con una fuente MSDF y transformación isométrica.
   - Los lugares y números van en una capa superior a tamaño fijo en pantalla, con detección de choques.
   - `location_name()` alimenta el texto de "dónde estás" del HUD.
-- `scripts/autoload/location_service.gd`: la ubicación real (el "ancla"). El jugador se mueve libremente dentro de `playRadiusMeters` (500 m).
+- `scripts/autoload/location_service.gd`: la ubicación real (el "ancla"). El jugador se mueve libremente dentro de `playRadiusMeters` (500 m). Fuentes: argumentos → GPS del navegador → GPS nativo (pendiente) → IP vía backend → última conocida → por defecto.
+
+### Ciudad, país y ubicación por IP (`apps/backend/app/geo`)
+
+- `GET /api/v1/geo/place?lat=&lon=`: ciudad y país con **Nominatim** (datos OSM).
+  - Se resuelve por tile z14 (~2.4 km) consultando el **centro del tile**, nunca la posición exacta del jugador. Así es más privado y lo comparten todos los jugadores de la zona.
+  - Caché en memoria → tabla `geo_places` → proveedor. Las llamadas al proveedor van de a una, como máximo 1 por segundo (política del servidor público), y se deduplican mientras están en vuelo.
+- `GET /api/v1/geo/ip`: ubicación aproximada por la IP del cliente, con ipapi.co y ipwho.is como respaldo.
+  - Si la IP es local (desarrollo), el proveedor usa la IP pública del servidor, que en tu PC es la tuya.
+  - Hay caché por IP y límite de consultas.
+- Los proveedores (`ReverseGeocoder`, `IpLocator`) son intercambiables, como `OsmProvider`.
+- Configuración en `config/geo.ts` y `NOMINATIM_URL` / `GEO_IP_ENABLED`.
+- **Para producción**:
+  - El límite de 1/s es por instancia y el Nominatim público no admite uso intensivo: conviene una instancia propia de Nominatim o un servicio comercial.
+  - Para la IP, una base local GeoLite2 (MaxMind) evita depender de terceros y no envía las IPs de los jugadores a otros servicios.
 
 ## Uso
 
@@ -149,5 +163,6 @@ Las zonas que no se vuelvan a pedir siguen funcionando, solo que sin ese dato (p
 
 - **Mar abierto**: el mar no está en OSM como polígono (solo `natural=coastline`), así que las zonas costeras se ven como pasto. Solución: importar los *water polygons* de osmdata.openstreetmap.de.
 - **Edificios planos**: se dibujan como techos, sin altura ni interiores.
-- **GPS en móvil**: hace falta un plugin de geolocalización para Android/iOS. `LocationService.set_location()` ya está listo para recibirlo.
+- **GPS en móvil**: Godot no trae una API de geolocalización. En Android/iOS hace falta un plugin (permiso `ACCESS_FINE_LOCATION` en Android), y `LocationService.set_location()` ya está listo para recibirlo. Mientras tanto, el móvil usa la IP, que es aproximada.
+- **El ancla no se actualiza en vivo**: la zona se fija al entrar al mundo. Seguir al GPS mientras se juega (recentrar la zona al caminar en la vida real) es el siguiente paso.
 - **Escala**: cambia un poco con la latitud por Web Mercator (las celdas miden menos metros lejos del ecuador). El radio de juego se calcula en metros, así que es justo en todas partes.
