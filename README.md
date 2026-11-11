@@ -50,6 +50,45 @@ Comandos útiles: `pnpm --filter @urbancraft/backend exec node ace make:model Cr
 
 ## Juego (apps/game)
 
-- `scenes/main/` — escena inicial (verifica conexión con el backend).
-- `scripts/autoload/api_client.gd` — autoload `Api` con `health()`, `signup()`, `login()`, `logout()` y `request_json()`.
-- Renderer `Mobile` (funciona en escritorio y es el adecuado para Android/iOS).
+Juego **2D isométrico** (tiles 64×32, estilo pixel art) pensado para jugarse igual de cómodo en PC y móvil.
+
+### Controles
+
+| Acción      | PC                         | Gamepad        | Móvil                       |
+| ----------- | -------------------------- | -------------- | --------------------------- |
+| Moverse     | WASD / flechas · clic      | Stick / D-pad  | Joystick dinámico · tocar   |
+| Correr      | Shift                      | B              | Botón B (alterna)           |
+| Interactuar | E / Espacio                | A              | Botón A                     |
+| Zoom        | Rueda · `+` / `-`          | LB / RB        | Pellizco                    |
+| Pausa       | Esc / P                    | Start          | Botón II                    |
+
+Para probar los controles táctiles en PC (el ratón simula toques): `pnpm game:touch`.
+
+### Estructura
+
+```
+apps/game/
+├── scenes/
+│   ├── main/        # Pantalla inicial (estado del servidor + Jugar)
+│   ├── world/       # Mundo: TileMapLayers, cámara, cursor de celda
+│   ├── player/      # Jugador (placeholder dibujado por código)
+│   └── ui/          # HUD, botones táctiles, pausa
+├── scripts/
+│   ├── autoload/    # Api (backend), GameSettings (plataforma / táctil)
+│   └── world/       # WorldTiles (catálogo), WorldGenerator, IsoPathfinder
+├── resources/tilesets/world_tileset.tres   # generado
+├── assets/tiles/    # ground.png, props.png (placeholders generados)
+└── tools/           # scripts de generación (input map, arte, tileset)
+```
+
+### Cómo está armado
+
+- **Mapa**: `Ground` (suelo) + `Entities/Props` (árboles, rocas) como `TileMapLayer` isométricos *diamond-down*. `Entities` tiene Y-sort, así el jugador queda delante/detrás de los props correctamente.
+- **Tiles**: el TileSet tiene un custom data `walkable` y una capa física `world`. El agua y los props bloquean el paso y `IsoPathfinder` (A*) usa esos datos para el movimiento por toque/clic.
+- **Mapa procedural**: si `Ground` está vacío, `WorldGenerator` genera un mapa de prueba (semilla configurable en el nodo `World`). Si pintas el mapa en el editor, se usa el tuyo.
+- **Input unificado**: el joystick virtual nativo (`VirtualJoystick`) y los botones táctiles presionan las mismas acciones del InputMap que el teclado y el gamepad. El jugador solo lee `Input.get_vector(...)`.
+- **Pantallas**: resolución base de 640×360 que escala a cualquier pantalla (`canvas_items` + `expand`), filtro *nearest* y renderer *Compatibility* para máxima compatibilidad móvil y web.
+
+### Assets placeholder
+
+`pnpm game:assets` regenera `assets/tiles/*.png` y el TileSet. Para usar arte real, reemplaza los PNG respetando el orden de `WorldTiles.Ground` / `WorldTiles.Prop` (suelo 64×32, props 64×64 con la base del objeto en y=48) y vuelve a ejecutar solo el último paso (`generate_tileset.gd`). `pnpm game:input` reescribe el InputMap desde `tools/setup_input_map.gd`.
