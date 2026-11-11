@@ -14,6 +14,11 @@ extends Node
 ##
 ## Modo híbrido: esta ubicación es el "ancla". El jugador se mueve libremente
 ## dentro de un radio (playRadiusMeters del servidor) alrededor de ella.
+##
+## Teletransporte (menú del jugador): `teleport()` mueve el ancla a otras
+## coordenadas y guarda la ubicación real para `return_home()`. No se guarda
+## entre sesiones: al reiniciar el juego vuelves a tu ubicación real.
+## TODO(multijugador): el servidor debe autorizar los teletransportes.
 
 signal location_changed(latitude: float, longitude: float)
 ## Se emite cuando `locate()` termina (con la fuente que se usó).
@@ -31,6 +36,7 @@ const SOURCE_NAMES := {
 	"ip": "aproximada por IP",
 	"last": "última ubicación conocida",
 	"default": "ubicación por defecto",
+	"teleport": "teletransporte",
 }
 
 var latitude := 0.0
@@ -42,6 +48,9 @@ var accuracy_m := -1.0
 ## Ciudad/país informados por la fuente (solo IP), para mostrar mientras tanto.
 var hint_label := ""
 var is_located := false
+
+## Ubicación real guardada mientras el jugador está teletransportado.
+var _home := {}
 
 var _locating := false
 var _js_callbacks: Array = []  # mantiene vivas las callbacks de JavaScript
@@ -101,6 +110,31 @@ func set_location(lat: float, lon: float, from_source := "gps", accuracy := -1.0
 	if from_source in ["browser", "gps"]:
 		_save_last_known()
 	location_changed.emit(latitude, longitude)
+
+
+## Mueve el ancla de la zona de juego a otras coordenadas. El mundo debe
+## recargarse después (World lo hace) para generar la zona nueva.
+func teleport(lat: float, lon: float) -> void:
+	if not is_teleported():
+		_home = {"latitude": latitude, "longitude": longitude, "source": source,
+			"accuracy_m": accuracy_m, "hint_label": hint_label}
+	_apply(lat, lon, "teleport", 0.0)
+	hint_label = ""
+	location_changed.emit(latitude, longitude)
+
+
+## Vuelve a la ubicación real que había antes del primer teletransporte.
+func return_home() -> void:
+	if not is_teleported():
+		return
+	_apply(_home.latitude, _home.longitude, _home.source, _home.accuracy_m)
+	hint_label = _home.hint_label
+	_home = {}
+	location_changed.emit(latitude, longitude)
+
+
+func is_teleported() -> bool:
+	return not _home.is_empty()
 
 
 # --- Fuentes -------------------------------------------------------------------

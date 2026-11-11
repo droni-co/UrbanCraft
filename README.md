@@ -67,7 +67,7 @@ Juego **2D isométrico** (tiles 64×32, estilo pixel art) pensado para jugarse i
 | Correr      | Shift                      | B              | Botón B (alterna)           |
 | Interactuar | E / Espacio                | A              | Botón A                     |
 | Zoom        | Rueda · `+` / `-`          | LB / RB        | Pellizco                    |
-| Pausa       | Esc / P                    | Start          | Botón II                    |
+| Menú        | Esc / P · botón ☰          | Start          | Botón ☰                     |
 
 Para probar los controles táctiles en PC (el ratón simula toques): `pnpm game:touch`.
 
@@ -89,6 +89,20 @@ La barra superior muestra la ciudad y el país de la zona (por ejemplo "Madrid, 
 ```bash
 godot --path apps/game -- --lat=4.6097 --lon=-74.0817   # forzar una ubicación
 ```
+
+### Menú del jugador
+
+El botón **☰** (arriba a la derecha, junto al minimapa) o **Esc** abre el menú: un modal que pausa el juego. Tiene una lista de secciones a la izquierda (arriba en pantallas angostas) y el contenido a la derecha. Se cierra con la X, con Esc o tocando fuera del panel.
+
+**Teletransporte** (primera sección):
+- Escribe la latitud y la longitud, o pega el par en cualquiera de los dos campos (`4.6097, -74.0817`, como lo copia Google Maps). Acepta decimales con punto o con coma (`4,6097`).
+- **Teletransportarse** mueve el ancla de tu zona a esas coordenadas y recarga el mundo allí: chunks, minimapa, etiquetas y ciudad.
+- **Usar posición actual** rellena los campos con donde estás parado.
+- **Volver a mi ubicación real** aparece solo mientras estás teletransportado.
+- El teletransporte no se guarda: al reiniciar el juego vuelves a tu ubicación real.
+- Si nadie ha visitado la zona, generarla puede tardar hasta un minuto (Overpass).
+
+Para agregar una opción nueva, crea un `Control` con su contenido y regístralo en `Hud._build_menu()` con `menu.add_section("Título", control)`. El estilo de todo el menú está en `scenes/ui/menu/menu_theme.gd`.
 
 ### Minimapa y brújula
 
@@ -134,7 +148,7 @@ apps/game/
 │   ├── main/        # Pantalla inicial (estado del servidor + Jugar)
 │   ├── world/       # Mundo: TileMapLayers, cámara, cursor de celda
 │   ├── player/      # Jugador (placeholder dibujado por código)
-│   └── ui/          # HUD, botones táctiles, pausa
+│   └── ui/          # HUD, botones táctiles, minimapa; menu/ = menú del jugador
 ├── scripts/
 │   ├── autoload/    # Api, GameSettings, LocationService (ubicación real)
 │   ├── map/         # Geo (lat/lon <-> celdas), ChunkManager (streaming)

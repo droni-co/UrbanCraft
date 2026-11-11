@@ -88,6 +88,7 @@ Medido con datos reales del Retiro de Madrid:
   - Los lugares y números van en una capa superior a tamaño fijo en pantalla, con detección de choques.
   - `location_name()` alimenta el texto de "dónde estás" del HUD.
 - `scripts/autoload/location_service.gd`: la ubicación real (el "ancla"). El jugador se mueve libremente dentro de `playRadiusMeters` (5 km).
+  - `teleport(lat, lon)` (menú del jugador) mueve el ancla y guarda la real; `return_home()` la restaura. El mundo se recarga con `reload_current_scene()`, y como `LocationService` es un autoload, la zona nueva arranca sin volver a ubicar al jugador.
 - La zona de juego **no se descarga entera**: con 5 km serían ~5,600 chunks y ~90 source tiles. Se fija como datos solo el área del minimapa alrededor del jugador (`minimap_view_radius_meters`, 400 m por defecto) y se mueve con él.
 - Eso alimenta el minimapa y, de paso, pide por adelantado las zonas cercanas, así el servidor las genera antes de que el jugador llegue.
 - Al entrar en un source tile nuevo puede haber una espera de 30–60 s (Overpass). Para las ciudades de lanzamiento, pregenera con `map:pregenerate --radius=5000`. Fuentes: argumentos → GPS del navegador → GPS nativo (pendiente) → IP vía backend → última conocida → por defecto.
@@ -159,6 +160,7 @@ Las zonas que no se vuelvan a pedir siguen funcionando, solo que sin ese dato (p
    - Un servicio en tiempo real (WebSocket) donde cada jugador se suscribe a los chunks de su radio (*interest management*).
    - Redis pub/sub por chunk o source tile.
    - Servidor autoritativo: valida que la posición esté dentro del radio del ancla.
+   - Teletransporte autorizado por el servidor: hoy es solo del cliente. Con multijugador, el ancla debe cambiarla el servidor (con reglas: coste, tiempo de espera, zonas permitidas) para que nadie aparezca donde quiera.
    - Anti-spoofing de GPS: velocidad máxima entre actualizaciones, saltos imposibles.
    - Los POIs (`pois` de cada chunk, con id OSM estable) sirven como "paradas" o spawns compartidos.
 

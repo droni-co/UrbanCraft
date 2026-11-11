@@ -72,6 +72,10 @@ func _ready() -> void:
 	camera.tapped.connect(_on_tapped)
 	camera.hovered.connect(_on_hovered)
 
+	hud.teleport.teleport_requested.connect(_teleport_to)
+	hud.teleport.home_requested.connect(_return_home)
+	hud.teleport.current_position_provider = _player_lat_lon
+
 	if force_demo or "--demo" in OS.get_cmdline_user_args():
 		_start_demo("Modo demo: mapa procedural")
 		return
@@ -196,7 +200,36 @@ func _show_limit_message() -> void:
 	if _limit_message_cooldown > 0.0:
 		return
 	_limit_message_cooldown = 3.0
-	hud.show_message("Límite de tu zona (%s). Camina en la vida real para explorar más." % _format_distance(float(map_config.playRadiusMeters)))
+	var hint := "Usa el teletransporte del menú para ir más lejos." if LocationService.is_teleported() \
+		else "Camina en la vida real para explorar más."
+	hud.show_message("Límite de tu zona (%s). %s" % [_format_distance(float(map_config.playRadiusMeters)), hint])
+
+
+# --- Teletransporte -------------------------------------------------------------
+
+## Mueve el ancla y recarga el mundo: la zona nueva se carga desde cero
+## (chunks, minimapa, etiquetas, ciudad). LocationService sobrevive (autoload).
+## TODO(multijugador): pedir el teletransporte al servidor y esperar su visto bueno.
+func _teleport_to(lat: float, lon: float) -> void:
+	LocationService.teleport(lat, lon)
+	_reload_world()
+
+
+func _return_home() -> void:
+	LocationService.return_home()
+	_reload_world()
+
+
+func _reload_world() -> void:
+	hud.menu.close()
+	get_tree().reload_current_scene()
+
+
+## Posición actual del jugador como [lat, lon], o null si no hay mapa real.
+func _player_lat_lon() -> Variant:
+	if mode != Mode.REAL or not player.is_physics_processing():
+		return null
+	return Geo.cell_to_lat_lon(chunks.local_to_global(player_cell), int(map_config.cellZoom))
 
 
 # --- Chunks -------------------------------------------------------------------
@@ -270,6 +303,8 @@ func _welcome_message() -> String:
 			return "Tu zona: %s (última ubicación conocida) · %s para explorar" % [where, radius]
 		"default":
 			return "No se pudo obtener tu ubicación: usando %s" % where
+		"teleport":
+			return "Te teletransportaste a %s · %s para explorar" % [where, radius]
 		_:
 			return "Tu zona: %s · %s para explorar" % [where, radius]
 
