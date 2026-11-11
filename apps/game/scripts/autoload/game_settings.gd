@@ -53,8 +53,15 @@ var minimap_zoom := 1.0:
 		minimap_zoom = clampf(value, 0.5, 8.0)
 		minimap_settings_changed.emit()
 
-## false = el minimapa queda centrado en tu zona; true = sigue al jugador.
-var minimap_follow_player := false:
+## Radio (metros) que muestra el minimapa con zoom 1. También define cuánto
+## mapa alrededor del jugador se mantiene cargado como datos.
+var minimap_view_radius_meters := 400.0:
+	set(value):
+		minimap_view_radius_meters = clampf(value, 100.0, 2000.0)
+		minimap_settings_changed.emit()
+
+## true = el minimapa sigue al jugador; false = queda centrado en tu ubicación real.
+var minimap_follow_player := true:
 	set(value):
 		minimap_follow_player = value
 		minimap_settings_changed.emit()

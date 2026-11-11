@@ -87,7 +87,10 @@ Medido con datos reales del Retiro de Madrid:
   - Une los trozos de cada calle entre chunks en tramos rectos y reparte el nombre en puntos fijos de cada tramo, pintado en el suelo con una fuente MSDF y transformación isométrica.
   - Los lugares y números van en una capa superior a tamaño fijo en pantalla, con detección de choques.
   - `location_name()` alimenta el texto de "dónde estás" del HUD.
-- `scripts/autoload/location_service.gd`: la ubicación real (el "ancla"). El jugador se mueve libremente dentro de `playRadiusMeters` (500 m). Fuentes: argumentos → GPS del navegador → GPS nativo (pendiente) → IP vía backend → última conocida → por defecto.
+- `scripts/autoload/location_service.gd`: la ubicación real (el "ancla"). El jugador se mueve libremente dentro de `playRadiusMeters` (5 km).
+- La zona de juego **no se descarga entera**: con 5 km serían ~5,600 chunks y ~90 source tiles. Se fija como datos solo el área del minimapa alrededor del jugador (`minimap_view_radius_meters`, 400 m por defecto) y se mueve con él.
+- Eso alimenta el minimapa y, de paso, pide por adelantado las zonas cercanas, así el servidor las genera antes de que el jugador llegue.
+- Al entrar en un source tile nuevo puede haber una espera de 30–60 s (Overpass). Para las ciudades de lanzamiento, pregenera con `map:pregenerate --radius=5000`. Fuentes: argumentos → GPS del navegador → GPS nativo (pendiente) → IP vía backend → última conocida → por defecto.
 
 ### Ciudad, país y ubicación por IP (`apps/backend/app/geo`)
 

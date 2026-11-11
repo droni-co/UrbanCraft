@@ -42,6 +42,7 @@ var map_config := {}
 ## Celda global de la ubicación real del jugador (centro de su zona de juego).
 var anchor_cell := Vector2i.ZERO
 var play_radius_cells := INF
+var meters_per_cell := 1.0
 
 ## Celda local que el minimapa usa como centro (ancla en modo real).
 var _minimap_center_local := Vector2i.ZERO
@@ -50,6 +51,8 @@ var _limit_message_cooldown := 0.0
 var _pois := {}  # celda local -> PoiMarker
 var _poi_markers := {}  # chunk -> Array[PoiMarker]
 var _location_cell := Vector2i(-99999, -99999)
+## Chunk alrededor del cual está fijada el área del minimapa.
+var _minimap_area_chunk := Vector2i(-99999, -99999)
 ## Ciudad y país de la zona ("Madrid, España"), del backend (Nominatim/OSM).
 var _place_label := ""
 
@@ -97,7 +100,7 @@ func _start_real(config: Dictionary) -> void:
 	var cell_zoom := int(config.cellZoom)
 	var size := int(config.chunkSize)
 	anchor_cell = Geo.lat_lon_to_cell(LocationService.latitude, LocationService.longitude, cell_zoom)
-	var meters_per_cell := Geo.meters_per_cell(LocationService.latitude, cell_zoom)
+	meters_per_cell = Geo.meters_per_cell(LocationService.latitude, cell_zoom)
 	play_radius_cells = float(config.playRadiusMeters) / meters_per_cell
 
 	var origin := Geo.chunk_origin(Geo.cell_to_chunk(anchor_cell, size), size)
@@ -110,11 +113,10 @@ func _start_real(config: Dictionary) -> void:
 		hud.minimap.add_chunk(Geo.chunk_origin(chunk, size), size, data.ground, data.pois))
 	chunks.chunk_data_released.connect(func(chunk: Vector2i) -> void:
 		hud.minimap.remove_chunk(Geo.chunk_origin(chunk, size)))
-	# Toda la zona de juego queda fijada como datos: el minimapa muestra el mapa
-	# general aunque el TileMap solo dibuje los chunks cercanos.
-	chunks.set_pinned_chunks(chunks.chunks_in_circle(anchor_cell, play_radius_cells))
 	_minimap_center_local = chunks.global_to_local(anchor_cell)
-	hud.minimap.set_view(anchor_cell, play_radius_cells)
+	_update_minimap_area(anchor_cell, true)
+	GameSettings.minimap_settings_changed.connect(func() -> void:
+		_update_minimap_area(chunks.local_to_global(player_cell), true))
 
 	hud.set_attribution(str(config.attribution))
 	hud.set_loading("Cargando mapa...")
@@ -152,6 +154,7 @@ func _physics_process(delta: float) -> void:
 
 	if mode == Mode.REAL:
 		var global_cell := chunks.local_to_global(cell)
+		_update_minimap_area(global_cell)
 		chunks.update_center(global_cell)
 		if Vector2(global_cell - anchor_cell).length() > play_radius_cells:
 			valid = false
@@ -193,7 +196,7 @@ func _show_limit_message() -> void:
 	if _limit_message_cooldown > 0.0:
 		return
 	_limit_message_cooldown = 3.0
-	hud.show_message("Límite de tu zona (%d m). Camina en la vida real para explorar más." % int(map_config.playRadiusMeters))
+	hud.show_message("Límite de tu zona (%s). Camina en la vida real para explorar más." % _format_distance(float(map_config.playRadiusMeters)))
 
 
 # --- Chunks -------------------------------------------------------------------
@@ -258,17 +261,50 @@ func _fetch_place() -> void:
 
 
 func _welcome_message() -> String:
-	var radius := int(map_config.playRadiusMeters)
+	var radius := _format_distance(float(map_config.playRadiusMeters))
 	var where := _place_label if not _place_label.is_empty() else "%.4f, %.4f" % [LocationService.latitude, LocationService.longitude]
 	match LocationService.source:
 		"ip":
-			return "Tu zona: %s (aproximada por IP) · %d m para explorar" % [where, radius]
+			return "Tu zona: %s (aproximada por IP) · %s para explorar" % [where, radius]
 		"last":
-			return "Tu zona: %s (última ubicación conocida) · %d m para explorar" % [where, radius]
+			return "Tu zona: %s (última ubicación conocida) · %s para explorar" % [where, radius]
 		"default":
 			return "No se pudo obtener tu ubicación: usando %s" % where
 		_:
-			return "Tu zona: %s · %d m para explorar" % [where, radius]
+			return "Tu zona: %s · %s para explorar" % [where, radius]
+
+
+## Área del mapa que se mantiene cargada como datos (para el minimapa y para
+## que el servidor vaya generando las zonas a las que se acerca el jugador).
+## No es toda la zona de juego: con radios de km serían miles de chunks.
+func _update_minimap_area(player_global: Vector2i, force := false) -> void:
+	var follow := GameSettings.minimap_follow_player
+	var center := player_global if follow else anchor_cell
+	var center_chunk := chunks.chunk_of_global(center)
+	if center_chunk == _minimap_area_chunk and not force:
+		return
+	_minimap_area_chunk = center_chunk
+
+	var view_cells := GameSettings.minimap_view_radius_meters / meters_per_cell
+	# Con zoom < 1 el minimapa muestra más: se carga un poco más (con tope).
+	var area_cells := minf(view_cells / minf(GameSettings.minimap_zoom, 1.0) * 1.25, 2000.0 / meters_per_cell)
+	var area: Array[Vector2i] = []
+	for chunk in chunks.chunks_in_circle(center, area_cells):
+		# Nunca fuera de la zona de juego.
+		var origin := Vector2(Geo.chunk_origin(chunk, chunks.chunk_size))
+		var nearest := Vector2(anchor_cell).clamp(origin, origin + Vector2.ONE * chunks.chunk_size)
+		if nearest.distance_to(Vector2(anchor_cell)) <= play_radius_cells:
+			area.append(chunk)
+	chunks.set_pinned_chunks(area)
+	hud.minimap.set_view(anchor_cell, play_radius_cells, view_cells)
+
+
+## "800 m", "5 km", "2.5 km".
+func _format_distance(meters: float) -> String:
+	if meters < 1000.0:
+		return "%d m" % int(meters)
+	var km := meters / 1000.0
+	return ("%d km" % int(km)) if is_equal_approx(km, roundf(km)) else ("%.1f km" % km)
 
 
 func _check_catalog(config: Dictionary) -> void:

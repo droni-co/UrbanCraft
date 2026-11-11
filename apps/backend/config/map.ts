@@ -26,8 +26,12 @@ const mapConfig = {
   /** Margen extra al pedir datos de un source tile (para calles que rozan el borde). */
   sourceMarginMeters: 40,
 
-  /** Radio de juego libre alrededor de la ubicación real del jugador (modo híbrido). */
-  playRadiusMeters: 500,
+  /**
+   * Radio de juego libre alrededor de la ubicación real del jugador (modo
+   * híbrido). El cliente NO descarga toda la zona: carga chunks alrededor del
+   * jugador y el servidor genera las zonas nuevas a medida que se acerca.
+   */
+  playRadiusMeters: 5000,
 
   attribution: '© OpenStreetMap contributors',
 

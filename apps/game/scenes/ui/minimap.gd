@@ -235,8 +235,8 @@ func _draw_static() -> void:
 
 	if _zone_radius > 0.0:
 		var points := PackedVector2Array()
-		for i in 49:
-			var angle := TAU * i / 48.0
+		for i in 129:
+			var angle := TAU * i / 128.0
 			points.append(_to_screen(Vector2(cos(angle), sin(angle)) * _zone_radius))
 		_static_layer.draw_polyline(points, ZONE_COLOR, 1.0, true)
 

@@ -92,7 +92,7 @@ godot --path apps/game -- --lat=4.6097 --lon=-74.0817   # forzar una ubicación
 
 ### Minimapa y brújula
 
-Minimapa isométrico (misma orientación que la cámara) arriba a la izquierda. Muestra toda tu zona de juego (500 m), los puntos de interés y una flecha con tu posición. La brújula discreta indica el norte, que en esta vista queda arriba a la derecha.
+Minimapa isométrico (misma orientación que la cámara) arriba a la izquierda. Sigue al jugador y muestra unos 400 m a su alrededor, con los puntos de interés, tu posición y el borde de tu zona de juego (5 km) cuando te acercas a él. La brújula discreta indica el norte, que en esta vista queda arriba a la derecha.
 
 Las preferencias viven en `GameSettings` y se aplican en vivo (pensadas para una futura pantalla de opciones):
 
@@ -103,7 +103,8 @@ Las preferencias viven en `GameSettings` y se aplican en vivo (pensadas para una
 | `minimap_size`          | `128×80`      | Tamaño en píxeles de la resolución base (640×360)    |
 | `minimap_margin`        | `(8, 24)`     | Margen lateral y vertical (deja libre la barra superior) |
 | `minimap_zoom`          | `1.0`         | 1 = toda la zona; mayor = más cerca                  |
-| `minimap_follow_player` | `false`       | Centrado en tu zona o siguiendo al jugador           |
+| `minimap_view_radius_meters` | `400` | Metros visibles con zoom 1 (y área que se mantiene cargada) |
+| `minimap_follow_player` | `true`        | Siguiendo al jugador o centrado en tu ubicación real |
 | `compass_visible`       | `true`        | Mostrar u ocultar la brújula                         |
 
 ### Etiquetas del mapa
