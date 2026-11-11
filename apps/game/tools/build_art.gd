@@ -93,15 +93,18 @@ func _pack(folder: String, kinds: Array, size: Vector2i, out_name: String) -> Ar
 	return weights
 
 
+## Personajes (skins): cada PNG de characters/ es uno; todos con el mismo formato.
 func _check_player() -> void:
-	var path := ProjectSettings.globalize_path(ART + "/characters/player.png")
-	if not FileAccess.file_exists(path):
-		_errors.append("characters/player.png: falta la hoja de sprites del jugador")
+	var dir := ProjectSettings.globalize_path(ART + "/characters")
+	var sheets := Array(DirAccess.get_files_at(dir)).filter(func(f: String) -> bool: return f.get_extension() == "png")
+	if sheets.is_empty():
+		_errors.append("characters/: falta al menos una hoja de personaje (player01.png)")
 		return
-	var img := Image.load_from_file(path)
 	var expected := Vector2i(32 * 5, 48 * 8)
-	if img.get_size() != expected:
-		_errors.append("characters/player.png: mide %s y debe medir %dx%d (5 columnas x 8 filas de 32x48)" % [img.get_size(), expected.x, expected.y])
+	for file: String in sheets:
+		var img := Image.load_from_file(dir.path_join(file))
+		if img.get_size() != expected:
+			_errors.append("characters/%s: mide %s y debe medir %dx%d (5 columnas x 8 filas de 32x48)" % [file, img.get_size(), expected.x, expected.y])
 
 
 func _summary(table: Array) -> String:

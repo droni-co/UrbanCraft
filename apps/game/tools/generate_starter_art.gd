@@ -568,7 +568,14 @@ func _player_sheet() -> void:
 				frame.flip_x()
 			_outline(frame, CHAR_OUTLINE)
 			img.blit_rect(frame, Rect2i(Vector2i.ZERO, FRAME), Vector2i(col * FRAME.x, row * FRAME.y))
-	_write("characters/player.png", img)
+	# Solo si no hay ningún personaje: nunca toca tus skins (ni con --force)
+	# ni agrega uno de relleno al selector.
+	var dir := ProjectSettings.globalize_path(ART + "/characters")
+	if DirAccess.dir_exists_absolute(dir) and Array(DirAccess.get_files_at(dir)).any(
+			func(f: String) -> bool: return f.get_extension() == "png"):
+		kept += 1
+		return
+	_write("characters/player01.png", img)
 
 
 func _box(img: Image, x0: int, y0: int, w: int, h: int, c: Color) -> void:

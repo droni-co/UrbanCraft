@@ -10,6 +10,10 @@ signal touch_controls_changed(enabled: bool)
 signal minimap_settings_changed
 ## Se emite al cambiar cualquier preferencia de las etiquetas del mapa.
 signal labels_settings_changed
+## Cambió la visibilidad del panel de stats (hambre, xp, dinero) bajo el menú.
+signal stats_settings_changed
+## Cambió si los demás jugadores te ven (multijugador).
+signal online_settings_changed
 
 enum ScreenCorner { TOP_LEFT, TOP_RIGHT, BOTTOM_LEFT, BOTTOM_RIGHT }
 
@@ -107,6 +111,24 @@ var labels_opacity := 1.0:
 	set(value):
 		labels_opacity = clampf(value, 0.0, 1.0)
 		labels_settings_changed.emit()
+
+
+# --- Stats del jugador (HUD) ------------------------------------------------------
+
+## Panel compacto de stats bajo el botón de menú.
+var stats_hud_visible := true:
+	set(value):
+		stats_hud_visible = value
+		stats_settings_changed.emit()
+
+
+# --- Multijugador -----------------------------------------------------------------
+
+## false = modo fantasma: sigues viendo a los demás, pero ellos no te ven.
+var online_visible := true:
+	set(value):
+		online_visible = value
+		online_settings_changed.emit()
 
 
 func _ready() -> void:

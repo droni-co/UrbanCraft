@@ -44,14 +44,24 @@ El cliente lee la URL del backend del ajuste `urbancraft/network/api_base_url` e
 | GET    | `/health`                 | Estado del API y de la BD   |
 | POST   | `/api/v1/auth/signup`     | Registro (devuelve token)   |
 | POST   | `/api/v1/auth/login`      | Login (devuelve token)      |
+| POST   | `/api/v1/auth/google/start` · `/poll` | Login con Google desde el juego ([docs](docs/login-google.md)) |
+| POST   | `/api/v1/auth/dev/login`  | Usuario de prueba (solo desarrollo y en local) |
+| GET    | `/auth/google/redirect` · `/callback` | Login con Google (lo abre el navegador) |
 | GET    | `/api/v1/account/profile` | Perfil (Bearer token)       |
+| PATCH  | `/api/v1/account/profile` | Cambiar el apodo y/o el personaje (`{ nickname?, skin? }`) |
+| GET    | `/api/v1/player/stats`    | Stats del jugador (hambre, xp/nivel, dinero…) |
+| POST   | `/api/v1/player/heartbeat` | Latido cada ~60 s jugando: aplica el desgaste (hambre) |
+| POST   | `/api/v1/player/stats/dev` | Solo desarrollo y en local: `{ key, delta \| value }` |
 | POST   | `/api/v1/account/logout`  | Revoca el token             |
 | GET    | `/api/v1/map/config`      | Grilla, versión y catálogo de tiles del mapa |
 | GET    | `/api/v1/map/chunks/:z/:x/:y` | Chunk del mapa real (200 listo · 202 generando) |
 | GET    | `/api/v1/geo/place?lat=&lon=` | Ciudad y país de la zona (Nominatim, cacheado por zona) |
 | GET    | `/api/v1/geo/ip`          | Ubicación aproximada por IP (respaldo sin GPS) |
+| WS     | `/ws`                     | Multijugador en tiempo real ([docs](docs/multijugador.md)) |
 
 Mapa del mundo real (OpenStreetMap, chunks, caché y escalado): ver [docs/mapa-mundo-real.md](docs/mapa-mundo-real.md).
+
+**Login con Google:** pon `GOOGLE_CLIENT_ID` y `GOOGLE_CLIENT_SECRET` en `apps/backend/.env` (cómo obtenerlos: [docs/login-google.md](docs/login-google.md)). Hace falta iniciar sesión para jugar. Para depurar sin Google hay **usuarios de prueba** (`DEV_LOGIN_ENABLED=true`, solo en local): botón en la pantalla inicial o `godot --path apps/game -- --dev-login=ana`.
 
 Comandos útiles: `pnpm map:pregenerate --lat=40.42 --lon=-3.6887 --radius=2000 --wait`, `pnpm --filter @urbancraft/backend exec node ace make:model Creature -m`, `node ace list`.
 
@@ -66,6 +76,7 @@ Juego **2D isométrico** (tiles 64×32, estilo pixel art) pensado para jugarse i
 | Moverse     | WASD / flechas · clic      | Stick / D-pad  | Joystick dinámico · tocar   |
 | Correr      | Shift                      | B              | Botón B (alterna)           |
 | Interactuar | E / Espacio                | A              | Botón A                     |
+| Saludar     | G · menú → Multijugador    | Y              | Menú → Multijugador         |
 | Zoom        | Rueda · `+` / `-`          | LB / RB        | Pellizco                    |
 | Menú        | Esc / P · botón ☰          | Start          | Botón ☰                     |
 
@@ -94,7 +105,9 @@ godot --path apps/game -- --lat=4.6097 --lon=-74.0817   # forzar una ubicación
 
 El botón **☰** (arriba a la derecha, junto al minimapa) o **Esc** abre el menú: un modal que pausa el juego. Tiene una lista de secciones a la izquierda (arriba en pantallas angostas) y el contenido a la derecha. Se cierra con la X, con Esc o tocando fuera del panel.
 
-**Teletransporte** (primera sección):
+Secciones: **Teletransporte**, **Personaje** (elegir la skin: vista previa caminando y girando; se guarda en la cuenta y los demás la ven al momento; para agregar personajes ver [assets/art/README.md](apps/game/assets/art/README.md#personajes-characterspng)), **Multijugador** (estado, modo fantasma, saludar; ver [docs/multijugador.md](docs/multijugador.md)) y **Cuenta** (iniciar sesión con Google, cambiar el apodo, cerrar sesión; la pantalla inicial muestra una versión compacta). Ver [docs/login-google.md](docs/login-google.md).
+
+**Teletransporte**:
 - Escribe la latitud y la longitud, o pega el par en cualquiera de los dos campos (`4.6097, -74.0817`, como lo copia Google Maps). Acepta decimales con punto o con coma (`4,6097`).
 - **Teletransportarse** mueve el ancla de tu zona a esas coordenadas y recarga el mundo allí: chunks, minimapa, etiquetas y ciudad.
 - **Usar posición actual** rellena los campos con donde estás parado.
@@ -103,6 +116,26 @@ El botón **☰** (arriba a la derecha, junto al minimapa) o **Esc** abre el men
 - Si nadie ha visitado la zona, generarla puede tardar hasta un minuto (Overpass).
 
 Para agregar una opción nueva, crea un `Control` con su contenido y regístralo en `Hud._build_menu()` con `menu.add_section("Título", control)`. El estilo de todo el menú está en `scenes/ui/menu/menu_theme.gd`.
+
+### Stats del jugador
+
+Bajo el botón ☰ hay un panel compacto con los stats principales:
+
+| Stat | Cómo se ve | Reglas (por defecto) |
+| ---- | ---------- | -------------------- |
+| Hambre | Barra; roja y parpadeando por debajo del 20 % | Empieza en 100. Baja 0,5 por minuto **jugando**; el tiempo desconectado no cuenta |
+| Experiencia | `Nv 3` y una barra fina de progreso | Pasar del nivel N al N+1 cuesta `100 · N^1.5` xp (100, 283, 520…). Al subir de nivel sale un aviso |
+| Dinero | Número (`1.250`) que cuenta al cambiar | Empieza en 100 monedas |
+
+Al pasar el ratón por encima se ve el detalle (`Hambre 87/100`, `Nivel 3 (50/520 xp)`…). Los cambios muestran un `+50` flotante. Se puede ocultar con `GameSettings.stats_hud_visible`.
+
+- **El servidor es la fuente de verdad:** el cliente solo lee los stats. Los cambios llegan por acciones del servidor (comer, misiones…), así nadie puede ponerse dinero desde el juego.
+- **Agregar un stat** es una entrada en `apps/backend/config/player_stats.ts` (tipo `meter`, `level` o `counter`, límites, valor inicial, desgaste, orden, icono y color), sin migraciones. El panel lo dibuja solo. Para su icono, crea `apps/game/assets/art/ui/icons/<icon>.png` (12×12).
+- **Depuración:** en builds de depuración, con `DEV_LOGIN_ENABLED`, el menú tiene una sección **Depuración** para sumar y restar stats.
+
+### Multijugador
+
+Ves a los demás jugadores que están en tu pantalla (sprite, apodo, nivel, si caminan o corren, y sus saludos) y, en el minimapa, puntos amarillos con los que están a menos de 1 km (los lejanos con posición aproximada, por privacidad). Funciona por WebSocket con el mismo backend. Arriba a la izquierda se ve cuántos hay cerca. En **Menú → Multijugador** puedes ponerte en modo fantasma. Detalles, protocolo y privacidad: [docs/multijugador.md](docs/multijugador.md).
 
 ### Minimapa y brújula
 
@@ -147,10 +180,10 @@ apps/game/
 ├── scenes/
 │   ├── main/        # Pantalla inicial (estado del servidor + Jugar)
 │   ├── world/       # Mundo: TileMapLayers, cámara, cursor de celda
-│   ├── player/      # Jugador (placeholder dibujado por código)
+│   ├── player/      # Jugador y RemotePlayer (otros jugadores)
 │   └── ui/          # HUD, botones táctiles, minimapa; menu/ = menú del jugador
 ├── scripts/
-│   ├── autoload/    # Api, GameSettings, LocationService (ubicación real)
+│   ├── autoload/    # Api, Auth (sesión/Google), PlayerStats, Online (multijugador), GameSettings, LocationService
 │   ├── map/         # Geo (lat/lon <-> celdas), ChunkManager (streaming)
 │   └── world/       # WorldTiles (catálogo), WorldGenerator, IsoPathfinder
 ├── resources/tilesets/world_tileset.tres   # generado

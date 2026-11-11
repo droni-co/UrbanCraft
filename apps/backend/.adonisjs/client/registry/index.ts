@@ -8,6 +8,18 @@ export type { Route, Path } from './schema.d.ts'
 const placeholder: any = {}
 
 const routes = {
+  'google_browser.redirect': {
+    methods: ["GET","HEAD"],
+    pattern: '/auth/google/redirect',
+    tokens: [[0,"auth"],[0,"google"],[0,"redirect"]],
+    types: placeholder as Registry['google_browser.redirect']['types'],
+  },
+  'google_browser.callback': {
+    methods: ["GET","HEAD"],
+    pattern: '/auth/google/callback',
+    tokens: [[0,"auth"],[0,"google"],[0,"callback"]],
+    types: placeholder as Registry['google_browser.callback']['types'],
+  },
   'auth.new_account.store': {
     methods: ["POST"],
     pattern: '/api/v1/auth/signup',
@@ -20,17 +32,65 @@ const routes = {
     tokens: [[0,"api"],[0,"v1"],[0,"auth"],[0,"login"]],
     types: placeholder as Registry['auth.access_tokens.store']['types'],
   },
+  'auth.google.start': {
+    methods: ["POST"],
+    pattern: '/api/v1/auth/google/start',
+    tokens: [[0,"api"],[0,"v1"],[0,"auth"],[0,"google"],[0,"start"]],
+    types: placeholder as Registry['auth.google.start']['types'],
+  },
+  'auth.google.poll': {
+    methods: ["POST"],
+    pattern: '/api/v1/auth/google/poll',
+    tokens: [[0,"api"],[0,"v1"],[0,"auth"],[0,"google"],[0,"poll"]],
+    types: placeholder as Registry['auth.google.poll']['types'],
+  },
+  'auth.methods': {
+    methods: ["GET","HEAD"],
+    pattern: '/api/v1/auth/methods',
+    tokens: [[0,"api"],[0,"v1"],[0,"auth"],[0,"methods"]],
+    types: placeholder as Registry['auth.methods']['types'],
+  },
+  'auth.dev.login': {
+    methods: ["POST"],
+    pattern: '/api/v1/auth/dev/login',
+    tokens: [[0,"api"],[0,"v1"],[0,"auth"],[0,"dev"],[0,"login"]],
+    types: placeholder as Registry['auth.dev.login']['types'],
+  },
   'profile.profile.show': {
     methods: ["GET","HEAD"],
     pattern: '/api/v1/account/profile',
     tokens: [[0,"api"],[0,"v1"],[0,"account"],[0,"profile"]],
     types: placeholder as Registry['profile.profile.show']['types'],
   },
+  'profile.profile.update': {
+    methods: ["PATCH"],
+    pattern: '/api/v1/account/profile',
+    tokens: [[0,"api"],[0,"v1"],[0,"account"],[0,"profile"]],
+    types: placeholder as Registry['profile.profile.update']['types'],
+  },
   'profile.access_tokens.destroy': {
     methods: ["POST"],
     pattern: '/api/v1/account/logout',
     tokens: [[0,"api"],[0,"v1"],[0,"account"],[0,"logout"]],
     types: placeholder as Registry['profile.access_tokens.destroy']['types'],
+  },
+  'player.stats': {
+    methods: ["GET","HEAD"],
+    pattern: '/api/v1/player/stats',
+    tokens: [[0,"api"],[0,"v1"],[0,"player"],[0,"stats"]],
+    types: placeholder as Registry['player.stats']['types'],
+  },
+  'player.heartbeat': {
+    methods: ["POST"],
+    pattern: '/api/v1/player/heartbeat',
+    tokens: [[0,"api"],[0,"v1"],[0,"player"],[0,"heartbeat"]],
+    types: placeholder as Registry['player.heartbeat']['types'],
+  },
+  'player.stats.dev': {
+    methods: ["POST"],
+    pattern: '/api/v1/player/stats/dev',
+    tokens: [[0,"api"],[0,"v1"],[0,"player"],[0,"stats"],[0,"dev"]],
+    types: placeholder as Registry['player.stats.dev']['types'],
   },
   'map.map.config': {
     methods: ["GET","HEAD"],

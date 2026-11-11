@@ -55,6 +55,9 @@ export default defineConfig({
     () => import('#providers/api_provider'),
     () => import('#providers/map_provider'),
     () => import('#providers/geo_provider'),
+    () => import('#providers/oauth_provider'),
+    () => import('#providers/player_provider'),
+    () => import('#providers/realtime_provider'),
   ],
 
   /*

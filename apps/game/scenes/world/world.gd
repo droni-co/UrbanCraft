@@ -9,6 +9,8 @@ extends Node2D
 
 enum Mode { LOADING, REAL, DEMO }
 
+const MAIN_SCENE := "res://scenes/main/main.tscn"
+
 @export var demo_map_size := Vector2i(64, 64)
 @export var demo_seed := 1337
 ## Fuerza el mapa procedural aunque haya servidor (también: -- --demo).
@@ -55,6 +57,7 @@ var _location_cell := Vector2i(-99999, -99999)
 var _minimap_area_chunk := Vector2i(-99999, -99999)
 ## Ciudad y país de la zona ("Madrid, España"), del backend (Nominatim/OSM).
 var _place_label := ""
+var _remote_players: RemotePlayers
 
 
 func _ready() -> void:
@@ -75,6 +78,18 @@ func _ready() -> void:
 	hud.teleport.teleport_requested.connect(_teleport_to)
 	hud.teleport.home_requested.connect(_return_home)
 	hud.teleport.current_position_provider = _player_lat_lon
+
+	# Hace falta sesión para jugar (también si se abre esta escena directamente).
+	await Auth.wait_startup()
+	if not Auth.is_signed_in():
+		_back_to_main()
+		return
+	Auth.session_changed.connect(func(user: Dictionary) -> void:
+		if user.is_empty():
+			_back_to_main())  # cerró sesión (o caducó)
+	PlayerStats.start()  # hambre, xp, dinero + latido mientras se juega
+	tree_exiting.connect(PlayerStats.stop)
+	hud.online.wave_requested.connect(_wave)
 
 	if force_demo or "--demo" in OS.get_cmdline_user_args():
 		_start_demo("Modo demo: mapa procedural")
@@ -125,6 +140,7 @@ func _start_real(config: Dictionary) -> void:
 	hud.set_attribution(str(config.attribution))
 	hud.set_loading("Cargando mapa...")
 	chunks.update_center(anchor_cell)
+	_start_online()
 
 
 func _start_demo(message: String) -> void:
@@ -144,6 +160,73 @@ func _spawn_player_at(cell: Vector2i) -> void:
 	_last_valid_position = player.global_position
 	camera.snap_to_target()
 	player.set_physics_process(true)
+
+
+# --- Multijugador --------------------------------------------------------------
+
+## Solo con el mapa real (el de demostración no tiene coordenadas del mundo).
+func _start_online() -> void:
+	_remote_players = RemotePlayers.new()
+	_remote_players.name = "RemotePlayers"
+	_remote_players.container = entities
+	_remote_players.to_world = _global_to_world
+	add_child(_remote_players)
+	Online.radar_updated.connect(_update_minimap_others)
+	Online.players_updated.connect(_update_minimap_others)
+	# Al teletransportarse se recarga la escena pero la conexión sigue abierta:
+	# start() solo marca que la próxima posición es una aparición (spawn).
+	# La pantalla inicial la cierra (Online.stop()).
+	Online.start()
+
+
+## Celdas globales (float 64) -> posición en el mundo. La resta se hace antes
+## de pasar a Vector2 (float 32), que no tiene precisión para ~16 millones.
+func _global_to_world(gx: float, gy: float) -> Vector2:
+	return grid_to_world(Vector2(gx - float(chunks.origin_cell.x), gy - float(chunks.origin_cell.y)))
+
+
+## Inversa de _player_grid_position(): celdas locales con decimales -> mundo.
+func grid_to_world(grid: Vector2) -> Vector2:
+	var half := Vector2(ground.tile_set.tile_size) / 2.0
+	var g := grid - Vector2(0.5, 0.5)
+	var rel := Vector2((g.x - g.y) * half.x, (g.x + g.y) * half.y)
+	return ground.to_global(rel + ground.map_to_local(Vector2i.ZERO))
+
+
+func _send_online_state(grid_position: Vector2) -> void:
+	# Hasta que el jugador aparece sobre el mapa cargado su posición no es real.
+	if mode != Mode.REAL or not Online.is_online() or not player.is_physics_processing():
+		return
+	var gx := float(chunks.origin_cell.x) + grid_position.x
+	var gy := float(chunks.origin_cell.y) + grid_position.y
+	var move := 0
+	if player.is_moving:
+		move = 2 if player.is_running() else 1
+	Online.send_state(gx, gy, player.facing_index(), move)
+
+
+func _update_minimap_others() -> void:
+	var center_x := float(chunks.origin_cell.x + _minimap_center_local.x)
+	var center_y := float(chunks.origin_cell.y + _minimap_center_local.y)
+	var near := PackedVector2Array()
+	for id: int in Online.players:
+		var p: Dictionary = Online.players[id]
+		near.append(Vector2(float(p.x) - center_x, float(p.y) - center_y))
+	var far := PackedVector2Array()
+	for p: PackedFloat64Array in Online.radar:
+		far.append(Vector2(p[0] - center_x, p[1] - center_y))
+	hud.minimap.set_others(near, far)
+
+
+func _wave() -> void:
+	hud.menu.close()
+	Online.send_action("wave")
+	hud.show_message("¡Saludaste!" if Online.others_in_range() > 0 else "Saludaste… pero no hay nadie cerca.")
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("wave") and mode != Mode.LOADING:
+		_wave()
 
 
 # --- Bucle --------------------------------------------------------------------
@@ -180,10 +263,11 @@ func _process(_delta: float) -> void:
 		if player_cell != _location_cell:
 			_location_cell = player_cell
 			hud.set_location(map_labels.location_name(grid_position))
-	# TODO(multijugador): enviar posición/celda global al servidor.
+		_send_online_state(grid_position)
 	var parts: Array[String] = []
 	if mode == Mode.REAL:
 		parts.append(_place_label if not _place_label.is_empty() else "Ubicando…")
+		parts.append(_online_label())
 		if GameSettings.debug_info_visible:
 			var chunk := chunks.chunk_of_global(chunks.local_to_global(player_cell))
 			parts.append("chunk %d,%d" % [chunk.x, chunk.y])
@@ -194,6 +278,18 @@ func _process(_delta: float) -> void:
 	if GameSettings.debug_info_visible:
 		parts.append("%d FPS" % Engine.get_frames_per_second())
 	hud.set_info(" · ".join(parts))
+
+
+func _online_label() -> String:
+	match Online.status:
+		"online":
+			var others := Online.others_in_range()
+			if not GameSettings.online_visible:
+				return "fantasma · %d cerca" % others
+			return "nadie cerca" if others == 0 else ("1 jugador cerca" if others == 1 else "%d jugadores cerca" % others)
+		"connecting":
+			return "conectando…"
+	return "sin multijugador"
 
 
 func _show_limit_message() -> void:
@@ -218,6 +314,12 @@ func _teleport_to(lat: float, lon: float) -> void:
 func _return_home() -> void:
 	LocationService.return_home()
 	_reload_world()
+
+
+func _back_to_main() -> void:
+	hud.menu.close()
+	get_tree().paused = false
+	get_tree().change_scene_to_file.call_deferred(MAIN_SCENE)
 
 
 func _reload_world() -> void:
@@ -388,6 +490,7 @@ func _on_hovered(world_position: Vector2) -> void:
 
 
 func _on_player_interacted(facing: Vector2) -> void:
+	Online.send_action("interact")
 	var here := world_to_cell(player.global_position)
 	var cell := world_to_cell(player.global_position + facing * 24.0)
 	if cell == here:

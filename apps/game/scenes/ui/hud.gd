@@ -20,7 +20,13 @@ const MENU_BUTTON_TOP := 22.0
 ## Menú del jugador (modal) y sus secciones.
 var menu: GameMenu
 var teleport: TeleportSection
+var account: AccountSection
+var online: OnlineSection
+var character: CharacterSection
 var menu_button: Button
+## Hambre, nivel, dinero… bajo el botón de menú.
+var stats_panel: StatsPanel
+const STATS_GAP := 4.0
 ## Nombre de la calle o lugar actual, junto al minimapa.
 var location_label: Label
 var _location_text := ""
@@ -58,6 +64,14 @@ func _build_menu() -> void:
 
 	teleport = TeleportSection.new()
 	menu.add_section("Teletransporte", teleport)
+	character = CharacterSection.new()
+	menu.add_section("Personaje", character)
+	online = OnlineSection.new()
+	menu.add_section("Multijugador", online)
+	account = AccountSection.new()
+	menu.add_section("Cuenta", account)
+	if OS.is_debug_build():
+		_add_debug_section.call_deferred()
 	# Para agregar más opciones: menu.add_section("Título", MiSeccion.new())
 
 	menu_button = Button.new()
@@ -74,6 +88,22 @@ func _build_menu() -> void:
 	menu_button.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 	add_child(menu_button)
 	move_child(menu_button, menu.get_index())
+
+	stats_panel = StatsPanel.new()
+	stats_panel.name = "StatsPanel"
+	stats_panel.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	stats_panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	add_child(stats_panel)
+	move_child(stats_panel, menu.get_index())
+	PlayerStats.level_up.connect(func(_key: String, level: int) -> void:
+		show_message("¡Subiste al nivel %d!" % level, 3.0))
+
+
+## Sección de depuración del menú: solo si el servidor permite herramientas de desarrollo.
+func _add_debug_section() -> void:
+	await Auth.fetch_methods()
+	if Auth.methods.dev and is_instance_valid(menu):
+		menu.add_section("Depuración", DebugSection.new())
 
 
 func _menu_button_style(alpha: float) -> StyleBoxFlat:
@@ -98,6 +128,10 @@ func _layout_around_minimap() -> void:
 	menu_button.offset_left = menu_button.offset_right - MENU_BUTTON_SIZE
 	menu_button.offset_top = MENU_BUTTON_TOP
 	menu_button.offset_bottom = MENU_BUTTON_TOP + MENU_BUTTON_SIZE
+	# Stats debajo del botón, alineados a su borde derecho (crecen hacia la izquierda).
+	stats_panel.offset_right = menu_button.offset_right
+	stats_panel.offset_left = menu_button.offset_right
+	stats_panel.offset_top = menu_button.offset_bottom + STATS_GAP
 	_layout_location_label()
 	_refresh_location()
 

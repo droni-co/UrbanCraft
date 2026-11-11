@@ -103,6 +103,51 @@ export class MapChunkSchema extends BaseModel {
   declare z: number
 }
 
+export class OauthLoginSchema extends BaseModel {
+  static $columns = [
+    'codeVerifier',
+    'createdAt',
+    'error',
+    'expiresAt',
+    'id',
+    'ip',
+    'isNewUser',
+    'pollSecretHash',
+    'provider',
+    'state',
+    'status',
+    'updatedAt',
+    'userId',
+  ] as const
+  $columns = OauthLoginSchema.$columns
+  @column()
+  declare codeVerifier: string | null
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column()
+  declare error: string | null
+  @column.dateTime()
+  declare expiresAt: DateTime
+  @column({ isPrimary: true })
+  declare id: string
+  @column()
+  declare ip: string | null
+  @column()
+  declare isNewUser: boolean
+  @column()
+  declare pollSecretHash: string
+  @column()
+  declare provider: string
+  @column()
+  declare state: string | null
+  @column()
+  declare status: string
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime | null
+  @column()
+  declare userId: number | null
+}
+
 export class OsmSourceTileSchema extends BaseModel {
   static $columns = [
     'attempts',
@@ -163,6 +208,19 @@ export class OsmSourceTileSchema extends BaseModel {
   declare z: number
 }
 
+export class PlayerStatSchema extends BaseModel {
+  static $columns = ['key', 'updatedAt', 'userId', 'value'] as const
+  $columns = PlayerStatSchema.$columns
+  @column()
+  declare key: string
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime
+  @column({ isPrimary: true })
+  declare userId: number
+  @column()
+  declare value: number
+}
+
 export class SpatialRefSySchema extends BaseModel {
   static $columns = ['authName', 'authSrid', 'proj4Text', 'srid', 'srtext'] as const
   $columns = SpatialRefSySchema.$columns
@@ -179,18 +237,37 @@ export class SpatialRefSySchema extends BaseModel {
 }
 
 export class UserSchema extends BaseModel {
-  static $columns = ['createdAt', 'email', 'fullName', 'id', 'password', 'updatedAt'] as const
+  static $columns = [
+    'avatarUrl',
+    'createdAt',
+    'email',
+    'fullName',
+    'googleId',
+    'id',
+    'nickname',
+    'password',
+    'skin',
+    'updatedAt',
+  ] as const
   $columns = UserSchema.$columns
+  @column()
+  declare avatarUrl: string | null
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime
   @column()
   declare email: string
   @column()
   declare fullName: string | null
+  @column()
+  declare googleId: string | null
   @column({ isPrimary: true })
   declare id: number
+  @column()
+  declare nickname: string | null
   @column({ serializeAs: null })
-  declare password: string
+  declare password: string | null
+  @column()
+  declare skin: string | null
   @column.dateTime({ autoCreate: true, autoUpdate: true })
   declare updatedAt: DateTime | null
 }

@@ -24,7 +24,8 @@ Para volver al arte inicial (borra tus cambios): `pnpm game:art:reset`.
 art/
 ├── tiles/ground/   suelo, 64×32
 ├── props/          árboles, rocas, arbustos, 64×64
-└── characters/     hojas de sprites de personajes
+├── characters/     hojas de sprites de personajes
+└── ui/icons/       iconos de la interfaz, 12×12 (stats del HUD; ver ui/icons/README.md)
 ```
 
 ## Nombres y variantes
@@ -61,9 +62,11 @@ Agregar un **tipo nuevo** (por ejemplo `snow`) no se hace solo con un archivo. H
 - Incluye la sombra en el suelo (elipse negra semitransparente).
 - Los props bloquean el paso. La colisión es un rombo pequeño en la base y no depende de la imagen.
 
-## Personajes: `characters/player.png`
+## Personajes: `characters/*.png`
 
-Hoja de **160×384**, con 5 columnas × 8 filas de frames de **32×48**:
+Cada PNG de `characters/` es un **personaje (skin)** que el jugador puede elegir en **Menú → Personaje**: `player01.png` … `player05.png`. Para agregar uno basta con poner otra hoja ahí: aparece sola en el selector como "Personaje N" (`player06.png`) o con su nombre (`ninja_rojo.png` → "Ninja Rojo"). `player01` es el personaje por defecto. El personaje elegido se guarda en la cuenta y los demás jugadores lo ven.
+
+Cada hoja mide **160×384**, con 5 columnas × 8 filas de frames de **32×48**:
 
 | Columna | Contenido |
 | ------- | --------- |
@@ -82,8 +85,9 @@ Hoja de **160×384**, con 5 columnas × 8 filas de frames de **32×48**:
 | 7 | `ne` ↗ |
 
 - Los **pies** van en el píxel **(16, 44)** de cada frame: es el punto que toca el suelo.
+- Si las filas quedan un poco corridas (el dibujo no cae justo cada 48 px, típico de hojas generadas), el juego las **alinea al cargar**: mueve cada fila en bloque para que su píxel más bajo quede en y = 44. El PNG no se modifica.
 - La sombra la dibuja el juego, así que no la incluyas.
-- El jugador arma sus animaciones (`idle_<dir>`, `walk_<dir>`) desde esta hoja al iniciar, así que basta con editar el PNG. Si cambias tamaños o número de frames, ajusta las constantes de `scenes/player/player.gd`.
+- Las animaciones (`idle_<dir>`, `walk_<dir>`) se arman desde la hoja al iniciar (`scripts/characters/character_skins.gd`), así que basta con editar el PNG. Si cambias tamaños o número de frames, ajusta las constantes de ese archivo.
 
 ## Estilo
 

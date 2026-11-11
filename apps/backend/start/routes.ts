@@ -14,6 +14,9 @@ import db from '@adonisjs/lucid/services/db'
 
 const MapController = () => import('#controllers/map_controller')
 const GeoController = () => import('#controllers/geo_controller')
+const GoogleAuthController = () => import('#controllers/google_auth_controller')
+const DevLoginController = () => import('#controllers/dev_login_controller')
+const PlayerStatsController = () => import('#controllers/player_stats_controller')
 
 router.get('/', () => {
   return { name: 'UrbanCraft API', version: 'v1' }
@@ -31,12 +34,29 @@ router.get('/health', async ({ response }) => {
   }
 })
 
+/**
+ * Inicio de sesión con Google: estas dos rutas las abre el NAVEGADOR del
+ * jugador (devuelven HTML/redirecciones). El juego usa /api/v1/auth/google/*.
+ */
+router
+  .group(() => {
+    router.get('redirect', [GoogleAuthController, 'redirect']).as('redirect')
+    router.get('callback', [GoogleAuthController, 'callback']).as('callback')
+  })
+  .prefix('/auth/google')
+  .as('google_browser')
+
 router
   .group(() => {
     router
       .group(() => {
         router.post('signup', [controllers.NewAccount, 'store'])
         router.post('login', [controllers.AccessTokens, 'store'])
+        router.post('google/start', [GoogleAuthController, 'start']).as('google.start')
+        router.post('google/poll', [GoogleAuthController, 'poll']).as('google.poll')
+        router.get('methods', [DevLoginController, 'methods']).as('methods')
+        // Solo desarrollo: usuarios de prueba (ver config/oauth.ts → devLogin).
+        router.post('dev/login', [DevLoginController, 'store']).as('dev.login')
       })
       .prefix('auth')
       .as('auth')
@@ -44,10 +64,22 @@ router
     router
       .group(() => {
         router.get('profile', [controllers.Profile, 'show'])
+        router.patch('profile', [controllers.Profile, 'update'])
         router.post('logout', [controllers.AccessTokens, 'destroy'])
       })
       .prefix('account')
       .as('profile')
+      .use(middleware.auth())
+
+    router
+      .group(() => {
+        router.get('stats', [PlayerStatsController, 'show']).as('stats')
+        router.post('heartbeat', [PlayerStatsController, 'heartbeat']).as('heartbeat')
+        // Solo desarrollo y en local (ver app/auth/dev_tools.ts).
+        router.post('stats/dev', [PlayerStatsController, 'devUpdate']).as('stats.dev')
+      })
+      .prefix('player')
+      .as('player')
       .use(middleware.auth())
 
     router

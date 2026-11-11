@@ -26,14 +26,16 @@ var _sections: Array[Dictionary] = []  # {title, control, button}
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	set_anchors_preset(Control.PRESET_FULL_RECT)
+	# "and_offsets": set_anchors_preset() solo conservaría el tamaño actual (0x0)
+	# y el menú no seguiría al viewport al cambiar la ventana (maximizar).
+	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	theme = MenuTheme.build()
 	visible = false
 
 	_backdrop = ColorRect.new()
 	_backdrop.color = Color(0, 0, 0, 0.55)
-	_backdrop.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_backdrop.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_backdrop.gui_input.connect(func(event: InputEvent) -> void:
 		if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 			close())
@@ -87,6 +89,7 @@ func _ready() -> void:
 	scroll.add_child(_content)
 
 	resized.connect(_fit)
+	get_viewport().size_changed.connect(_fit)
 	_fit()
 
 
@@ -161,9 +164,10 @@ func toggle() -> void:
 # --- Interno ----------------------------------------------------------------------
 
 func _show_section(index: int) -> void:
+	# set_pressed_no_signal() no desmarca a los demás del ButtonGroup: se hace a mano.
 	for i in _sections.size():
 		_sections[i].control.visible = i == index
-	_sections[index].button.set_pressed_no_signal(true)
+		_sections[i].button.set_pressed_no_signal(i == index)
 
 
 func _current_section() -> Control:
@@ -177,7 +181,7 @@ func _current_section() -> Control:
 func _fit() -> void:
 	if _panel == null:
 		return
-	var screen := size if size != Vector2.ZERO else get_viewport_rect().size
+	var screen := get_viewport_rect().size
 	var panel_size := Vector2(minf(PANEL_MAX.x, screen.x - 16), minf(PANEL_MAX.y, screen.y - 16))
 	_panel.size = panel_size
 	_panel.position = ((screen - panel_size) / 2.0).floor()

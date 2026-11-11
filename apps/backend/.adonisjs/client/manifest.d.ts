@@ -9,3 +9,6 @@
 /// <reference path="../../config/hash.ts" />
 /// <reference path="../../config/logger.ts" />
 /// <reference path="../../config/map.ts" />
+/// <reference path="../../config/oauth.ts" />
+/// <reference path="../../config/player_stats.ts" />
+/// <reference path="../../config/realtime.ts" />

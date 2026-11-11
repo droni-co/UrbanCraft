@@ -5,8 +5,11 @@
 
 export const controllers = {
   AccessTokens: () => import('#controllers/access_tokens_controller'),
+  DevLogin: () => import('#controllers/dev_login_controller'),
   Geo: () => import('#controllers/geo_controller'),
+  GoogleAuth: () => import('#controllers/google_auth_controller'),
   Map: () => import('#controllers/map_controller'),
   NewAccount: () => import('#controllers/new_account_controller'),
+  PlayerStats: () => import('#controllers/player_stats_controller'),
   Profile: () => import('#controllers/profile_controller'),
 }

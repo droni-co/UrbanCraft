@@ -4,23 +4,19 @@ extends CharacterBody2D
 ## - Movimiento directo: teclado / gamepad / joystick virtual (acciones move_*).
 ## - Movimiento por camino: set_path() (tocar/clic en el mapa, ver world.gd).
 ##
-## Sprite: hoja editable assets/art/characters/player.png (ver assets/art/README.md):
-## 8 filas (DIRECTIONS) x 5 columnas (quieto + 4 pasos) de 32x48, pies en
-## (16, 44). Las animaciones "idle_<dir>" / "walk_<dir>" se arman al iniciar.
-## Si falta la hoja se usa un dibujo de respaldo (_draw).
+## Sprite: el personaje (skin) elegido en el menú, guardado en la cuenta
+## (Auth.user.skin). Las hojas están en assets/art/characters/ y las arma
+## CharacterSkins (ver assets/art/README.md). Sin hojas se usa un dibujo de
+## respaldo (_draw).
 
 signal interacted(facing: Vector2)
 signal path_ended
 
-const DIRECTIONS: PackedStringArray = ["e", "se", "s", "sw", "w", "nw", "n", "ne"]
+const DIRECTIONS := CharacterSkins.DIRECTIONS
 const ARRIVE_DISTANCE := 3.0
 const STUCK_TIMEOUT := 0.5
 
-const SPRITE_SHEET := "res://assets/art/characters/player.png"
-const FRAME_SIZE := Vector2i(32, 48)
-const FEET := Vector2i(16, 44)
-const WALK_FRAMES := 4
-const WALK_FPS := 8.0
+const FEET := CharacterSkins.FEET
 
 @export var walk_speed := 80.0
 @export var run_speed := 150.0
@@ -35,8 +31,29 @@ var _stuck_time := 0.0
 var _walk_time := 0.0
 
 
+## Personaje en uso (id de CharacterSkins).
+var skin := ""
+
+
 func _ready() -> void:
-	_sprite = _build_sprite()
+	set_skin(Auth.user.get("skin"))
+	Auth.session_changed.connect(func(user: Dictionary) -> void: set_skin(user.get("skin")))
+
+
+## Cambia el personaje (null o desconocido = el por defecto).
+func set_skin(id: Variant) -> void:
+	var resolved := CharacterSkins.resolve(id)
+	if resolved == skin and _sprite:
+		return
+	skin = resolved
+	if _sprite == null:
+		_sprite = CharacterSkins.make_sprite(skin)
+		if _sprite:
+			add_child(_sprite)
+	elif not skin.is_empty():
+		_sprite.sprite_frames = CharacterSkins.frames(skin)
+	if _sprite:
+		_sprite.play(animation_name())
 
 
 func set_path(points: Array[Vector2]) -> void:
@@ -57,6 +74,15 @@ func has_path() -> bool:
 ## Dirección (8 vías) hacia la que mira: "e", "se", "s", ...
 func facing_direction() -> String:
 	return DIRECTIONS[wrapi(roundi(facing.angle() / (TAU / 8.0)), 0, 8)]
+
+
+## Índice de facing_direction() en DIRECTIONS (0 = este; así viaja por la red).
+func facing_index() -> int:
+	return wrapi(roundi(facing.angle() / (TAU / 8.0)), 0, 8)
+
+
+func is_running() -> bool:
+	return is_moving and Input.is_action_pressed("run")
 
 
 func animation_name() -> String:
@@ -114,39 +140,6 @@ func _next_path_direction() -> Vector2:
 
 
 # --- Sprite ---------------------------------------------------------------------
-
-func _build_sprite() -> AnimatedSprite2D:
-	if not ResourceLoader.exists(SPRITE_SHEET):
-		return null
-	var sheet: Texture2D = load(SPRITE_SHEET)
-	var frames := SpriteFrames.new()
-	frames.remove_animation("default")
-	for row in DIRECTIONS.size():
-		var dir := DIRECTIONS[row]
-		frames.add_animation("idle_" + dir)
-		frames.add_frame("idle_" + dir, _frame(sheet, 0, row))
-		frames.add_animation("walk_" + dir)
-		frames.set_animation_speed("walk_" + dir, WALK_FPS)
-		for col in range(1, WALK_FRAMES + 1):
-			frames.add_frame("walk_" + dir, _frame(sheet, col, row))
-
-	var sprite := AnimatedSprite2D.new()
-	sprite.name = "Sprite"
-	sprite.sprite_frames = frames
-	sprite.centered = false
-	sprite.offset = -Vector2(FEET)  # los pies quedan en el origen del jugador
-	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	add_child(sprite)
-	sprite.play(animation_name())
-	return sprite
-
-
-func _frame(sheet: Texture2D, col: int, row: int) -> AtlasTexture:
-	var tex := AtlasTexture.new()
-	tex.atlas = sheet
-	tex.region = Rect2(Vector2(col, row) * Vector2(FRAME_SIZE), FRAME_SIZE)
-	return tex
-
 
 func _draw() -> void:
 	# Sombra en el suelo (debajo del sprite).

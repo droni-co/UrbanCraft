@@ -66,6 +66,30 @@ static func build() -> Theme:
 	t.set_color("font_pressed_color", "NavButton", Color.WHITE)
 	t.set_color("font_color", "NavButton", TEXT_DIM)
 
+	# Tarjetas seleccionables (selector de personaje)
+	t.set_type_variation("CardButton", "Button")
+	t.set_stylebox("normal", "CardButton", _box(BG_SOFT, 6, 4, BORDER))
+	t.set_stylebox("hover", "CardButton", _box(Color(1, 1, 1, 0.1), 6, 4, Color(1, 1, 1, 0.25)))
+	t.set_stylebox("pressed", "CardButton", _box(Color(ACCENT, 0.22), 6, 4, ACCENT))
+	t.set_stylebox("hover_pressed", "CardButton", _box(Color(ACCENT, 0.3), 6, 4, ACCENT))
+	# Foco (teclado/gamepad): borde claro, distinto del azul de "elegido".
+	t.set_stylebox("focus", "CardButton", _box(Color(0, 0, 0, 0), 6, 4, Color(1, 1, 1, 0.45)))
+	t.set_font_size("font_size", "CardButton", 9)
+	t.set_color("font_color", "CardButton", TEXT_DIM)
+	t.set_color("font_pressed_color", "CardButton", Color.WHITE)
+	t.set_color("font_hover_pressed_color", "CardButton", Color.WHITE)
+
+	# "Continuar con Google": botón claro, como pide la guía de marca de Google.
+	# (Para el logo oficial "G", ver docs/login-google.md.)
+	t.set_type_variation("GoogleButton", "Button")
+	t.set_stylebox("normal", "GoogleButton", _box(Color.WHITE, 5, 10, Color("dadce0")))
+	t.set_stylebox("hover", "GoogleButton", _box(Color("f2f5fa"), 5, 10, Color("c6cad1")))
+	t.set_stylebox("pressed", "GoogleButton", _box(Color("e3e8ef"), 5, 10, Color("c6cad1")))
+	t.set_stylebox("focus", "GoogleButton", _box(Color(0, 0, 0, 0), 5, 10, ACCENT))
+	t.set_stylebox("disabled", "GoogleButton", _box(Color(1, 1, 1, 0.4), 5, 10))
+	for state in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
+		t.set_color(state, "GoogleButton", Color("1f1f1f"))
+
 	# Botón sin fondo (iconos)
 	t.set_type_variation("FlatButton", "Button")
 	t.set_stylebox("normal", "FlatButton", _box(Color(0, 0, 0, 0), 5, 4))

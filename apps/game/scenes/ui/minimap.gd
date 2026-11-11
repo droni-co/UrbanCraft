@@ -40,6 +40,11 @@ const BORDER := Color(1, 1, 1, 0.25)
 const ZONE_COLOR := Color(1, 1, 1, 0.4)
 const POI_COLOR := Color(0.55, 0.75, 1.0, 0.7)
 const COMPASS_SIZE := Vector2(26, 26)
+## Otros jugadores: cercanos (posición exacta) y del radar (aproximada).
+const OTHER_COLOR := Color("ffd75e")
+const OTHER_OUTLINE := Color(0, 0, 0, 0.75)
+## Margen al pegar al borde los puntos que quedan fuera del minimapa.
+const EDGE_INSET := 3.0
 
 ## Celda global en el centro del minimapa (centro de la zona de juego).
 var _center := Vector2i.ZERO
@@ -49,6 +54,8 @@ var _zone_radius := 0.0
 var _fit_radius := 96.0
 var _player_offset := Vector2.ZERO
 var _player_facing := Vector2.DOWN
+var _others_near := PackedVector2Array()
+var _others_far := PackedVector2Array()
 var _chunks := {}  # Vector2i (origen global) -> {texture, pois: Array[Vector2]}
 
 var _map_layer: Control
@@ -76,6 +83,9 @@ func _ready() -> void:
 	_compass.size = COMPASS_SIZE
 	_compass.north = _iso(Vector2(0, -1)).normalized()  # norte = -y en la grilla
 	add_child(_compass)
+	# Jugador y demás jugadores por encima de la brújula (un punto pegado al
+	# borde puede caer en su esquina).
+	move_child(_dynamic_layer, -1)
 
 	resized.connect(_redraw_all)
 	GameSettings.minimap_settings_changed.connect(_apply_settings)
@@ -128,6 +138,14 @@ func set_player(offset_cells: Vector2, facing: Vector2) -> void:
 		_redraw_all()
 	else:
 		_dynamic_layer.queue_redraw()
+
+
+## Otros jugadores en celdas relativas al centro (como set_player):
+## `near` con su posición exacta, `far` aproximados (radar).
+func set_others(near: PackedVector2Array, far: PackedVector2Array) -> void:
+	_others_near = near
+	_others_far = far
+	_dynamic_layer.queue_redraw()
 
 
 # --- Disposición ----------------------------------------------------------------
@@ -242,6 +260,9 @@ func _draw_static() -> void:
 
 
 func _draw_dynamic() -> void:
+	_draw_others(_others_far, 2.0, 0.75)
+	_draw_others(_others_near, 2.5, 1.0)
+
 	var p := _to_screen(_player_offset)
 	var f := _player_facing.normalized() if _player_facing != Vector2.ZERO else Vector2.DOWN
 	var side := f.orthogonal() * 3.0
@@ -250,3 +271,18 @@ func _draw_dynamic() -> void:
 	arrow.append(arrow[0])
 	_dynamic_layer.draw_polyline(arrow, Color(0, 0, 0, 0.8), 1.0, true)
 	_dynamic_layer.draw_rect(Rect2(Vector2.ZERO, size), BORDER, false, 1.0)
+
+
+## Puntos de otros jugadores; los que quedan fuera se pegan al borde, más tenues.
+func _draw_others(points: PackedVector2Array, radius: float, alpha: float) -> void:
+	var inner := Rect2(Vector2.ONE * EDGE_INSET, size - Vector2.ONE * EDGE_INSET * 2.0)
+	for offset in points:
+		var p := _to_screen(offset)
+		var a := alpha
+		var r := radius
+		if not inner.has_point(p):
+			p = p.clamp(inner.position, inner.end)
+			a *= 0.55
+			r -= 0.5
+		_dynamic_layer.draw_circle(p, r + 1.0, Color(OTHER_OUTLINE, OTHER_OUTLINE.a * a))
+		_dynamic_layer.draw_circle(p, r, Color(OTHER_COLOR, a))

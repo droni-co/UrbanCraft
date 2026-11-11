@@ -17,6 +17,29 @@ export const signupValidator = vine.create({
 })
 
 /**
+ * Perfil del jugador (cada campo es opcional):
+ * - nickname: 3–20 letras (con tildes), números o guion bajo.
+ * - skin: nombre del personaje (PNG en apps/game/assets/art/characters, sin
+ *   extensión). El servidor no conoce el arte: solo valida el formato y el
+ *   juego usa el personaje por defecto si no lo tiene.
+ */
+export const updateProfileValidator = vine.create({
+  nickname: vine
+    .string()
+    .trim()
+    .minLength(3)
+    .maxLength(20)
+    .regex(/^[\p{L}\p{N}_]+$/u)
+    .optional(),
+  skin: vine
+    .string()
+    .trim()
+    .maxLength(32)
+    .regex(/^[a-z0-9_-]+$/)
+    .optional(),
+})
+
+/**
  * Validator to use before validating user credentials
  * during login
  */
