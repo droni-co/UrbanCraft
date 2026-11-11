@@ -11,17 +11,18 @@ extends Control
 ## bytes de suelo (sin recorrer celdas en GDScript) y un shader la colorea con
 ## una paleta. Las capas estáticas solo se redibujan cuando cambian los chunks.
 
-## Colores por id de WorldTiles.Ground (mismo orden).
+## Colores por id de WorldTiles.Ground (mismo orden): el tono medio de cada
+## tile de assets/art. Si cambias mucho el arte, actualízalos.
 const GROUND_COLORS: Array[Color] = [
-	Color("6aa84f"),  # GRASS
-	Color("3f7d3a"),  # GRASS_DARK
-	Color("a0764a"),  # DIRT
-	Color("e2cc8b"),  # SAND
-	Color("3b7dd8"),  # WATER
-	Color("9a9aa2"),  # STONE
-	Color("3d4048"),  # ASPHALT
+	Color("62a548"),  # GRASS
+	Color("3f7136"),  # GRASS_DARK
+	Color("9b7249"),  # DIRT
+	Color("dfc78e"),  # SAND
+	Color("3876cc"),  # WATER
+	Color("9c9ca6"),  # STONE
+	Color("474a52"),  # ASPHALT
 	Color("c9c2b4"),  # PAVEMENT
-	Color("8f3f2e"),  # BUILDING
+	Color("a9513b"),  # BUILDING
 ]
 
 const PALETTE_SHADER := """

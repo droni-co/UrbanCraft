@@ -4,9 +4,10 @@ extends CharacterBody2D
 ## - Movimiento directo: teclado / gamepad / joystick virtual (acciones move_*).
 ## - Movimiento por camino: set_path() (tocar/clic en el mapa, ver world.gd).
 ##
-## El dibujo actual es un placeholder (_draw). Para usar sprites reales, agrega
-## un AnimatedSprite2D con animaciones "idle_<dir>" / "walk_<dir>" (dir en
-## DIRECTIONS) y reproduce animation_name() en cada frame.
+## Sprite: hoja editable assets/art/characters/player.png (ver assets/art/README.md):
+## 8 filas (DIRECTIONS) x 5 columnas (quieto + 4 pasos) de 32x48, pies en
+## (16, 44). Las animaciones "idle_<dir>" / "walk_<dir>" se arman al iniciar.
+## Si falta la hoja se usa un dibujo de respaldo (_draw).
 
 signal interacted(facing: Vector2)
 signal path_ended
@@ -14,6 +15,12 @@ signal path_ended
 const DIRECTIONS: PackedStringArray = ["e", "se", "s", "sw", "w", "nw", "n", "ne"]
 const ARRIVE_DISTANCE := 3.0
 const STUCK_TIMEOUT := 0.5
+
+const SPRITE_SHEET := "res://assets/art/characters/player.png"
+const FRAME_SIZE := Vector2i(32, 48)
+const FEET := Vector2i(16, 44)
+const WALK_FRAMES := 4
+const WALK_FPS := 8.0
 
 @export var walk_speed := 80.0
 @export var run_speed := 150.0
@@ -23,8 +30,13 @@ var facing := Vector2.DOWN
 var is_moving := false
 
 var _path: Array[Vector2] = []
+var _sprite: AnimatedSprite2D
 var _stuck_time := 0.0
 var _walk_time := 0.0
+
+
+func _ready() -> void:
+	_sprite = _build_sprite()
 
 
 func set_path(points: Array[Vector2]) -> void:
@@ -82,6 +94,11 @@ func _physics_process(delta: float) -> void:
 	if Input.is_action_just_pressed("interact"):
 		interacted.emit(facing)
 
+	if _sprite:
+		var anim := animation_name()
+		if _sprite.animation != anim:
+			_sprite.play(anim)
+		_sprite.speed_scale = 1.6 if Input.is_action_pressed("run") and is_moving else 1.0
 	queue_redraw()
 
 
@@ -96,16 +113,52 @@ func _next_path_direction() -> Vector2:
 	return to_next.normalized()
 
 
-# --- Placeholder visual -------------------------------------------------------
+# --- Sprite ---------------------------------------------------------------------
+
+func _build_sprite() -> AnimatedSprite2D:
+	if not ResourceLoader.exists(SPRITE_SHEET):
+		return null
+	var sheet: Texture2D = load(SPRITE_SHEET)
+	var frames := SpriteFrames.new()
+	frames.remove_animation("default")
+	for row in DIRECTIONS.size():
+		var dir := DIRECTIONS[row]
+		frames.add_animation("idle_" + dir)
+		frames.add_frame("idle_" + dir, _frame(sheet, 0, row))
+		frames.add_animation("walk_" + dir)
+		frames.set_animation_speed("walk_" + dir, WALK_FPS)
+		for col in range(1, WALK_FRAMES + 1):
+			frames.add_frame("walk_" + dir, _frame(sheet, col, row))
+
+	var sprite := AnimatedSprite2D.new()
+	sprite.name = "Sprite"
+	sprite.sprite_frames = frames
+	sprite.centered = false
+	sprite.offset = -Vector2(FEET)  # los pies quedan en el origen del jugador
+	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	add_child(sprite)
+	sprite.play(animation_name())
+	return sprite
+
+
+func _frame(sheet: Texture2D, col: int, row: int) -> AtlasTexture:
+	var tex := AtlasTexture.new()
+	tex.atlas = sheet
+	tex.region = Rect2(Vector2(col, row) * Vector2(FRAME_SIZE), FRAME_SIZE)
+	return tex
+
 
 func _draw() -> void:
-	var step := sin(_walk_time * 14.0)
-	var bob := -absf(step) * 1.5 if is_moving else 0.0
-
-	# Sombra (elipse) e indicador de dirección en el suelo
+	# Sombra en el suelo (debajo del sprite).
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2(1.0, 0.5))
 	draw_circle(Vector2.ZERO, 8.0, Color(0, 0, 0, 0.3))
-	draw_line(Vector2.ZERO, facing * 12.0, Color(1, 1, 1, 0.5), 2.0)
+	draw_set_transform(Vector2.ZERO)
+	if _sprite:
+		return
+
+	# Respaldo sin hoja de sprites: figura simple.
+	var step := sin(_walk_time * 14.0)
+	var bob := -absf(step) * 1.5 if is_moving else 0.0
 
 	draw_set_transform(Vector2(0, bob))
 	var legs := body_color.darkened(0.45)

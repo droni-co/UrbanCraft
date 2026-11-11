@@ -152,6 +152,12 @@ apps/game/
 - **Input unificado**: el joystick virtual nativo (`VirtualJoystick`) y los botones táctiles presionan las mismas acciones del InputMap que el teclado y el gamepad. El jugador solo lee `Input.get_vector(...)`.
 - **Pantallas**: resolución base de 640×360 que escala a cualquier pantalla (`canvas_items` + `expand`), filtro *nearest* y renderer *Compatibility* para máxima compatibilidad móvil y web.
 
-### Assets placeholder
+### Arte (tiles y sprites)
 
-`pnpm game:assets` regenera `assets/tiles/*.png` y el TileSet. Para usar arte real, reemplaza los PNG respetando el orden de `WorldTiles.Ground` / `WorldTiles.Prop` (suelo 64×32, props 64×64 con la base del objeto en y=48) y vuelve a ejecutar solo el último paso (`generate_tileset.gd`). `pnpm game:input` reescribe el InputMap desde `tools/setup_input_map.gd`.
+El arte editable vive en `apps/game/assets/art/`: un PNG por tile, variante y personaje. Las especificaciones están en [`assets/art/README.md`](apps/game/assets/art/README.md): tamaños, punto de anclaje, nombres `<tipo>_<n>@peso.png` y hoja del jugador de 8 direcciones.
+
+- `pnpm game:assets`: crea lo que falte con el arte inicial (sin tocar tus archivos), arma los atlas de `assets/tiles/` y reconstruye el TileSet. Ejecútalo después de editar.
+- `pnpm game:art:reset`: vuelve a generar todo el arte inicial. **Borra tus cambios.**
+- Cada celda elige una variante con un hash de su posición global, así la ciudad no se ve repetida y todos ven lo mismo.
+
+`pnpm game:input` reescribe el InputMap desde `tools/setup_input_map.gd`.

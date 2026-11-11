@@ -29,9 +29,63 @@ const NO_PROP := 255
 const UNWALKABLE_GROUND: Array[int] = [Ground.WATER, Ground.BUILDING]
 
 
-static func ground_coords(kind: int) -> Vector2i:
-	return Vector2i(kind, 0)
+## Metadatos del TileSet con los pesos de las variantes de cada tipo
+## (los escribe tools/generate_tileset.gd a partir de assets/art).
+const META_GROUND_WEIGHTS := "ground_variant_weights"
+const META_PROP_WEIGHTS := "prop_variant_weights"
+
+## Atlas: columna = tipo, fila = variante.
+static var _ground_weights: Array = []
+static var _prop_weights: Array = []
 
 
-static func prop_coords(kind: int) -> Vector2i:
-	return Vector2i(kind, 0)
+static func ground_coords(kind: int, variant := 0) -> Vector2i:
+	return Vector2i(kind, variant)
+
+
+static func prop_coords(kind: int, variant := 0) -> Vector2i:
+	return Vector2i(kind, variant)
+
+
+## Carga los pesos de las variantes desde el TileSet (una vez basta).
+static func load_variants(tile_set: TileSet) -> void:
+	if tile_set == null:
+		return
+	_ground_weights = tile_set.get_meta(META_GROUND_WEIGHTS, [])
+	_prop_weights = tile_set.get_meta(META_PROP_WEIGHTS, [])
+
+
+## Coordenadas de atlas para un suelo en una celda GLOBAL. La variante sale de
+## un hash de la celda: estable entre sesiones, chunks y jugadores.
+static func pick_ground(kind: int, gx: int, gy: int) -> Vector2i:
+	return Vector2i(kind, _pick(_ground_weights, kind, cell_hash(gx, gy, 0x51ed)))
+
+
+static func pick_prop(kind: int, gx: int, gy: int) -> Vector2i:
+	return Vector2i(kind, _pick(_prop_weights, kind, cell_hash(gx, gy, 0x2b7f)))
+
+
+static func _pick(table: Array, kind: int, h: int) -> int:
+	if kind >= table.size():
+		return 0
+	var weights: Array = table[kind]
+	if weights.size() <= 1:
+		return 0
+	var total := 0.0
+	for w in weights:
+		total += float(w)
+	var t := float(h % 1000003) / 1000003.0 * total
+	for i in weights.size():
+		t -= float(weights[i])
+		if t < 0.0:
+			return i
+	return weights.size() - 1
+
+
+## Hash entero de una celda (no negativo, determinista en todas las plataformas).
+static func cell_hash(x: int, y: int, salt: int) -> int:
+	var h := (x * 0x27d4eb2d) ^ (y * 0x165667b1) ^ (salt * 0x9e3779b1)
+	h = (h ^ (h >> 15)) * 0x2c1b3c6d
+	h = (h ^ (h >> 12)) * 0x297a2d39
+	h ^= h >> 15
+	return h & 0x7fffffff

@@ -7,6 +7,7 @@ extends RefCounted
 static func generate(ground: TileMapLayer, props: TileMapLayer, size: Vector2i, world_seed: int, spawn: Vector2i) -> void:
 	ground.clear()
 	props.clear()
+	WorldTiles.load_variants(ground.tile_set)
 
 	var elevation := FastNoiseLite.new()
 	elevation.seed = world_seed
@@ -23,11 +24,11 @@ static func generate(ground: TileMapLayer, props: TileMapLayer, size: Vector2i, 
 		for x in size.x:
 			var cell := Vector2i(x, y)
 			var kind := _ground_at(cell, size, spawn, elevation.get_noise_2d(x, y), moisture.get_noise_2d(x, y))
-			ground.set_cell(cell, WorldTiles.SOURCE_GROUND, WorldTiles.ground_coords(kind))
+			ground.set_cell(cell, WorldTiles.SOURCE_GROUND, WorldTiles.pick_ground(kind, x, y))
 
 			var prop := _prop_at(cell, kind, spawn, rng.randf())
 			if prop >= 0:
-				props.set_cell(cell, WorldTiles.SOURCE_PROPS, WorldTiles.prop_coords(prop))
+				props.set_cell(cell, WorldTiles.SOURCE_PROPS, WorldTiles.pick_prop(prop, x, y))
 
 
 static func _ground_at(cell: Vector2i, size: Vector2i, spawn: Vector2i, e: float, m: float) -> int:

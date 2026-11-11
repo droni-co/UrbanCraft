@@ -57,6 +57,7 @@ var _cache_dir := ""
 func setup(ground_layer: TileMapLayer, props_layer: TileMapLayer, map_config: Dictionary, origin: Vector2i) -> void:
 	ground = ground_layer
 	props = props_layer
+	WorldTiles.load_variants(ground.tile_set)
 	config = map_config
 	chunk_size = int(config.chunkSize)
 	origin_cell = origin
@@ -242,10 +243,12 @@ func _process(_delta: float) -> void:
 			for x in chunk_size:
 				var i := y * chunk_size + x
 				var cell := base + Vector2i(x, y)
-				ground.set_cell(cell, WorldTiles.SOURCE_GROUND, WorldTiles.ground_coords(ground_bytes[i]))
+				var gx := cell.x + origin_cell.x
+				var gy := cell.y + origin_cell.y
+				ground.set_cell(cell, WorldTiles.SOURCE_GROUND, WorldTiles.pick_ground(ground_bytes[i], gx, gy))
 				var prop := prop_bytes[i]
 				if prop != WorldTiles.NO_PROP:
-					props.set_cell(cell, WorldTiles.SOURCE_PROPS, WorldTiles.prop_coords(prop))
+					props.set_cell(cell, WorldTiles.SOURCE_PROPS, WorldTiles.pick_prop(prop, gx, gy))
 
 		rows_left -= end_row - row
 		job.row = end_row
