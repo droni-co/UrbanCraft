@@ -7,6 +7,9 @@ signal wave_requested
 
 var _status: Label
 var _visible_check: CheckButton
+var _voice_button: Button
+var _open_mic_check: CheckButton
+var _voice_hint: Label
 
 
 func _ready() -> void:
@@ -37,6 +40,31 @@ func _ready() -> void:
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	add_child(hint)
 
+	add_child(HSeparator.new())
+	var voice_title := Label.new()
+	voice_title.text = "Voz con amigos"
+	voice_title.theme_type_variation = &"SectionTitle"
+	add_child(voice_title)
+
+	_voice_button = Button.new()
+	_voice_button.custom_minimum_size.y = 24
+	_voice_button.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	_voice_button.pressed.connect(Voice.toggle)
+	add_child(_voice_button)
+
+	_open_mic_check = CheckButton.new()
+	_open_mic_check.text = "Micrófono abierto (sin mantener V)"
+	_open_mic_check.button_pressed = GameSettings.voice_open_mic
+	_open_mic_check.toggled.connect(func(on: bool) -> void: GameSettings.voice_open_mic = on)
+	add_child(_open_mic_check)
+
+	_voice_hint = Label.new()
+	_voice_hint.theme_type_variation = &"HintLabel"
+	_voice_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	add_child(_voice_hint)
+	Voice.changed.connect(_refresh)
+
+	add_child(HSeparator.new())
 	var wave := Button.new()
 	wave.text = "Saludar (G)"
 	wave.custom_minimum_size.y = 24
@@ -56,6 +84,20 @@ func focus_first() -> void:
 
 func _refresh() -> void:
 	_visible_check.set_pressed_no_signal(GameSettings.online_visible)
+	_open_mic_check.set_pressed_no_signal(GameSettings.voice_open_mic)
+	if Voice.starting:
+		_voice_button.text = "Pidiendo el micrófono…"
+	elif Voice.enabled:
+		var n := Voice.connected_count()
+		_voice_button.text = "Salir de la voz (%s)" % ("sin amigos conectados" if n == 0 else "1 amigo" if n == 1 else "%d amigos" % n)
+	else:
+		_voice_button.text = "Activar voz"
+	var reason := Voice.unavailable_reason() if not Voice.enabled else ""
+	_voice_button.disabled = reason != "" and not Voice.starting
+	_voice_hint.text = (reason + "\n" if reason != "" else "") \
+		+ "Oyes a tus amigos en línea que también tengan la voz activa, y ellos a ti. " \
+		+ "El audio va directo entre jugadores, así que tus amigos pueden ver tu dirección IP. " \
+		+ "Toca un nombre en la lista de la derecha para silenciarlo. Con micrófono abierto usa audífonos para evitar eco."
 	match Online.status:
 		"online":
 			var others := Online.others_in_range()

@@ -29,6 +29,11 @@ signal friends_event(event: String, nickname: String)
 signal chat_received(player_id: int, nickname: String, text: String, friend: bool)
 ## El servidor no aceptó un mensaje de chat: demasiados seguidos.
 signal chat_rejected(retry_seconds: float)
+## Un amigo entró (on) o salió de la voz. Si player_id == my_id y on es false,
+## el servidor no te dejó entrar (modo fantasma). Ver el autoload Voice.
+signal voice_peer(player_id: int, nickname: String, on: bool)
+## Señalización WebRTC de un amigo (k: "offer", "answer" o "ice").
+signal rtc_received(from_id: int, kind: String, data: String)
 
 const WS_PATH := "/ws"
 const MOVE_SEND_INTERVAL := 0.1
@@ -48,6 +53,8 @@ var radar: Array = []
 ## Radio (celdas) de "cercanos" y radio del radar (metros), según el servidor.
 var nearby_radius := 40.0
 var radar_radius_meters := 1000.0
+## Servidores STUN/TURN para la voz (los manda el servidor al conectar).
+var ice_servers: Array = []
 
 var _socket: WebSocketPeer
 var _active := false
@@ -76,6 +83,11 @@ func start() -> void:
 	_need_spawn = true
 	if status == "offline":
 		_connect()
+
+
+## true entre start() y stop() (en el mundo), aunque se esté reconectando.
+func is_active() -> bool:
+	return _active
 
 
 func stop() -> void:
@@ -125,6 +137,18 @@ func send_chat(text: String) -> bool:
 		return false
 	_send({"t": "say", "m": text})
 	return true
+
+
+## Entra o sale de la voz con amigos.
+func send_voice(on: bool) -> void:
+	if is_online():
+		_send({"t": "voice", "on": on})
+
+
+## Señalización WebRTC para un amigo que está en la voz.
+func send_rtc(to_id: int, kind: String, data: String) -> void:
+	if is_online():
+		_send({"t": "rtc", "to": to_id, "k": kind, "d": data})
 
 
 func nickname(player_id: int) -> String:
@@ -209,6 +233,7 @@ func _handle(raw: String) -> void:
 			my_id = int(msg.id)
 			nearby_radius = float(msg.get("nearbyRadius", nearby_radius))
 			radar_radius_meters = float(msg.get("radarRadiusMeters", radar_radius_meters))
+			ice_servers = msg.get("ice", []) if msg.get("ice") is Array else []
 			_backoff = 1.0
 			_need_spawn = true
 			_last_sent = []
@@ -227,6 +252,10 @@ func _handle(raw: String) -> void:
 			friends_event.emit(str(msg.get("e", "")), str(msg.get("n", "")))
 		"chat":
 			chat_received.emit(int(msg.id), str(msg.get("n", "")), str(msg.get("m", "")), int(msg.get("f", 0)) == 1)
+		"voice":
+			voice_peer.emit(int(msg.id), str(msg.get("n", "")), bool(msg.get("on", false)))
+		"rtc":
+			rtc_received.emit(int(msg.get("from", 0)), str(msg.get("k", "")), str(msg.get("d", "")))
 		"reject" when msg.get("r") == "chat":
 			chat_rejected.emit(float(msg.get("retry", 1000)) / 1000.0)
 		"reject":

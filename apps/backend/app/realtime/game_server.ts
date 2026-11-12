@@ -7,7 +7,7 @@ import type { RealtimeConfig } from '#config/realtime'
 import { type PlayerStatsService } from '#services/player_stats_service'
 import { type FriendsService } from '#services/friends_service'
 import { PresenceWorld, snap, type Presence } from '#realtime/presence_world'
-import { parseClientMessage, round2, type ClientMessage } from '#realtime/protocol'
+import { parseClientMessage, round2, type ClientMessage, type RtcKind } from '#realtime/protocol'
 import { worldToLat, worldToLon } from '#map/geo'
 
 interface Client {
@@ -26,6 +26,8 @@ interface Client {
   /** Mensajes de chat disponibles (se recuperan con el tiempo, ver chatRefillMs). */
   chatTokens: number
   chatRefilledAt: number
+  /** En la voz con amigos. */
+  voice: boolean
 }
 
 /** Códigos de cierre propios (4000–4999). */
@@ -124,6 +126,7 @@ export class GameRealtimeServer {
     ws.on('close', () => {
       clearTimeout(authTimer)
       if (client && this.#clients.get(client.presence.id) === client) {
+        this.#setVoice(client, false)
         this.#clients.delete(client.presence.id)
         this.world.leave(client.presence.id)
         if (this.#clients.size === 0) this.#stopTimer()
@@ -146,6 +149,7 @@ export class GameRealtimeServer {
     const previous = this.#clients.get(user.id)
     if (previous) {
       this.#clients.delete(user.id)
+      this.#setVoice(previous, false)
       previous.ws.close(CLOSE.replaced, 'replaced')
     }
 
@@ -169,6 +173,7 @@ export class GameRealtimeServer {
       friends: new Set(friendIds),
       chatTokens: this.config.chatBurst,
       chatRefilledAt: now,
+      voice: false,
     }
     this.#clients.set(user.id, client)
     this.#send(client, {
@@ -177,6 +182,7 @@ export class GameRealtimeServer {
       tickMs: this.config.tickMs,
       nearbyRadius: this.config.nearbyRadiusCells,
       radarRadiusMeters: this.config.radarRadiusMeters,
+      ice: this.config.voiceIceServers,
     })
     this.#startTimer()
     return client
@@ -226,6 +232,13 @@ export class GameRealtimeServer {
       if (areFriends) friends?.add(other)
       else friends?.delete(other)
     }
+    // Si los dos están en la voz, se conectan (o se cortan) al momento.
+    const ca = this.#clients.get(a)
+    const cb = this.#clients.get(b)
+    if (ca?.voice && cb?.voice) {
+      this.#send(ca, this.#voiceMessage(cb, areFriends))
+      this.#send(cb, this.#voiceMessage(ca, areFriends))
+    }
   }
 
   async #level(userId: number) {
@@ -263,7 +276,12 @@ export class GameRealtimeServer {
         return this.#onAct(client, msg.k)
       case 'vis':
         client.presence.visible = msg.v
+        if (!msg.v) this.#setVoice(client, false) // el modo fantasma corta la voz
         return
+      case 'voice':
+        return this.#setVoice(client, msg.on)
+      case 'rtc':
+        return this.#onRtc(client, msg.to, msg.k, msg.d)
       case 'ping':
         return this.#send(client, { t: 'pong', c: msg.c })
       case 'say':
@@ -351,6 +369,46 @@ export class GameRealtimeServer {
         f: client.friends.has(id) ? 1 : 0,
       })
     }
+  }
+
+  // --- Voz con amigos ----------------------------------------------------------
+
+  /**
+   * Entra o sale de la voz. Se avisa a los amigos conectados que están en la
+   * voz y, al entrar, se le dice quiénes ya estaban: cada pareja se conecta
+   * directo por WebRTC (inicia la oferta el de id menor). En modo fantasma no
+   * se puede entrar.
+   */
+  #setVoice(client: Client, on: boolean) {
+    if (on && !client.presence.visible) {
+      return this.#send(client, { t: 'voice', id: client.presence.id, n: '', on: false })
+    }
+    if (client.voice === on) return
+    client.voice = on
+    for (const friend of this.#voiceFriends(client)) {
+      this.#send(friend, this.#voiceMessage(client, on))
+      if (on) this.#send(client, this.#voiceMessage(friend, true))
+    }
+  }
+
+  #voiceFriends(client: Client) {
+    const out: Client[] = []
+    for (const id of client.friends) {
+      const friend = this.#clients.get(id)
+      if (friend?.voice) out.push(friend)
+    }
+    return out
+  }
+
+  #voiceMessage(of: Client, on: boolean) {
+    return { t: 'voice', id: of.presence.id, n: of.presence.nickname, on }
+  }
+
+  /** Señalización WebRTC: solo entre amigos que están los dos en la voz. */
+  #onRtc(client: Client, to: number, kind: RtcKind, data: string) {
+    const target = this.#clients.get(to)
+    if (!client.voice || !target?.voice || !client.friends.has(to)) return
+    this.#send(target, { t: 'rtc', from: client.presence.id, k: kind, d: data })
   }
 
   /** Jugadores visibles cuyo chunk está a ≤ chatChunkRadius chunks del de `me`. */

@@ -46,8 +46,21 @@ const realtimeConfig = {
   chatBurst: 4,
   chatRefillMs: 2000,
 
-  /** Límites por conexión. */
-  maxMessageBytes: 2048,
+  /**
+   * Voz con amigos (WebRTC directo entre jugadores, ver docs/voz.md): el
+   * servidor solo reenvía la señalización. Servidores ICE que usan los
+   * clientes; para agregar un TURN: { urls: 'turn:…', username, credential }.
+   */
+  voiceIceServers: [
+    { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
+  ] as {
+    urls: string | string[]
+    username?: string
+    credential?: string
+  }[],
+
+  /** Límites por conexión (las ofertas WebRTC ocupan unos 3–6 KB). */
+  maxMessageBytes: 16_384,
   maxMessagesPerSecond: 40,
 }
 
