@@ -2,6 +2,7 @@ import type { ApplicationService } from '@adonisjs/core/types'
 import type { RealtimeConfig } from '#config/realtime'
 import { GameRealtimeServer } from '#realtime/game_server'
 import { PlayerStatsService } from '#services/player_stats_service'
+import { FriendsService } from '#services/friends_service'
 
 export default class RealtimeProvider {
   #realtime?: GameRealtimeServer
@@ -10,11 +11,12 @@ export default class RealtimeProvider {
 
   register() {
     this.app.container.singleton(GameRealtimeServer, async (resolver) => {
-      const map = this.app.config.get<{ cellZoom: number }>('map')
+      const map = this.app.config.get<{ cellZoom: number; chunkZoom: number }>('map')
       return new GameRealtimeServer(
         this.app.config.get<RealtimeConfig>('realtime'),
-        map.cellZoom,
-        await resolver.make(PlayerStatsService)
+        map,
+        await resolver.make(PlayerStatsService),
+        await resolver.make(FriendsService)
       )
     })
   }

@@ -2,6 +2,7 @@ import { test } from '@japa/runner'
 import app from '@adonisjs/core/services/app'
 import testUtils from '@adonisjs/core/services/test_utils'
 import { WebSocket } from 'ws'
+import db from '@adonisjs/lucid/services/db'
 import User from '#models/user'
 import realtimeConfig from '#config/realtime'
 import { GameRealtimeServer, CLOSE } from '#realtime/game_server'
@@ -80,6 +81,23 @@ const state = (x: number, y: number, extra: object = {}) => ({
   ...extra,
 })
 const ofType = (t: string) => (m: any) => m.t === t
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+async function makeFriends(a: User, b: User) {
+  await db.table('friendships').insert({
+    requester_id: a.id,
+    addressee_id: b.id,
+    status: 'accepted',
+    created_at: new Date(),
+    updated_at: new Date(),
+  })
+}
+
+/** Espera a que lleguen los mensajes y dice si alguno era de chat. */
+async function gotChat(c: { clearInbox: () => any[] }) {
+  await sleep(150)
+  return c.clearInbox().some((m) => m.t === 'chat')
+}
 
 test.group('Multijugador (WebSocket)', (group) => {
   group.setup(async () => {
@@ -234,5 +252,83 @@ test.group('Multijugador (WebSocket)', (group) => {
     const a = await joinAs('ana')
     a.send({ t: 'ping', c: 42 })
     assert.deepEqual(await a.next(ofType('pong')), { t: 'pong', c: 42 })
+  })
+
+  test('chat: llega a los de tu chunk y los vecinos, no a los lejanos', async ({ assert }) => {
+    const ana = await player('ana')
+    const a = await connect(ana.token)
+    const b = await joinAs('beto')
+    const c = await joinAs('caro')
+    a.send(state(BASE.x, BASE.y))
+    b.send(state(BASE.x + 70, BASE.y - 20)) // chunk vecino (64 celdas por chunk)
+    c.send(state(BASE.x + 200, BASE.y)) // 3 chunks más allá (~480 m)
+    await sleep(100)
+
+    a.send({ t: 'say', m: '  hola\n  a   todos ' })
+    const expected = { t: 'chat', id: ana.user.id, n: 'ana', m: 'hola a todos', f: 0 }
+    assert.deepEqual(await b.next(ofType('chat')), expected)
+    assert.deepEqual(await a.next(ofType('chat')), expected) // confirmación
+    assert.isFalse(await gotChat(c))
+
+    a.send({ t: 'say', m: '   ' })
+    assert.include(await a.next(ofType('error')), { e: 'bad_message' })
+    a.send({ t: 'say', m: 'x'.repeat(201) })
+    assert.include(await a.next(ofType('error')), { e: 'bad_message' })
+  })
+
+  test('chat: los amigos lo reciben estén donde estén, hasta que dejan de serlo', async ({
+    assert,
+    client,
+  }) => {
+    const ana = await player('ana')
+    const beto = await player('beto')
+    await makeFriends(ana.user, beto.user)
+    const a = await connect(ana.token)
+    const b = await connect(beto.token)
+    a.send(state(BASE.x, BASE.y))
+    b.send(state(BASE.x + 5000, BASE.y)) // ~12 km
+
+    a.send({ t: 'say', m: '¿dónde estás?' })
+    const msg = await b.next(ofType('chat'))
+    assert.equal(msg.m, '¿dónde estás?')
+    assert.equal(msg.f, 1)
+
+    const res = await client.delete(`/api/v1/friends/${ana.user.id}`).bearerToken(beto.token)
+    res.assertStatus(204)
+    a.clearInbox()
+    a.send({ t: 'say', m: 'hola?' })
+    await a.next(ofType('chat'))
+    assert.isFalse(await gotChat(b))
+  })
+
+  test('chat: en modo fantasma solo te leen tus amigos', async ({ assert }) => {
+    const ana = await player('ana')
+    const beto = await player('beto')
+    await makeFriends(ana.user, beto.user)
+    const a = await connect(ana.token)
+    const b = await connect(beto.token)
+    const c = await joinAs('caro')
+    a.send({ t: 'vis', v: false })
+    a.send(state(BASE.x, BASE.y))
+    b.send(state(BASE.x + 3, BASE.y))
+    c.send(state(BASE.x + 4, BASE.y))
+    await sleep(100)
+
+    a.send({ t: 'say', m: 'psst' })
+    assert.include(await b.next(ofType('chat')), { m: 'psst' })
+    assert.isFalse(await gotChat(c))
+  })
+
+  test('chat: limita la cantidad de mensajes seguidos', async ({ assert }) => {
+    const a = await joinAs('ana')
+    a.send(state(BASE.x, BASE.y))
+    for (let i = 0; i < realtimeConfig.chatBurst; i++) a.send({ t: 'say', m: `m${i}` })
+    a.send({ t: 'say', m: 'uno más' })
+    const reject = await a.next(ofType('reject'))
+    assert.equal(reject.r, 'chat')
+    assert.isAbove(reject.retry, 0)
+    assert.isAtMost(reject.retry, realtimeConfig.chatRefillMs)
+    const echoes = a.clearInbox().filter((m) => m.t === 'chat')
+    assert.lengthOf(echoes, realtimeConfig.chatBurst)
   })
 })

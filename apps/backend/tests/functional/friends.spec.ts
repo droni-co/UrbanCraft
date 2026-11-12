@@ -80,7 +80,10 @@ test.group('Amigos', (group) => {
     const ana = await makeUser('Ana')
     const beto = await makeUser('Beto')
 
-    let res: any = await client.post('/api/v1/friends/requests').json({ nickname: 'beto' }).loginAs(ana)
+    let res: any = await client
+      .post('/api/v1/friends/requests')
+      .json({ nickname: 'beto' })
+      .loginAs(ana)
     res.assertStatus(201)
     assert.equal(res.body().status, 'sent')
 
@@ -152,7 +155,10 @@ test.group('Amigos', (group) => {
 
   test('errores al enviar: apodo inexistente o uno mismo', async ({ client, assert }) => {
     const ana = await makeUser('Ana')
-    let res: any = await client.post('/api/v1/friends/requests').json({ nickname: 'Nadie' }).loginAs(ana)
+    let res: any = await client
+      .post('/api/v1/friends/requests')
+      .json({ nickname: 'Nadie' })
+      .loginAs(ana)
     res.assertStatus(404)
     assert.equal(res.body().error, 'user_not_found')
     res = await client.post('/api/v1/friends/requests').json({ nickname: 'ana' }).loginAs(ana)

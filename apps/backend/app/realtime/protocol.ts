@@ -10,6 +10,7 @@
  *   { t: 'act', k }                          acción visible para los demás (ACTIONS)
  *   { t: 'vis', v }                          visible para otros jugadores (modo fantasma)
  *   { t: 'ping', c }                         latido / medir latencia
+ *   { t: 'say', m }                          mensaje de chat (texto, hasta CHAT_MAX_LENGTH)
  *
  * Servidor → cliente
  *   { t: 'welcome', id, tickMs, nearbyRadius, radarRadiusMeters }
@@ -20,9 +21,17 @@
  *   { t: 'act', id, k }
  *   { t: 'friends', e, n }                   cambio en amigos: e = 'request' (solicitud
  *                                            nueva) o 'accepted', n = apodo del otro
+ *   { t: 'chat', id, n, m, f }               mensaje de chat de un jugador de tu zona (tu
+ *                                            chunk y los vecinos) o de un amigo (f = 1).
+ *                                            Los tuyos también vuelven (id = el tuyo)
+ *   { t: 'reject', r, retry }                r = 'spawn' | 'speed' (posición rechazada) o
+ *                                            'chat' (demasiados mensajes, espera retry ms)
  *   { t: 'pong', c }
  *   { t: 'error', e }                        y a veces se cierra la conexión
  */
+
+/** Largo máximo de un mensaje de chat (caracteres). */
+export const CHAT_MAX_LENGTH = 200
 
 export const ACTIONS = ['interact', 'wave'] as const
 export type ActionKind = (typeof ACTIONS)[number]
@@ -35,6 +44,7 @@ export type ClientMessage =
   | { t: 'act'; k: ActionKind }
   | { t: 'vis'; v: boolean }
   | { t: 'ping'; c: number }
+  | { t: 'say'; m: string }
 
 /** Las celdas globales van de 0 a 2^cellZoom. */
 const MAX_COORD = 2 ** 30
@@ -67,8 +77,28 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       return typeof msg.v === 'boolean' ? { t: 'vis', v: msg.v } : null
     case 'ping':
       return typeof msg.c === 'number' && Number.isFinite(msg.c) ? { t: 'ping', c: msg.c } : null
+    case 'say': {
+      const text = cleanChatText(msg.m)
+      return text ? { t: 'say', m: text } : null
+    }
   }
   return null
+}
+
+/**
+ * Normaliza un mensaje de chat: sin caracteres de control ni de dirección del
+ * texto (que permiten "voltear" lo que se ve), espacios colapsados y recortado.
+ * null si queda vacío o pasa de CHAT_MAX_LENGTH.
+ */
+export function cleanChatText(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const text = value
+    .normalize('NFC')
+    .replace(/[\p{Cc}\u202A-\u202E\u2066-\u2069]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (text.length === 0 || [...text].length > CHAT_MAX_LENGTH) return null
+  return text
 }
 
 function isCoord(v: unknown): v is number {

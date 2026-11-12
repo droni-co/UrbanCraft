@@ -22,6 +22,7 @@ var _sprite: AnimatedSprite2D
 var _name_label: Label
 var _bubble: Label
 var _bubble_tween: Tween
+var _chat_bubble: ChatBubble
 var _dir := 2
 var _move := 0
 
@@ -35,6 +36,9 @@ func _ready() -> void:
 	_bubble.position.y = -Player.FEET.y - 24
 	_bubble.modulate.a = 0.0
 	add_child(_bubble)
+	_chat_bubble = ChatBubble.new()
+	_chat_bubble.position.y = -Player.FEET.y - 13  # justo encima del apodo
+	add_child(_chat_bubble)
 
 
 func set_info(nickname: String, level: int, skin_id: Variant = null) -> void:
@@ -69,6 +73,11 @@ func push_state(time: float, pos: Vector2, dir: int, move: int) -> void:
 	_samples.append({"t": time, "pos": pos, "d": dir, "m": move})
 	while _samples.size() > 8:
 		_samples.pop_front()
+
+
+## Globo con un mensaje de chat de este jugador.
+func show_chat(text: String) -> void:
+	_chat_bubble.say(text)
 
 
 func show_action(kind: String) -> void:

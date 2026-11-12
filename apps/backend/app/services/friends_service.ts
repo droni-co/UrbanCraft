@@ -161,6 +161,16 @@ export class FriendsService {
     return (await this.relation(userId, otherId)) === 'friend'
   }
 
+  /** Ids de los amigos (aceptados) de un jugador. */
+  async friendIds(userId: number): Promise<number[]> {
+    const rows = (await db
+      .from(TABLE)
+      .where('status', 'accepted')
+      .where((q) => q.where('requester_id', userId).orWhere('addressee_id', userId))
+      .select('requester_id', 'addressee_id')) as Pick<Row, 'requester_id' | 'addressee_id'>[]
+    return rows.map((r) => (r.requester_id === userId ? r.addressee_id : r.requester_id))
+  }
+
   /** Amigos y solicitudes (recibidas y enviadas) de un jugador. */
   async overview(userId: number) {
     const rows = (await db
