@@ -8,6 +8,32 @@ import type { routes } from './index.ts'
 export type ParamValue = string | number | bigint | boolean
 
 export interface Registry {
+  'play': {
+    methods: ["GET","HEAD"]
+    pattern: '/play'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/web_game_controller').default['index']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/web_game_controller').default['index']>>>
+      rawResponse: ExtractRawResponse<Awaited<ReturnType<import('#controllers/web_game_controller').default['index']>>>
+    }
+  }
+  'play.file': {
+    methods: ["GET","HEAD"]
+    pattern: '/play/*'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { '*': ParamValue[] }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/web_game_controller').default['file']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/web_game_controller').default['file']>>>
+      rawResponse: ExtractRawResponse<Awaited<ReturnType<import('#controllers/web_game_controller').default['file']>>>
+    }
+  }
   'google_browser.redirect': {
     methods: ["GET","HEAD"]
     pattern: '/auth/google/redirect'

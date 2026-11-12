@@ -2,6 +2,9 @@
 import type { routes } from './index.ts'
 
 export interface ApiDefinition {
+  play: typeof routes['play'] & {
+    file: typeof routes['play.file']
+  }
   googleBrowser: {
     redirect: typeof routes['google_browser.redirect']
     callback: typeof routes['google_browser.callback']

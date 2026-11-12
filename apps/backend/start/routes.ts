@@ -18,6 +18,7 @@ const GoogleAuthController = () => import('#controllers/google_auth_controller')
 const DevLoginController = () => import('#controllers/dev_login_controller')
 const PlayerStatsController = () => import('#controllers/player_stats_controller')
 const FriendsController = () => import('#controllers/friends_controller')
+const WebGameController = () => import('#controllers/web_game_controller')
 
 router.get('/', () => {
   return { name: 'UrbanCraft API', version: 'v1' }
@@ -34,6 +35,12 @@ router.get('/health', async ({ response }) => {
     return response.serviceUnavailable({ status: 'degraded', database: 'down' })
   }
 })
+
+/**
+ * Versión web del juego (export de Godot): urbancraft.droni.vip/play
+ */
+router.get('/play', [WebGameController, 'index']).as('play')
+router.get('/play/*', [WebGameController, 'file']).as('play.file')
 
 /**
  * Inicio de sesión con Google: estas dos rutas las abre el NAVEGADOR del

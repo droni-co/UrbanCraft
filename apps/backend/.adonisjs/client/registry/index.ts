@@ -8,6 +8,18 @@ export type { Route, Path } from './schema.d.ts'
 const placeholder: any = {}
 
 const routes = {
+  'play': {
+    methods: ["GET","HEAD"],
+    pattern: '/play',
+    tokens: [[0,"play"]],
+    types: placeholder as Registry['play']['types'],
+  },
+  'play.file': {
+    methods: ["GET","HEAD"],
+    pattern: '/play/*',
+    tokens: [[0,"play"],[2,"*"]],
+    types: placeholder as Registry['play.file']['types'],
+  },
   'google_browser.redirect': {
     methods: ["GET","HEAD"],
     pattern: '/auth/google/redirect',

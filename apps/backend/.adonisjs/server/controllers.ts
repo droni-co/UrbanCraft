@@ -13,4 +13,5 @@ export const controllers = {
   NewAccount: () => import('#controllers/new_account_controller'),
   PlayerStats: () => import('#controllers/player_stats_controller'),
   Profile: () => import('#controllers/profile_controller'),
+  WebGame: () => import('#controllers/web_game_controller'),
 }

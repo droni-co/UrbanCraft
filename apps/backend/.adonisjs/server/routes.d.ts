@@ -4,6 +4,8 @@ type ParamValue = string | number | bigint | boolean
 
 export type ScannedRoutes = {
   ALL: {
+    'play': { paramsTuple?: []; params?: {} }
+    'play.file': { paramsTuple: [...ParamValue[]]; params: {'*': ParamValue[]} }
     'google_browser.redirect': { paramsTuple?: []; params?: {} }
     'google_browser.callback': { paramsTuple?: []; params?: {} }
     'auth.new_account.store': { paramsTuple?: []; params?: {} }
@@ -31,6 +33,8 @@ export type ScannedRoutes = {
     'geo.geo.ip': { paramsTuple?: []; params?: {} }
   }
   GET: {
+    'play': { paramsTuple?: []; params?: {} }
+    'play.file': { paramsTuple: [...ParamValue[]]; params: {'*': ParamValue[]} }
     'google_browser.redirect': { paramsTuple?: []; params?: {} }
     'google_browser.callback': { paramsTuple?: []; params?: {} }
     'auth.methods': { paramsTuple?: []; params?: {} }
@@ -45,6 +49,8 @@ export type ScannedRoutes = {
     'geo.geo.ip': { paramsTuple?: []; params?: {} }
   }
   HEAD: {
+    'play': { paramsTuple?: []; params?: {} }
+    'play.file': { paramsTuple: [...ParamValue[]]; params: {'*': ParamValue[]} }
     'google_browser.redirect': { paramsTuple?: []; params?: {} }
     'google_browser.callback': { paramsTuple?: []; params?: {} }
     'auth.methods': { paramsTuple?: []; params?: {} }

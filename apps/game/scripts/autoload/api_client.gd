@@ -30,7 +30,8 @@ func _ready() -> void:
 ##   1. `-- --api-url=http://host:puerto`  (cualquier backend)
 ##   2. `-- --local`                       (http://localhost:3333)
 ##   3. variable de entorno URBANCRAFT_API_URL (`local` equivale a LOCAL_URL)
-##   4. ajuste urbancraft/network/api_base_url (por defecto la nube)
+##   4. en la versión web, el mismo origen que sirve la página (/play)
+##   5. ajuste urbancraft/network/api_base_url (por defecto la nube)
 static func _resolve_base_url() -> String:
 	var url := ""
 	var args := OS.get_cmdline_user_args()
@@ -43,6 +44,9 @@ static func _resolve_base_url() -> String:
 		url = OS.get_environment(ENV_API_URL)
 		if url == "local":
 			url = LOCAL_URL
+	if url.is_empty() and OS.has_feature("web"):
+		# Versión web (/play): el servidor es el mismo que sirve la página.
+		url = str(JavaScriptBridge.eval("window.location.origin", true))
 	if url.is_empty():
 		url = str(ProjectSettings.get_setting(SETTING_BASE_URL, CLOUD_URL))
 	return url.strip_edges().trim_suffix("/")
@@ -64,6 +68,9 @@ func health() -> Dictionary:
 func request_json(method: HTTPClient.Method, path: String, body: Variant = null) -> Dictionary:
 	var http := HTTPRequest.new()
 	http.timeout = 10.0
+	# En la web el navegador ya descomprime (gzip de los chunks); si Godot lo
+	# intenta otra vez falla con RESULT_BODY_DECOMPRESS_FAILED.
+	http.accept_gzip = not OS.has_feature("web")
 	add_child(http)
 
 	var headers := PackedStringArray(["Accept: application/json", "Content-Type: application/json"])

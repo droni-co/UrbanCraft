@@ -269,7 +269,8 @@ func _session_path() -> String:
 
 
 func _session_key() -> String:
-	var id := OS.get_unique_id()
+	# En la web no hay id de dispositivo (y pedirlo registra un error).
+	var id := "" if OS.has_feature("web") else OS.get_unique_id()
 	return id if not id.is_empty() else "urbancraft-session"
 
 

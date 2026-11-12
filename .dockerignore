@@ -6,5 +6,7 @@
 **/tmp
 .git
 .pnpm-store
-apps/game
+apps/game/.godot
+apps/game/export
+apps/backend/public/play
 docs
