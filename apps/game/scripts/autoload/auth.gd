@@ -260,6 +260,14 @@ func _error_message(res: Dictionary, fallback: String) -> String:
 	return fallback
 
 
+## Una sesión por servidor: el token de la nube no sirve en el backend local
+## y viceversa, así que alternar entre ambos no cierra la otra sesión.
+func _session_path() -> String:
+	if Api.is_cloud():
+		return SESSION_PATH
+	return "user://session-%s.cfg" % Api.base_url.md5_text().substr(0, 8)
+
+
 func _session_key() -> String:
 	var id := OS.get_unique_id()
 	return id if not id.is_empty() else "urbancraft-session"
@@ -267,17 +275,17 @@ func _session_key() -> String:
 
 func _save_session() -> void:
 	if Api.token.is_empty():
-		DirAccess.remove_absolute(ProjectSettings.globalize_path(SESSION_PATH))
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(_session_path()))
 		return
 	var cfg := ConfigFile.new()
 	cfg.set_value("session", "token", Api.token)
 	cfg.set_value("session", "user", user)
-	cfg.save_encrypted_pass(SESSION_PATH, _session_key())
+	cfg.save_encrypted_pass(_session_path(), _session_key())
 
 
 func _load_session() -> void:
 	var cfg := ConfigFile.new()
-	if cfg.load_encrypted_pass(SESSION_PATH, _session_key()) != OK:
+	if cfg.load_encrypted_pass(_session_path(), _session_key()) != OK:
 		return
 	Api.token = str(cfg.get_value("session", "token", ""))
 	var saved: Variant = cfg.get_value("session", "user", {})
