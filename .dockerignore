@@ -1,0 +1,10 @@
+**/node_modules
+**/.env
+**/.env.*
+!**/.env.example
+**/build
+**/tmp
+.git
+.pnpm-store
+apps/game
+docs

@@ -5,6 +5,7 @@ node_modules/
 # Env
 .env
 .env.*.local
+.env.deploy
 
 # OS / editores
 .DS_Store
