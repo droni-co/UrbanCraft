@@ -63,7 +63,7 @@ test.group('Amigos', (group) => {
   test('busca por apodo exacto sin distinguir mayúsculas', async ({ client, assert }) => {
     const ana = await makeUser('Ana')
     await makeUser('Beto')
-    let res = await client.get('/api/v1/friends/search').qs({ nickname: 'beto' }).loginAs(ana)
+    let res: any = await client.get('/api/v1/friends/search').qs({ nickname: 'beto' }).loginAs(ana)
     res.assertStatus(200)
     assert.equal(res.body().user.nickname, 'Beto')
     assert.equal(res.body().user.relation, 'none')
@@ -80,7 +80,7 @@ test.group('Amigos', (group) => {
     const ana = await makeUser('Ana')
     const beto = await makeUser('Beto')
 
-    let res = await client.post('/api/v1/friends/requests').json({ nickname: 'beto' }).loginAs(ana)
+    let res: any = await client.post('/api/v1/friends/requests').json({ nickname: 'beto' }).loginAs(ana)
     res.assertStatus(201)
     assert.equal(res.body().status, 'sent')
 
@@ -126,7 +126,7 @@ test.group('Amigos', (group) => {
     const ana = await makeUser('Ana')
     const beto = await makeUser('Beto')
     await client.post('/api/v1/friends/requests').json({ nickname: 'Beto' }).loginAs(ana)
-    let res = await client.get('/api/v1/friends').loginAs(beto)
+    let res: any = await client.get('/api/v1/friends').loginAs(beto)
     const requestId = res.body().incoming[0].id
 
     res = await client.delete(`/api/v1/friends/requests/${requestId}`).loginAs(beto)
@@ -142,7 +142,7 @@ test.group('Amigos', (group) => {
     const ana = await makeUser('Ana')
     const beto = await makeUser('Beto')
     await client.post('/api/v1/friends/requests').json({ nickname: 'Beto' }).loginAs(ana)
-    const res = await client
+    const res: any = await client
       .post('/api/v1/friends/requests')
       .json({ nickname: 'Ana' })
       .loginAs(beto)
@@ -152,7 +152,7 @@ test.group('Amigos', (group) => {
 
   test('errores al enviar: apodo inexistente o uno mismo', async ({ client, assert }) => {
     const ana = await makeUser('Ana')
-    let res = await client.post('/api/v1/friends/requests').json({ nickname: 'Nadie' }).loginAs(ana)
+    let res: any = await client.post('/api/v1/friends/requests').json({ nickname: 'Nadie' }).loginAs(ana)
     res.assertStatus(404)
     assert.equal(res.body().error, 'user_not_found')
     res = await client.post('/api/v1/friends/requests').json({ nickname: 'ana' }).loginAs(ana)
@@ -164,7 +164,7 @@ test.group('Amigos', (group) => {
     const ana = await makeUser('Ana')
     const beto = await makeUser('Beto')
     await befriend(client, ana, beto)
-    let res = await client.delete(`/api/v1/friends/${beto.id}`).loginAs(ana)
+    let res: any = await client.delete(`/api/v1/friends/${beto.id}`).loginAs(ana)
     res.assertStatus(204)
     res = await client.get('/api/v1/friends').loginAs(beto)
     assert.lengthOf(res.body().friends, 0)
@@ -187,7 +187,7 @@ test.group('Amigos', (group) => {
     const carla = await makeUser('Carla')
     await befriend(client, ana, beto)
 
-    let res = await client.get(`/api/v1/friends/${beto.id}/location`).loginAs(ana)
+    let res: any = await client.get(`/api/v1/friends/${beto.id}/location`).loginAs(ana)
     res.assertStatus(409)
     assert.equal(res.body().error, 'friend_offline')
 
