@@ -21,6 +21,16 @@ test.group('Multijugador: protocolo', () => {
     assert.deepEqual(parseClientMessage('{"t":"vis","v":false}'), { t: 'vis', v: false })
     assert.deepEqual(parseClientMessage('{"t":"say","m":" hola "}'), { t: 'say', m: 'hola' })
     assert.isNull(parseClientMessage('{"t":"say","m":42}'))
+    assert.deepEqual(parseClientMessage('{"t":"voice","on":true}'), { t: 'voice', on: true })
+    assert.deepEqual(parseClientMessage('{"t":"rtc","to":5,"k":"ice","d":"{}"}'), {
+      t: 'rtc',
+      to: 5,
+      k: 'ice',
+      d: '{}',
+    })
+    assert.isNull(parseClientMessage('{"t":"rtc","to":5,"k":"hack","d":"{}"}'))
+    assert.isNull(parseClientMessage('{"t":"rtc","to":"5","k":"ice","d":"{}"}'))
+    assert.isNull(parseClientMessage(`{"t":"rtc","to":5,"k":"ice","d":"${'x'.repeat(12_001)}"}`))
   })
 
   test('limpia los mensajes de chat', ({ assert }) => {

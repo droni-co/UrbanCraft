@@ -26,6 +26,8 @@ var friends: FriendsSection
 var menu_button: Button
 ## Chat con los jugadores cercanos y los amigos (botón, mensajes y ventana).
 var chat: ChatPanel
+## Voz con amigos (botón de micrófono, lista de amigos en la voz).
+var voice: VoicePanel
 const CHAT_BUTTON_GAP := 6.0
 ## Hambre, nivel, dinero… bajo el botón de menú.
 var stats_panel: StatsPanel
@@ -75,6 +77,13 @@ func _build_menu() -> void:
 	move_child(chat, menu.get_index())
 	menu.opened.connect(chat.close)
 
+	voice = VoicePanel.new()
+	voice.name = "Voice"
+	add_child(voice)
+	move_child(voice, menu.get_index())
+	touch_controls.add_child(voice.talk_button)
+	Voice.notice.connect(func(text: String) -> void: show_message(text, 3.0))
+
 	teleport = TeleportSection.new()
 	menu.add_section("Teletransporte", teleport)
 	character = CharacterSection.new()
@@ -112,8 +121,17 @@ func _build_menu() -> void:
 	stats_panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	add_child(stats_panel)
 	move_child(stats_panel, menu.get_index())
+	stats_panel.resized.connect(_layout_voice_list)
 	PlayerStats.level_up.connect(func(_key: String, level: int) -> void:
 		show_message("¡Subiste al nivel %d!" % level, 3.0))
+
+
+## Lista de amigos en la voz: bajo los stats, alineada al botón de menú.
+func _layout_voice_list() -> void:
+	if voice == null:
+		return
+	var bottom := stats_panel.offset_top + (stats_panel.size.y if stats_panel.visible else 0.0)
+	voice.place_list(menu_button.offset_right, bottom + STATS_GAP * 2.0)
 
 
 ## "Amigos (2)" en el menú si hay solicitudes por responder.
@@ -173,6 +191,11 @@ func _layout_around_minimap() -> void:
 	if GameSettings.minimap_visible and GameSettings.minimap_corner == GameSettings.ScreenCorner.TOP_LEFT:
 		feed_top = GameSettings.minimap_margin.y + GameSettings.minimap_size.y + 20.0
 	chat.set_feed_top(feed_top)
+	voice.button.offset_right = chat.button.offset_left - CHAT_BUTTON_GAP
+	voice.button.offset_left = voice.button.offset_right - MENU_BUTTON_SIZE
+	voice.button.offset_top = MENU_BUTTON_TOP
+	voice.button.offset_bottom = MENU_BUTTON_TOP + MENU_BUTTON_SIZE
+	_layout_voice_list()
 	_layout_location_label()
 	_refresh_location()
 

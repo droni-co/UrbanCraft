@@ -130,6 +130,13 @@ var online_visible := true:
 		online_visible = value
 		online_settings_changed.emit()
 
+## Voz con amigos: false = pulsar para hablar (V o botón), true = micrófono
+## abierto (transmite cuando detecta voz).
+var voice_open_mic := false:
+	set(value):
+		voice_open_mic = value
+		online_settings_changed.emit()
+
 
 func _ready() -> void:
 	var forced: bool = "--touch" in OS.get_cmdline_user_args() \

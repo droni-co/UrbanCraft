@@ -14,6 +14,7 @@ Online (WebSocketPeer) ── ws://…/ws ──> GameRealtimeServer (paquete ws
   <── radar   1/s: resto del radio (1 km), posición redondeada a 25 m, sin id
   act  ──>  <── act: se reenvía a los cercanos
   say  ──>  <── chat: a los de tu zona (3×3 chunks) y a tus amigos (ver chat.md)
+  voice/rtc ──> <── voice/rtc: voz con amigos, solo la señalización (ver voz.md)
 ```
 
 - **Conexión:** el WebSocket vive en el mismo servidor HTTP (`/ws`). El primer mensaje es `{ t: 'auth', token }` con el token de la sesión (el mismo del API). Sin token válido en 5 s se cierra. Una cuenta = una conexión: si entras desde otra ventana, la anterior se cierra (código 4001).
@@ -30,6 +31,7 @@ El protocolo completo está documentado en `apps/backend/app/realtime/protocol.t
 - **Arriba a la izquierda** se ve cuántos jugadores hay cerca (o `conectando…` / `sin multijugador`).
 - **Saludar:** tecla **G** (gamepad: Y) o el botón del menú. Los demás ven `¡Hola!` y un saltito. **Interactuar** (E) muestra un `!`.
 - **Menú → Multijugador:** estado de la conexión, cuántos hay en tu radio y el interruptor **Visible para otros jugadores** (modo fantasma: tú sigues viendo a los demás, ellos no te ven ni en pantalla ni en el radar).
+- **Voz con amigos** (por ahora solo en la web): botón de micrófono y mantener V para hablar. Ver [voz.md](voz.md).
 - **Chat:** Enter o el botón de chat. Lo leen los de tu zona y tus amigos. Ver [chat.md](chat.md).
 - **Minimapa:** puntos amarillos. Los cercanos van con su posición exacta y los lejanos aproximados; los que quedan fuera de la vista se pegan al borde, más tenues.
 

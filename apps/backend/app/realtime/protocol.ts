@@ -11,9 +11,13 @@
  *   { t: 'vis', v }                          visible para otros jugadores (modo fantasma)
  *   { t: 'ping', c }                         latido / medir latencia
  *   { t: 'say', m }                          mensaje de chat (texto, hasta CHAT_MAX_LENGTH)
+ *   { t: 'voice', on }                       entra o sale de la voz con amigos
+ *   { t: 'rtc', to, k, d }                   señalización WebRTC para un amigo en la voz:
+ *                                            k = 'offer' | 'answer' | 'ice', d = texto (JSON)
  *
  * Servidor → cliente
- *   { t: 'welcome', id, tickMs, nearbyRadius, radarRadiusMeters }
+ *   { t: 'welcome', id, tickMs, nearbyRadius, radarRadiusMeters, ice }
+ *                                            ice: servidores STUN/TURN para la voz
  *   { t: 'snap', p: [[id, x, y, d, m], …], info?: { id: { n, lv, s } } }
  *                                            info: apodo, nivel y personaje (skin), la
  *                                            primera vez y cuando cambian
@@ -26,12 +30,20 @@
  *                                            Los tuyos también vuelven (id = el tuyo)
  *   { t: 'reject', r, retry }                r = 'spawn' | 'speed' (posición rechazada) o
  *                                            'chat' (demasiados mensajes, espera retry ms)
+ *   { t: 'voice', id, n, on }                un amigo entró o salió de la voz (al entrar tú,
+ *                                            llega uno por cada amigo que ya estaba)
+ *   { t: 'rtc', from, k, d }                 señalización WebRTC de un amigo
  *   { t: 'pong', c }
  *   { t: 'error', e }                        y a veces se cierra la conexión
  */
 
 /** Largo máximo de un mensaje de chat (caracteres). */
 export const CHAT_MAX_LENGTH = 200
+
+/** Tipos de mensaje de señalización WebRTC y largo máximo de su contenido. */
+export const RTC_KINDS = ['offer', 'answer', 'ice'] as const
+export type RtcKind = (typeof RTC_KINDS)[number]
+export const RTC_MAX_LENGTH = 12_000
 
 export const ACTIONS = ['interact', 'wave'] as const
 export type ActionKind = (typeof ACTIONS)[number]
@@ -45,6 +57,8 @@ export type ClientMessage =
   | { t: 'vis'; v: boolean }
   | { t: 'ping'; c: number }
   | { t: 'say'; m: string }
+  | { t: 'voice'; on: boolean }
+  | { t: 'rtc'; to: number; k: RtcKind; d: string }
 
 /** Las celdas globales van de 0 a 2^cellZoom. */
 const MAX_COORD = 2 ** 30
@@ -77,6 +91,17 @@ export function parseClientMessage(raw: string): ClientMessage | null {
       return typeof msg.v === 'boolean' ? { t: 'vis', v: msg.v } : null
     case 'ping':
       return typeof msg.c === 'number' && Number.isFinite(msg.c) ? { t: 'ping', c: msg.c } : null
+    case 'voice':
+      return typeof msg.on === 'boolean' ? { t: 'voice', on: msg.on } : null
+    case 'rtc':
+      return Number.isInteger(msg.to) &&
+        (msg.to as number) > 0 &&
+        RTC_KINDS.includes(msg.k as RtcKind) &&
+        typeof msg.d === 'string' &&
+        msg.d.length > 0 &&
+        msg.d.length <= RTC_MAX_LENGTH
+        ? { t: 'rtc', to: msg.to as number, k: msg.k as RtcKind, d: msg.d }
+        : null
     case 'say': {
       const text = cleanChatText(msg.m)
       return text ? { t: 'say', m: text } : null

@@ -319,6 +319,69 @@ test.group('Multijugador (WebSocket)', (group) => {
     assert.isFalse(await gotChat(c))
   })
 
+  test('voz: entre amigos se avisan y se reenvía la señalización', async ({ assert }) => {
+    const ana = await player('ana')
+    const beto = await player('beto')
+    const caro = await player('caro')
+    await makeFriends(ana.user, beto.user)
+    const a = await connect(ana.token)
+    const b = await connect(beto.token)
+    const c = await connect(caro.token)
+
+    b.send({ t: 'voice', on: true })
+    c.send({ t: 'voice', on: true })
+    a.send({ t: 'voice', on: true })
+    // Cada uno se entera del otro; caro (no es amiga) de nadie.
+    assert.deepEqual(await b.next(ofType('voice')), {
+      t: 'voice',
+      id: ana.user.id,
+      n: 'ana',
+      on: true,
+    })
+    assert.include(await a.next(ofType('voice')), { id: beto.user.id, on: true })
+
+    a.send({ t: 'rtc', to: beto.user.id, k: 'offer', d: '{"sdp":"v=0"}' })
+    assert.deepEqual(await b.next(ofType('rtc')), {
+      t: 'rtc',
+      from: ana.user.id,
+      k: 'offer',
+      d: '{"sdp":"v=0"}',
+    })
+    a.send({ t: 'rtc', to: caro.user.id, k: 'offer', d: '{}' }) // no son amigas: se descarta
+    await sleep(150)
+    assert.isFalse(c.clearInbox().some((m) => m.t === 'rtc' || m.t === 'voice'))
+
+    a.ws.close()
+    assert.include(await b.next(ofType('voice')), { id: ana.user.id, on: false })
+  })
+
+  test('voz: el modo fantasma y dejar de ser amigos la cortan', async ({ assert, client }) => {
+    const ana = await player('ana')
+    const beto = await player('beto')
+    await makeFriends(ana.user, beto.user)
+    const a = await connect(ana.token)
+    const b = await connect(beto.token)
+    a.send({ t: 'voice', on: true })
+    b.send({ t: 'voice', on: true })
+    await a.next(ofType('voice'))
+    await b.next(ofType('voice'))
+
+    b.send({ t: 'vis', v: false })
+    assert.include(await a.next(ofType('voice')), { id: beto.user.id, on: false })
+    b.send({ t: 'voice', on: true }) // en modo fantasma no se puede
+    assert.include(await b.next(ofType('voice')), { id: beto.user.id, on: false })
+
+    b.send({ t: 'vis', v: true })
+    b.send({ t: 'voice', on: true })
+    assert.include(await a.next(ofType('voice')), { id: beto.user.id, on: true })
+    assert.include(await b.next(ofType('voice')), { id: ana.user.id, on: true })
+
+    const res = await client.delete(`/api/v1/friends/${beto.user.id}`).bearerToken(ana.token)
+    res.assertStatus(204)
+    assert.include(await a.next(ofType('voice')), { id: beto.user.id, on: false })
+    assert.include(await b.next(ofType('voice')), { id: ana.user.id, on: false })
+  })
+
   test('chat: limita la cantidad de mensajes seguidos', async ({ assert }) => {
     const a = await joinAs('ana')
     a.send(state(BASE.x, BASE.y))

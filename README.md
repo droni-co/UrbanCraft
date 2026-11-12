@@ -94,6 +94,7 @@ Juego **2D isométrico** (tiles 64×32, estilo pixel art) pensado para jugarse i
 | Interactuar | E / Espacio                | A              | Botón A                     |
 | Saludar     | G · menú → Multijugador    | Y              | Menú → Multijugador         |
 | Chat        | Enter · T (Esc cierra)     | —              | Botón de chat (junto al menú) |
+| Voz (amigos)| Mantener V · botón micrófono | —            | Mantener botón Voz · botón micrófono |
 | Zoom        | Rueda · `+` / `-`          | LB / RB        | Pellizco                    |
 | Menú        | Esc / P · botón ☰          | Start          | Botón ☰                     |
 
@@ -153,6 +154,8 @@ Al pasar el ratón por encima se ve el detalle (`Hambre 87/100`, `Nivel 3 (50/52
 ### Multijugador
 
 Ves a los demás jugadores que están en tu pantalla (sprite, apodo, nivel, si caminan o corren, y sus saludos) y, en el minimapa, puntos amarillos con los que están a menos de 1 km (los lejanos con posición aproximada, por privacidad). Funciona por WebSocket con el mismo backend. Arriba a la izquierda se ve cuántos hay cerca. En **Menú → Multijugador** puedes ponerte en modo fantasma. Detalles, protocolo y privacidad: [docs/multijugador.md](docs/multijugador.md).
+
+**Voz con amigos** (por ahora en la versión web): botón de micrófono para activarla y mantener **V** para hablar; oyes a tus amigos en línea que también la tengan activa. Audio directo entre jugadores (WebRTC). Ver [docs/voz.md](docs/voz.md).
 
 **Chat:** Enter (o el botón de chat junto al menú) para hablar con los jugadores de tu zona y con tus amigos, estén donde estén. Funciona igual en PC y en móvil. Ver [docs/chat.md](docs/chat.md).
 
