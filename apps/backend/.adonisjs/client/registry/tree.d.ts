@@ -37,6 +37,17 @@ export interface ApiDefinition {
     }
     heartbeat: typeof routes['player.heartbeat']
   }
+  friends: {
+    index: typeof routes['friends.index']
+    search: typeof routes['friends.search']
+    requests: {
+      store: typeof routes['friends.requests.store']
+      accept: typeof routes['friends.requests.accept']
+      reject: typeof routes['friends.requests.reject']
+    }
+    location: typeof routes['friends.location']
+    destroy: typeof routes['friends.destroy']
+  }
   map: {
     map: {
       config: typeof routes['map.map.config']

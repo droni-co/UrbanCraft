@@ -7,6 +7,7 @@ import type { RealtimeConfig } from '#config/realtime'
 import { type PlayerStatsService } from '#services/player_stats_service'
 import { PresenceWorld, snap, type Presence } from '#realtime/presence_world'
 import { parseClientMessage, round2, type ClientMessage } from '#realtime/protocol'
+import { worldToLat, worldToLon } from '#map/geo'
 
 interface Client {
   ws: WebSocket
@@ -52,7 +53,7 @@ export class GameRealtimeServer {
 
   constructor(
     private config: RealtimeConfig,
-    cellZoom: number,
+    private cellZoom: number,
     private stats: PlayerStatsService,
     private now: () => number = Date.now
   ) {
@@ -175,6 +176,28 @@ export class GameRealtimeServer {
     if (changes.nickname !== undefined) p.nickname = changes.nickname
     if (changes.skin !== undefined) p.skin = changes.skin
     for (const client of this.#clients.values()) client.known.delete(userId)
+  }
+
+  /** Conectado y visible (en modo fantasma aparece como desconectado). */
+  isOnline(userId: number) {
+    const p = this.#clients.has(userId) ? this.world.get(userId) : undefined
+    return Boolean(p && p.visible)
+  }
+
+  /**
+   * Posición actual de un jugador en lat/lon, para teletransportarse junto a él.
+   * null si no está conectado, está en modo fantasma o aún no apareció en el mapa.
+   */
+  locate(userId: number): { lat: number; lon: number } | null {
+    const p = this.#clients.has(userId) ? this.world.get(userId) : undefined
+    if (!p || !p.visible || !p.placed) return null
+    return { lat: worldToLat(p.y, this.cellZoom), lon: worldToLon(p.x, this.cellZoom) }
+  }
+
+  /** Avisa a un jugador conectado de un cambio en sus amigos o solicitudes. */
+  notifyFriends(userId: number, event: 'request' | 'accepted', from: string) {
+    const client = this.#clients.get(userId)
+    if (client) this.#send(client, { t: 'friends', e: event, n: from })
   }
 
   async #level(userId: number) {

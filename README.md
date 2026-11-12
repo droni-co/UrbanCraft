@@ -67,6 +67,7 @@ Prioridad: `--api-url` → `--local` → `URBANCRAFT_API_URL` → ajuste `urbanc
 | GET    | `/api/v1/map/chunks/:z/:x/:y` | Chunk del mapa real (200 listo · 202 generando) |
 | GET    | `/api/v1/geo/place?lat=&lon=` | Ciudad y país de la zona (Nominatim, cacheado por zona) |
 | GET    | `/api/v1/geo/ip`          | Ubicación aproximada por IP (respaldo sin GPS) |
+| GET    | `/api/v1/friends`         | Amigos y solicitudes; buscar, enviar, aceptar, ubicación ([docs](docs/amigos.md)) |
 | WS     | `/ws`                     | Multijugador en tiempo real ([docs](docs/multijugador.md)) |
 
 Mapa del mundo real (OpenStreetMap, chunks, caché y escalado): ver [docs/mapa-mundo-real.md](docs/mapa-mundo-real.md).
@@ -117,7 +118,7 @@ godot --path apps/game -- --lat=4.6097 --lon=-74.0817   # forzar una ubicación
 
 El botón **☰** (arriba a la derecha, junto al minimapa) o **Esc** abre el menú: un modal que pausa el juego. Tiene una lista de secciones a la izquierda (arriba en pantallas angostas) y el contenido a la derecha. Se cierra con la X, con Esc o tocando fuera del panel.
 
-Secciones: **Teletransporte**, **Personaje** (elegir la skin: vista previa caminando y girando; se guarda en la cuenta y los demás la ven al momento; para agregar personajes ver [assets/art/README.md](apps/game/assets/art/README.md#personajes-characterspng)), **Multijugador** (estado, modo fantasma, saludar; ver [docs/multijugador.md](docs/multijugador.md)) y **Cuenta** (iniciar sesión con Google, cambiar el apodo, cerrar sesión; la pantalla inicial muestra una versión compacta). Ver [docs/login-google.md](docs/login-google.md).
+Secciones: **Teletransporte**, **Personaje** (elegir la skin: vista previa caminando y girando; se guarda en la cuenta y los demás la ven al momento; para agregar personajes ver [assets/art/README.md](apps/game/assets/art/README.md#personajes-characterspng)), **Multijugador** (estado, modo fantasma, saludar; ver [docs/multijugador.md](docs/multijugador.md)), **Amigos** (buscar por apodo exacto, solicitudes, ir a donde está un amigo; ver [docs/amigos.md](docs/amigos.md)) y **Cuenta** (iniciar sesión con Google, cambiar el apodo, cerrar sesión; la pantalla inicial muestra una versión compacta). Ver [docs/login-google.md](docs/login-google.md).
 
 **Teletransporte**:
 - Escribe la latitud y la longitud, o pega el par en cualquiera de los dos campos (`4.6097, -74.0817`, como lo copia Google Maps). Acepta decimales con punto o con coma (`4,6097`).
@@ -148,6 +149,8 @@ Al pasar el ratón por encima se ve el detalle (`Hambre 87/100`, `Nivel 3 (50/52
 ### Multijugador
 
 Ves a los demás jugadores que están en tu pantalla (sprite, apodo, nivel, si caminan o corren, y sus saludos) y, en el minimapa, puntos amarillos con los que están a menos de 1 km (los lejanos con posición aproximada, por privacidad). Funciona por WebSocket con el mismo backend. Arriba a la izquierda se ve cuántos hay cerca. En **Menú → Multijugador** puedes ponerte en modo fantasma. Detalles, protocolo y privacidad: [docs/multijugador.md](docs/multijugador.md).
+
+En **Menú → Amigos** puedes buscar a otro jugador por su apodo exacto, enviarle una solicitud de amistad y, cuando la acepte, teletransportarte a donde está. Ver [docs/amigos.md](docs/amigos.md).
 
 ### Minimapa y brújula
 
@@ -203,7 +206,7 @@ apps/game/
 │   ├── player/      # Jugador y RemotePlayer (otros jugadores)
 │   └── ui/          # HUD, botones táctiles, minimapa; menu/ = menú del jugador
 ├── scripts/
-│   ├── autoload/    # Api, Auth (sesión/Google), PlayerStats, Online (multijugador), GameSettings, LocationService
+│   ├── autoload/    # Api, Auth (sesión/Google), PlayerStats, Online (multijugador), Friends, GameSettings, LocationService
 │   ├── map/         # Geo (lat/lon <-> celdas), ChunkManager (streaming)
 │   └── world/       # WorldTiles (catálogo), WorldGenerator, IsoPathfinder
 ├── resources/tilesets/world_tileset.tres   # generado

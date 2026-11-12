@@ -43,6 +43,30 @@ export class AuthAccessTokenSchema extends BaseModel {
   declare updatedAt: DateTime | null
 }
 
+export class FriendshipSchema extends BaseModel {
+  static $columns = [
+    'addresseeId',
+    'createdAt',
+    'id',
+    'requesterId',
+    'status',
+    'updatedAt',
+  ] as const
+  $columns = FriendshipSchema.$columns
+  @column()
+  declare addresseeId: number
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column({ isPrimary: true })
+  declare id: number
+  @column()
+  declare requesterId: number
+  @column()
+  declare status: string
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime
+}
+
 export class GeoPlaceSchema extends BaseModel {
   static $columns = ['data', 'fetchedAt', 'id', 'language', 'provider', 'x', 'y', 'z'] as const
   $columns = GeoPlaceSchema.$columns

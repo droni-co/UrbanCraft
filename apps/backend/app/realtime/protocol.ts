@@ -18,6 +18,8 @@
  *                                            primera vez y cuando cambian
  *   { t: 'radar', p: [[id, x, y], …] }       posiciones redondeadas
  *   { t: 'act', id, k }
+ *   { t: 'friends', e, n }                   cambio en amigos: e = 'request' (solicitud
+ *                                            nueva) o 'accepted', n = apodo del otro
  *   { t: 'pong', c }
  *   { t: 'error', e }                        y a veces se cierra la conexión
  */
