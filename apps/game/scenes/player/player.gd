@@ -29,6 +29,7 @@ var _path: Array[Vector2] = []
 var _sprite: AnimatedSprite2D
 var _stuck_time := 0.0
 var _walk_time := 0.0
+var _chat_bubble: ChatBubble
 
 
 ## Personaje en uso (id de CharacterSkins).
@@ -36,6 +37,12 @@ var skin := ""
 
 
 func _ready() -> void:
+	_chat_bubble = ChatBubble.new()
+	_chat_bubble.position.y = -FEET.y - 4
+	add_child(_chat_bubble)
+	Online.chat_received.connect(func(id: int, _n: String, text: String, _f: bool) -> void:
+		if id == Online.my_id:
+			show_chat(text))
 	set_skin(Auth.user.get("skin"))
 	Auth.session_changed.connect(func(user: Dictionary) -> void: set_skin(user.get("skin")))
 
@@ -89,8 +96,20 @@ func animation_name() -> String:
 	return ("walk_" if is_moving else "idle_") + facing_direction()
 
 
+## Globo con tu mensaje de chat (cuando el servidor lo confirma).
+func show_chat(text: String) -> void:
+	_chat_bubble.say(text)
+
+
+## Escribiendo en un campo de texto (chat): las teclas no mueven al jugador.
+func _is_typing() -> bool:
+	var focus := get_viewport().gui_get_focus_owner()
+	return focus is LineEdit or focus is TextEdit
+
+
 func _physics_process(delta: float) -> void:
-	var input := Input.get_vector("move_left", "move_right", "move_up", "move_down")
+	var typing := _is_typing()
+	var input := Vector2.ZERO if typing else Input.get_vector("move_left", "move_right", "move_up", "move_down")
 	var direction := Vector2.ZERO
 	var strength := 0.0
 
@@ -102,7 +121,7 @@ func _physics_process(delta: float) -> void:
 		direction = _next_path_direction()
 		strength = 1.0
 
-	var speed := run_speed if Input.is_action_pressed("run") else walk_speed
+	var speed := run_speed if Input.is_action_pressed("run") and not typing else walk_speed
 	velocity = direction * speed * strength
 	move_and_slide()
 
@@ -117,7 +136,7 @@ func _physics_process(delta: float) -> void:
 		facing = direction
 	_walk_time = _walk_time + delta if is_moving else 0.0
 
-	if Input.is_action_just_pressed("interact"):
+	if Input.is_action_just_pressed("interact") and not typing:
 		interacted.emit(facing)
 
 	if _sprite:

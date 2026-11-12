@@ -59,6 +59,7 @@ export default class FriendsController {
     try {
       const result = await this.friends.sendRequest(me.id, nickname)
       const realtime = await realtimeServer()
+      if (result.status === 'accepted') realtime.friendshipChanged(me.id, result.user.id, true)
       realtime.notifyFriends(
         result.user.id,
         result.status === 'sent' ? 'request' : 'accepted',
@@ -78,6 +79,7 @@ export default class FriendsController {
     try {
       const requesterId = await this.friends.accept(me.id, Number(params.id))
       const realtime = await realtimeServer()
+      realtime.friendshipChanged(me.id, requesterId, true)
       realtime.notifyFriends(requesterId, 'accepted', displayName(me))
       return { status: 'accepted' }
     } catch (error) {
@@ -96,7 +98,11 @@ export default class FriendsController {
 
   async destroy({ auth, params, response }: HttpContext) {
     try {
-      await this.friends.remove(auth.getUserOrFail().id, Number(params.userId))
+      const me = auth.getUserOrFail()
+      const friendId = Number(params.userId)
+      await this.friends.remove(me.id, friendId)
+      const realtime = await realtimeServer()
+      realtime.friendshipChanged(me.id, friendId, false)
       return response.noContent()
     } catch (error) {
       return this.#error(response, error)

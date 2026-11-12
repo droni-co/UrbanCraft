@@ -6,6 +6,7 @@
  * - "snap" (10 por segundo): los jugadores cercanos, que se ven en pantalla.
  * - "radar" (1 por segundo): los de su radio de alcance, para el minimapa, con
  *   la posición redondeada (privacidad).
+ * - "chat": los mensajes de los jugadores de su zona y de sus amigos.
  */
 const realtimeConfig = {
   path: '/ws',
@@ -34,6 +35,16 @@ const realtimeConfig = {
   maxSpeedCellsPerSecond: 9,
   /** Saltos mayores (aparecer, teletransporte) se marcan con spawn y se limitan. */
   minSpawnIntervalMs: 3000,
+
+  /**
+   * Chat: un mensaje llega a los jugadores a menos de chatChunkRadius chunks
+   * del que habla (1 = su chunk y los 8 vecinos, ~450 m; 0 = solo su chunk) y
+   * a sus amigos, estén donde estén.
+   */
+  chatChunkRadius: 1,
+  /** Ráfaga de mensajes permitida y cada cuánto se recupera uno (ms). */
+  chatBurst: 4,
+  chatRefillMs: 2000,
 
   /** Límites por conexión. */
   maxMessageBytes: 2048,

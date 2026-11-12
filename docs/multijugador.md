@@ -13,6 +13,7 @@ Online (WebSocketPeer) ── ws://…/ws ──> GameRealtimeServer (paquete ws
              la 1.ª vez y cada vez que cambian
   <── radar   1/s: resto del radio (1 km), posición redondeada a 25 m, sin id
   act  ──>  <── act: se reenvía a los cercanos
+  say  ──>  <── chat: a los de tu zona (3×3 chunks) y a tus amigos (ver chat.md)
 ```
 
 - **Conexión:** el WebSocket vive en el mismo servidor HTTP (`/ws`). El primer mensaje es `{ t: 'auth', token }` con el token de la sesión (el mismo del API). Sin token válido en 5 s se cierra. Una cuenta = una conexión: si entras desde otra ventana, la anterior se cierra (código 4001).
@@ -29,6 +30,7 @@ El protocolo completo está documentado en `apps/backend/app/realtime/protocol.t
 - **Arriba a la izquierda** se ve cuántos jugadores hay cerca (o `conectando…` / `sin multijugador`).
 - **Saludar:** tecla **G** (gamepad: Y) o el botón del menú. Los demás ven `¡Hola!` y un saltito. **Interactuar** (E) muestra un `!`.
 - **Menú → Multijugador:** estado de la conexión, cuántos hay en tu radio y el interruptor **Visible para otros jugadores** (modo fantasma: tú sigues viendo a los demás, ellos no te ven ni en pantalla ni en el radar).
+- **Chat:** Enter o el botón de chat. Lo leen los de tu zona y tus amigos. Ver [chat.md](chat.md).
 - **Minimapa:** puntos amarillos. Los cercanos van con su posición exacta y los lejanos aproximados; los que quedan fuera de la vista se pegan al borde, más tenues.
 
 ## Privacidad
@@ -44,7 +46,7 @@ Pendiente de decidir: una **zona privada** alrededor de la ubicación real (por 
 ## Pruebas
 
 ```bash
-cd apps/backend && node ace test --files tests/functional/realtime.spec.ts   # 9 pruebas con clientes ws
+cd apps/backend && node ace test --files tests/functional/realtime.spec.ts   # pruebas con clientes ws (también el chat)
 node ace test --files tests/unit/realtime.spec.ts                            # protocolo e índice espacial
 
 # Dos jugadores en la misma zona (servidor con DEV_LOGIN_ENABLED=true):

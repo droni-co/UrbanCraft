@@ -24,6 +24,9 @@ var online: OnlineSection
 var character: CharacterSection
 var friends: FriendsSection
 var menu_button: Button
+## Chat con los jugadores cercanos y los amigos (botón, mensajes y ventana).
+var chat: ChatPanel
+const CHAT_BUTTON_GAP := 6.0
 ## Hambre, nivel, dinero… bajo el botón de menú.
 var stats_panel: StatsPanel
 const STATS_GAP := 4.0
@@ -64,6 +67,13 @@ func _build_menu() -> void:
 	menu = GameMenu.new()
 	menu.name = "GameMenu"
 	add_child(menu)  # último hijo: queda encima de todo el HUD
+
+	chat = ChatPanel.new()
+	chat.name = "Chat"
+	chat.menu = menu
+	add_child(chat)
+	move_child(chat, menu.get_index())
+	menu.opened.connect(chat.close)
 
 	teleport = TeleportSection.new()
 	menu.add_section("Teletransporte", teleport)
@@ -153,6 +163,16 @@ func _layout_around_minimap() -> void:
 	stats_panel.offset_right = menu_button.offset_right
 	stats_panel.offset_left = menu_button.offset_right
 	stats_panel.offset_top = menu_button.offset_bottom + STATS_GAP
+	# Chat: a la izquierda del botón de menú; sus mensajes, bajo el minimapa
+	# si este está arriba a la izquierda.
+	chat.button.offset_right = menu_button.offset_left - CHAT_BUTTON_GAP
+	chat.button.offset_left = chat.button.offset_right - MENU_BUTTON_SIZE
+	chat.button.offset_top = MENU_BUTTON_TOP
+	chat.button.offset_bottom = MENU_BUTTON_TOP + MENU_BUTTON_SIZE
+	var feed_top := MENU_BUTTON_TOP + 6.0
+	if GameSettings.minimap_visible and GameSettings.minimap_corner == GameSettings.ScreenCorner.TOP_LEFT:
+		feed_top = GameSettings.minimap_margin.y + GameSettings.minimap_size.y + 20.0
+	chat.set_feed_top(feed_top)
 	_layout_location_label()
 	_refresh_location()
 

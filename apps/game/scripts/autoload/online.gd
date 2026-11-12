@@ -24,6 +24,11 @@ signal info_updated(player_ids: Array)
 signal action_received(player_id: int, kind: String)
 ## Cambio en amigos: event = "request" (solicitud nueva) o "accepted".
 signal friends_event(event: String, nickname: String)
+## Mensaje de chat de alguien de tu zona o de un amigo (`friend`), o el tuyo
+## de vuelta (player_id == my_id). Ver el autoload Chat.
+signal chat_received(player_id: int, nickname: String, text: String, friend: bool)
+## El servidor no aceptó un mensaje de chat: demasiados seguidos.
+signal chat_rejected(retry_seconds: float)
 
 const WS_PATH := "/ws"
 const MOVE_SEND_INTERVAL := 0.1
@@ -112,6 +117,14 @@ func send_state(x: float, y: float, dir: int, move: int) -> void:
 func send_action(kind: String) -> void:
 	if is_online():
 		_send({"t": "act", "k": kind})
+
+
+## Manda un mensaje de chat (el servidor lo reparte). false sin conexión.
+func send_chat(text: String) -> bool:
+	if not is_online():
+		return false
+	_send({"t": "say", "m": text})
+	return true
 
 
 func nickname(player_id: int) -> String:
@@ -212,6 +225,10 @@ func _handle(raw: String) -> void:
 			action_received.emit(int(msg.id), str(msg.k))
 		"friends":
 			friends_event.emit(str(msg.get("e", "")), str(msg.get("n", "")))
+		"chat":
+			chat_received.emit(int(msg.id), str(msg.get("n", "")), str(msg.get("m", "")), int(msg.get("f", 0)) == 1)
+		"reject" when msg.get("r") == "chat":
+			chat_rejected.emit(float(msg.get("retry", 1000)) / 1000.0)
 		"reject":
 			# Salto rechazado (velocidad o teletransporte muy seguido):
 			# se reintenta como aparición cuando el servidor lo permita.

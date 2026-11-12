@@ -5,6 +5,7 @@ import { WebSocketServer, WebSocket } from 'ws'
 import User from '#models/user'
 import type { RealtimeConfig } from '#config/realtime'
 import { type PlayerStatsService } from '#services/player_stats_service'
+import { type FriendsService } from '#services/friends_service'
 import { PresenceWorld, snap, type Presence } from '#realtime/presence_world'
 import { parseClientMessage, round2, type ClientMessage } from '#realtime/protocol'
 import { worldToLat, worldToLon } from '#map/geo'
@@ -20,6 +21,11 @@ interface Client {
   windowStart: number
   windowCount: number
   lastActAt: number
+  /** Ids de sus amigos (para el chat); se actualiza con friendshipChanged(). */
+  friends: Set<number>
+  /** Mensajes de chat disponibles (se recuperan con el tiempo, ver chatRefillMs). */
+  chatTokens: number
+  chatRefilledAt: number
 }
 
 /** Códigos de cierre propios (4000–4999). */
@@ -50,14 +56,20 @@ export class GameRealtimeServer {
   #attached = new WeakSet<HttpServer>()
   #timer?: NodeJS.Timeout
   #tick = 0
+  private cellZoom: number
+  /** Lado de un chunk del mapa, en celdas (64). */
+  #chunkCells: number
 
   constructor(
     private config: RealtimeConfig,
-    private cellZoom: number,
+    map: { cellZoom: number; chunkZoom: number },
     private stats: PlayerStatsService,
+    private friends: FriendsService,
     private now: () => number = Date.now
   ) {
-    this.world = new PresenceWorld(config.bucketCells, cellZoom)
+    this.cellZoom = map.cellZoom
+    this.#chunkCells = 2 ** (map.cellZoom - map.chunkZoom)
+    this.world = new PresenceWorld(config.bucketCells, map.cellZoom)
     this.#wss = new WebSocketServer({ noServer: true, maxPayload: config.maxMessageBytes })
     this.#wss.on('connection', (ws) => this.#onConnection(ws))
   }
@@ -127,6 +139,7 @@ export class GameRealtimeServer {
       ws.close(CLOSE.unauthorized, 'invalid_token')
       return null
     }
+    const friendIds = await this.friends.friendIds(user.id).catch(() => [])
     if (ws.readyState !== WebSocket.OPEN) return null
 
     // Una sola conexión por cuenta: la nueva reemplaza a la anterior.
@@ -153,6 +166,9 @@ export class GameRealtimeServer {
       windowStart: now,
       windowCount: 0,
       lastActAt: 0,
+      friends: new Set(friendIds),
+      chatTokens: this.config.chatBurst,
+      chatRefilledAt: now,
     }
     this.#clients.set(user.id, client)
     this.#send(client, {
@@ -200,6 +216,18 @@ export class GameRealtimeServer {
     if (client) this.#send(client, { t: 'friends', e: event, n: from })
   }
 
+  /** Se hicieron (o dejaron de ser) amigos: el chat los conecta (o deja de hacerlo). */
+  friendshipChanged(a: number, b: number, areFriends: boolean) {
+    for (const [me, other] of [
+      [a, b],
+      [b, a],
+    ]) {
+      const friends = this.#clients.get(me)?.friends
+      if (areFriends) friends?.add(other)
+      else friends?.delete(other)
+    }
+  }
+
   async #level(userId: number) {
     try {
       const stats = await this.stats.snapshot(userId)
@@ -238,6 +266,8 @@ export class GameRealtimeServer {
         return
       case 'ping':
         return this.#send(client, { t: 'pong', c: msg.c })
+      case 'say':
+        return this.#onSay(client, msg.m)
       case 'auth':
         return // ya autenticado
     }
@@ -281,6 +311,63 @@ export class GameRealtimeServer {
       const target = this.#clients.get(other.id)
       if (target) this.#send(target, { t: 'act', id: p.id, k: kind })
     }
+  }
+
+  /**
+   * Chat: llega a quien habla (confirmación), a sus amigos conectados y a los
+   * jugadores de su zona (su chunk y los vecinos, ver chatChunkRadius). En modo
+   * fantasma o antes de aparecer en el mapa, solo a sus amigos.
+   */
+  #onSay(client: Client, text: string) {
+    const now = this.now()
+    const refill = Math.floor((now - client.chatRefilledAt) / this.config.chatRefillMs)
+    if (refill > 0) {
+      client.chatTokens = Math.min(this.config.chatBurst, client.chatTokens + refill)
+      client.chatRefilledAt =
+        client.chatTokens === this.config.chatBurst
+          ? now
+          : client.chatRefilledAt + refill * this.config.chatRefillMs
+    }
+    if (client.chatTokens <= 0) {
+      const retry = client.chatRefilledAt + this.config.chatRefillMs - now
+      return this.#send(client, { t: 'reject', r: 'chat', retry })
+    }
+    client.chatTokens--
+
+    const me = client.presence
+    const recipients = new Set<number>([me.id])
+    for (const id of client.friends) if (this.#clients.has(id)) recipients.add(id)
+    if (me.visible && me.placed) {
+      for (const p of this.#chatZone(me)) recipients.add(p.id)
+    }
+    for (const id of recipients) {
+      const target = this.#clients.get(id)
+      if (!target) continue
+      this.#send(target, {
+        t: 'chat',
+        id: me.id,
+        n: me.nickname,
+        m: text,
+        f: client.friends.has(id) ? 1 : 0,
+      })
+    }
+  }
+
+  /** Jugadores visibles cuyo chunk está a ≤ chatChunkRadius chunks del de `me`. */
+  #chatZone(me: Presence): Presence[] {
+    const size = this.#chunkCells
+    const r = this.config.chatChunkRadius
+    const cx = Math.floor(me.x / size)
+    const cy = Math.floor(me.y / size)
+    // Círculo que cubre el cuadrado de chunks (centro del chunk propio ± (r + ½) chunks).
+    const half = (r + 0.5) * size
+    const candidates = this.world.within((cx + 0.5) * size, (cy + 0.5) * size, half * Math.SQRT2)
+    return candidates.filter(
+      (p) =>
+        p.id !== me.id &&
+        Math.abs(Math.floor(p.x / size) - cx) <= r &&
+        Math.abs(Math.floor(p.y / size) - cy) <= r
+    )
   }
 
   // --- Tick --------------------------------------------------------------------

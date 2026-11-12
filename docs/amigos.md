@@ -1,6 +1,6 @@
 # Amigos
 
-Los jugadores pueden hacerse amigos y, por ahora, teletransportarse a donde está un amigo conectado.
+Los jugadores pueden hacerse amigos para teletransportarse a donde está un amigo conectado y leerse en el [chat](chat.md) aunque estén lejos.
 
 ## En el juego
 

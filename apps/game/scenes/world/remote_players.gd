@@ -17,6 +17,7 @@ func _ready() -> void:
 	Online.players_updated.connect(_sync)
 	Online.action_received.connect(_on_action)
 	Online.info_updated.connect(_on_info)
+	Online.chat_received.connect(_on_chat)
 
 
 func count() -> int:
@@ -50,6 +51,12 @@ func _on_info(ids: Array) -> void:
 		var avatar: RemotePlayer = _avatars.get(id)
 		if avatar:
 			avatar.set_info(Online.nickname(id), Online.level(id), Online.skin(id))
+
+
+func _on_chat(player_id: int, _nickname: String, text: String, _friend: bool) -> void:
+	var avatar: RemotePlayer = _avatars.get(player_id)
+	if avatar:
+		avatar.show_chat(text)
 
 
 func _on_action(player_id: int, kind: String) -> void:

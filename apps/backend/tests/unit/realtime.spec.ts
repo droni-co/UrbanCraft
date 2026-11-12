@@ -1,6 +1,6 @@
 import { test } from '@japa/runner'
 import { PresenceWorld, snap } from '#realtime/presence_world'
-import { parseClientMessage } from '#realtime/protocol'
+import { cleanChatText, parseClientMessage } from '#realtime/protocol'
 
 test.group('Multijugador: protocolo', () => {
   test('valida los mensajes del cliente', ({ assert }) => {
@@ -19,6 +19,18 @@ test.group('Multijugador: protocolo', () => {
     assert.isNull(parseClientMessage('no json'))
     assert.isNull(parseClientMessage('[1,2]'))
     assert.deepEqual(parseClientMessage('{"t":"vis","v":false}'), { t: 'vis', v: false })
+    assert.deepEqual(parseClientMessage('{"t":"say","m":" hola "}'), { t: 'say', m: 'hola' })
+    assert.isNull(parseClientMessage('{"t":"say","m":42}'))
+  })
+
+  test('limpia los mensajes de chat', ({ assert }) => {
+    assert.equal(cleanChatText('hola\u0000\tmundo\r\n'), 'hola mundo')
+    assert.equal(cleanChatText('abc\u202Edef'), 'abc def') // sin voltear el texto
+    assert.equal(cleanChatText('¡Buenas! 👋🏽 👨‍👩‍👧'), '¡Buenas! 👋🏽 👨‍👩‍👧') // emojis con ZWJ intactos
+    assert.equal(cleanChatText('😀'.repeat(200)), '😀'.repeat(200)) // cuenta caracteres, no bytes
+    assert.isNull(cleanChatText('😀'.repeat(201)))
+    assert.isNull(cleanChatText(' \n '))
+    assert.isNull(cleanChatText(null))
   })
 })
 

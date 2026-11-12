@@ -71,7 +71,7 @@ Prioridad: `--api-url` → `--local` → `URBANCRAFT_API_URL` → ajuste `urbanc
 | GET    | `/api/v1/geo/ip`          | Ubicación aproximada por IP (respaldo sin GPS) |
 | GET    | `/api/v1/friends`         | Amigos y solicitudes; buscar, enviar, aceptar, ubicación ([docs](docs/amigos.md)) |
 | GET    | `/play`                   | Versión web del juego ([docs](docs/exportar.md#4-web-urbancraftdronivipplay)) |
-| WS     | `/ws`                     | Multijugador en tiempo real ([docs](docs/multijugador.md)) |
+| WS     | `/ws`                     | Multijugador en tiempo real y chat ([docs](docs/multijugador.md), [chat](docs/chat.md)) |
 
 Mapa del mundo real (OpenStreetMap, chunks, caché y escalado): ver [docs/mapa-mundo-real.md](docs/mapa-mundo-real.md).
 
@@ -93,6 +93,7 @@ Juego **2D isométrico** (tiles 64×32, estilo pixel art) pensado para jugarse i
 | Correr      | Shift                      | B              | Botón B (alterna)           |
 | Interactuar | E / Espacio                | A              | Botón A                     |
 | Saludar     | G · menú → Multijugador    | Y              | Menú → Multijugador         |
+| Chat        | Enter · T (Esc cierra)     | —              | Botón de chat (junto al menú) |
 | Zoom        | Rueda · `+` / `-`          | LB / RB        | Pellizco                    |
 | Menú        | Esc / P · botón ☰          | Start          | Botón ☰                     |
 
@@ -152,6 +153,8 @@ Al pasar el ratón por encima se ve el detalle (`Hambre 87/100`, `Nivel 3 (50/52
 ### Multijugador
 
 Ves a los demás jugadores que están en tu pantalla (sprite, apodo, nivel, si caminan o corren, y sus saludos) y, en el minimapa, puntos amarillos con los que están a menos de 1 km (los lejanos con posición aproximada, por privacidad). Funciona por WebSocket con el mismo backend. Arriba a la izquierda se ve cuántos hay cerca. En **Menú → Multijugador** puedes ponerte en modo fantasma. Detalles, protocolo y privacidad: [docs/multijugador.md](docs/multijugador.md).
+
+**Chat:** Enter (o el botón de chat junto al menú) para hablar con los jugadores de tu zona y con tus amigos, estén donde estén. Funciona igual en PC y en móvil. Ver [docs/chat.md](docs/chat.md).
 
 En **Menú → Amigos** puedes buscar a otro jugador por su apodo exacto, enviarle una solicitud de amistad y, cuando la acepte, teletransportarte a donde está. Ver [docs/amigos.md](docs/amigos.md).
 
