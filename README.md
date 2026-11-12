@@ -34,6 +34,8 @@ pnpm game             # ejecuta el juego (conectado a la nube)
 pnpm game:local       # ejecuta el juego contra el backend local
 ```
 
+Builds publicables para Windows, Linux y Android (`pnpm game:export`): ver [docs/exportar.md](docs/exportar.md).
+
 El backend usa `apps/backend/.env` (copiar de `.env.example` y generar llave con `node ace generate:key`).
 
 Por defecto el juego se conecta al servidor en la nube (`https://urbancraft.droni.vip`). Para depurar contra el backend local:
