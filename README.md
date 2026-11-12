@@ -34,7 +34,7 @@ pnpm game             # ejecuta el juego (conectado a la nube)
 pnpm game:local       # ejecuta el juego contra el backend local
 ```
 
-Builds publicables para Windows, Linux y Android (`pnpm game:export`): ver [docs/exportar.md](docs/exportar.md).
+Builds publicables para Windows, Linux y Android (`pnpm game:export`) y versión web en `/play` (`pnpm game:export:web`): ver [docs/exportar.md](docs/exportar.md).
 
 El backend usa `apps/backend/.env` (copiar de `.env.example` y generar llave con `node ace generate:key`).
 
@@ -70,6 +70,7 @@ Prioridad: `--api-url` → `--local` → `URBANCRAFT_API_URL` → ajuste `urbanc
 | GET    | `/api/v1/geo/place?lat=&lon=` | Ciudad y país de la zona (Nominatim, cacheado por zona) |
 | GET    | `/api/v1/geo/ip`          | Ubicación aproximada por IP (respaldo sin GPS) |
 | GET    | `/api/v1/friends`         | Amigos y solicitudes; buscar, enviar, aceptar, ubicación ([docs](docs/amigos.md)) |
+| GET    | `/play`                   | Versión web del juego ([docs](docs/exportar.md#4-web-urbancraftdronivipplay)) |
 | WS     | `/ws`                     | Multijugador en tiempo real ([docs](docs/multijugador.md)) |
 
 Mapa del mundo real (OpenStreetMap, chunks, caché y escalado): ver [docs/mapa-mundo-real.md](docs/mapa-mundo-real.md).

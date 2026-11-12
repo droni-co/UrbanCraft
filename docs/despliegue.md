@@ -7,6 +7,7 @@ estar corriendo en la máquina con la red externa `nginx-proxy`.
 
 - `apps/backend/Dockerfile`: imagen multi-stage (build de AdonisJS con pnpm y
   dependencias de producción vía `pnpm deploy`). Contexto: raíz del monorepo.
+- La imagen incluye la **versión web del juego** en `/play` (etapa `game-web`: exporta con Godot al construir; ver [exportar.md](exportar.md#4-web-urbancraftdronivipplay)).
 - `apps/backend/docker/entrypoint.sh`: ejecuta las migraciones pendientes antes
   de arrancar (`RUN_MIGRATIONS=false` para saltarlas).
 - `docker-compose.prod.yml`: `api` + `postgres` (PostGIS) en una red privada;
@@ -45,9 +46,9 @@ docker compose -f docker-compose.prod.yml --env-file .env.deploy exec -T postgre
 
 ## Cliente
 
-El juego apunta al servidor con `urbancraft/network/api_base_url` en
-`apps/game/project.godot` (por defecto `http://localhost:3333`). Para producción
-usar `https://urbancraft.droni.vip`; el WebSocket va por `wss://…/ws`.
+Los builds de escritorio y Android apuntan a `https://urbancraft.droni.vip` por defecto
+(ajuste `urbancraft/network/api_base_url`; `--local` para el backend local). La versión
+web usa el mismo dominio desde el que se sirve (`/play`). El WebSocket va por `wss://…/ws`.
 
 Para el login con Google en producción, añadir en Google Cloud Console el URI de
 redireccionamiento `https://urbancraft.droni.vip/auth/google/callback`.

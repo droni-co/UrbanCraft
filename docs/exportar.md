@@ -1,4 +1,4 @@
-# Exportar el juego (Windows, Linux y Android)
+# Exportar el juego (Windows, Linux, Android y web)
 
 Los presets están en `apps/game/export_presets.cfg` (versionado). Los builds salen en `apps/game/export/` (ignorado por git).
 
@@ -8,7 +8,8 @@ Los presets están en `apps/game/export_presets.cfg` (versionado). Los builds sa
 | `pnpm game:export:windows` | `export/windows/UrbanCraft.exe` (un solo archivo) |
 | `pnpm game:export:android` | `export/android/UrbanCraft.apk` firmado con tu llave de release |
 | `pnpm game:export:android:debug` | `export/android/UrbanCraft-debug.apk` (llave de debug, para probar) |
-| `pnpm game:export` | los tres de release |
+| `pnpm game:export:web` | versión web en `apps/backend/public/play/` (la sirve el backend en `/play`) |
+| `pnpm game:export` | Linux, Windows y Android de release |
 
 Los builds de release se conectan a `https://urbancraft.droni.vip` y no muestran las herramientas de depuración (usuarios de prueba, sección Depuración).
 
@@ -90,6 +91,18 @@ adb install -r apps/game/export/android/UrbanCraft.apk
 - **Ubicación:** el GPS nativo aún no está implementado (ver `LocationService`): en Android la posición sale de la IP, como en PC. Cuando se agregue el plugin habrá que pedir el permiso `ACCESS_FINE_LOCATION`.
 - **Login con Google:** abre el navegador del teléfono y el juego espera la respuesta; no necesita configuración extra.
 - **Google Play** exige **AAB**, no APK. Para eso: instala la plantilla de Gradle (`godot --headless --path apps/game --install-android-build-template --export-release Android ...` o Proyecto → Instalar plantilla de compilación de Android), y en el preset `gradle_build/use_gradle_build=true` y `gradle_build/export_format=1`. Para repartir el APK directamente (o en pruebas internas) no hace falta.
+
+## 4. Web (`urbancraft.droni.vip/play`)
+
+El backend sirve la versión web en `/play`, en el **mismo dominio** que la API: no hace falta CORS y el juego usa como servidor el origen de la página (`window.location.origin`).
+
+- **En local:** `pnpm game:export:web` y abre `http://localhost:3333/play` con el backend corriendo (`pnpm dev`). Para probar con usuarios de prueba, exporta en debug: `godot --headless --path apps/game --export-debug Web ../backend/public/play/index.html`.
+- **En producción no hay que hacer nada aparte:** el `Dockerfile` tiene una etapa `game-web` que descarga Godot y la plantilla web y exporta el juego al construir la imagen. `GODOT_VERSION` (argumento del Dockerfile) debe ser la versión con la que trabajas; si actualizas Godot, súbelo ahí también. La primera vez descarga ~1,3 GB de plantillas; después queda en la caché de Docker.
+- Se usa la variante **sin hilos** (`thread_support=false`): no necesita las cabeceras COOP/COEP, que rompen las ventanas emergentes (login con Google).
+- El `.wasm` (~40 MB) se manda con gzip (~10 MB). Todos los archivos se revalidan con ETag, porque se llaman igual en cada versión.
+- **Ubicación:** el navegador pide permiso y usa el GPS del dispositivo (solo con HTTPS o en `localhost`). Si se rechaza, sale de la IP.
+- **Login con Google:** abre una pestaña nueva. Si el navegador la bloquea (pasa en algunos cuando tarda la respuesta del servidor), el botón **Abrir el navegador otra vez** la abre sin problema.
+- El servidor elige la carpeta con `WEB_GAME_DIR` (por defecto `public/play`).
 
 ## Lista antes de publicar
 
