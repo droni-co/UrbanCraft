@@ -61,6 +61,8 @@ El cliente lee la URL del backend del ajuste `urbancraft/network/api_base_url` e
 
 Mapa del mundo real (OpenStreetMap, chunks, caché y escalado): ver [docs/mapa-mundo-real.md](docs/mapa-mundo-real.md).
 
+**Despliegue en producción** (Docker + nginx-proxy + acme-companion): ver [docs/despliegue.md](docs/despliegue.md).
+
 **Login con Google:** pon `GOOGLE_CLIENT_ID` y `GOOGLE_CLIENT_SECRET` en `apps/backend/.env` (cómo obtenerlos: [docs/login-google.md](docs/login-google.md)). Hace falta iniciar sesión para jugar. Para depurar sin Google hay **usuarios de prueba** (`DEV_LOGIN_ENABLED=true`, solo en local): botón en la pantalla inicial o `godot --path apps/game -- --dev-login=ana`.
 
 Comandos útiles: `pnpm map:pregenerate --lat=40.42 --lon=-3.6887 --radius=2000 --wait`, `pnpm --filter @urbancraft/backend exec node ace make:model Creature -m`, `node ace list`.

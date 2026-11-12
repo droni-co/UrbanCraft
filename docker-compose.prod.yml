@@ -1,0 +1,69 @@
+# Despliegue de producción del servidor (api + PostGIS) detrás de
+# nginx-proxy + acme-companion (red externa "nginx-proxy").
+#
+#   cp .env.deploy.example .env.deploy   # y rellenar secretos
+#   docker compose -f docker-compose.prod.yml --env-file .env.deploy up -d --build
+name: urbancraft-prod
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    restart: unless-stopped
+    environment:
+      TZ: UTC
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 3333
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      APP_KEY: ${APP_KEY:?APP_KEY requerido}
+      APP_URL: https://${DOMAIN:?DOMAIN requerido}
+      SESSION_DRIVER: cookie
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-urbancraft}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD requerido}
+      DB_DATABASE: ${DB_DATABASE:-urbancraft}
+      OVERPASS_URL: ${OVERPASS_URL:-https://overpass-api.de/api/interpreter}
+      MAP_WORKER_ENABLED: ${MAP_WORKER_ENABLED:-true}
+      NOMINATIM_URL: ${NOMINATIM_URL:-https://nominatim.openstreetmap.org}
+      GEO_IP_ENABLED: ${GEO_IP_ENABLED:-true}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      DEV_LOGIN_ENABLED: 'false'
+      # nginx-proxy + acme-companion
+      VIRTUAL_HOST: ${DOMAIN}
+      VIRTUAL_PORT: 3333
+      LETSENCRYPT_HOST: ${DOMAIN}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - default
+      - nginx-proxy
+
+  postgres:
+    image: postgis/postgis:17-3.5
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-urbancraft}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_DATABASE:-urbancraft}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${DB_USER:-urbancraft} -d ${DB_DATABASE:-urbancraft}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - default
+
+volumes:
+  pgdata:
+
+networks:
+  default:
+  nginx-proxy:
+    external: true

@@ -32,6 +32,16 @@ export const http = defineConfig({
    */
   useAsyncLocalStorage: false,
 
+  /**
+   * Confía en X-Forwarded-* solo si vienen de loopback o de una red privada
+   * (nginx-proxy en la red de Docker), para que request.ip() sea la IP real
+   * del cliente y no la del proxy.
+   */
+  trustProxy: (address) =>
+    /^(::ffff:)?(127\.|10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.)/.test(address) ||
+    address === '::1' ||
+    /^f[cd]/i.test(address),
+
   router: {
     matcher: 'tree',
   },
