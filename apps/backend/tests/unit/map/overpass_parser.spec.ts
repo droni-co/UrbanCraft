@@ -1,5 +1,6 @@
 import { test } from '@japa/runner'
 import { parseOverpass } from '#map/providers/overpass_parser'
+import { OverpassProvider } from '#map/providers/overpass_provider'
 
 const g = (pts: Array<[number, number]>) => pts.map(([lon, lat]) => ({ lat, lon }))
 
@@ -83,5 +84,33 @@ test.group('Overpass parser', () => {
     assert.equal(byId.w12.kind, 'line', 'una rotonda cerrada sigue siendo línea')
     assert.equal(byId.r20.kind, 'area')
     assert.lengthOf((byId.r20 as any).rings, 2)
+  })
+})
+
+test.group('Overpass query', () => {
+  test('pide los barrios con más margen que el resto', ({ assert }) => {
+    const provider = new OverpassProvider({
+      url: 'http://x',
+      timeoutSeconds: 30,
+      userAgent: 'test',
+    })
+    const query = provider.buildQuery({ south: 4.67, west: -74.05, north: 4.68, east: -74.04 })
+    // Sin bbox global: Overpass lo intersectaría con el de cada línea.
+    assert.notInclude(query, '[bbox:')
+    const lines = query.split('\n').filter((l) => l.trim().match(/^(node|way|relation)/))
+    const place = lines.find((l) => l.includes('node[place'))!
+    // La geometría se recorta al tile.
+    assert.include(query, 'out geom(4.67,-74.05,4.68,-74.04);')
+    for (const l of lines.filter((x) => x !== place)) {
+      assert.match(l, /\(4\.67,-74\.05,4\.68,-74\.04\);$/)
+    }
+    const [s, w, n, e] = place
+      .match(/\(([^)]+)\);$/)![1]
+      .split(',')
+      .map(Number)
+    assert.isBelow(s, 4.67 - 0.01)
+    assert.isBelow(w, -74.05 - 0.01)
+    assert.isAbove(n, 4.68 + 0.01)
+    assert.isAbove(e, -74.04 + 0.01)
   })
 })

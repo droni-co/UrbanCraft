@@ -21,7 +21,9 @@ signal chunk_loaded(chunk: Vector2i, data: Dictionary)
 signal chunk_unloaded(chunk: Vector2i)
 signal chunk_data_ready(chunk: Vector2i, data: Dictionary)
 signal chunk_data_released(chunk: Vector2i)
-signal chunk_pending(chunk: Vector2i)
+## El servidor está generando la zona; `progress`: cómo va (ver ChunkProgress
+## en el backend: stage, ahead, elapsed, expected, attempts). Vacío en un 429.
+signal chunk_pending(chunk: Vector2i, progress: Dictionary)
 signal chunk_failed(chunk: Vector2i, reason: String)
 
 const CACHE_ROOT := "user://map_cache"
@@ -38,6 +40,9 @@ const RETRY_FAILED_SECONDS := 60.0
 
 var ground: TileMapLayer
 var props: TileMapLayer
+## Bloques de edificio en 3D (y su capa semitransparente, ver BuildingFader).
+var buildings: TileMapLayer
+var buildings_faded: TileMapLayer
 var config: Dictionary = {}
 var origin_cell := Vector2i.ZERO
 var chunk_size := 64
@@ -54,9 +59,12 @@ var _center := Vector2i(-1, -1)
 var _cache_dir := ""
 
 
-func setup(ground_layer: TileMapLayer, props_layer: TileMapLayer, map_config: Dictionary, origin: Vector2i) -> void:
+func setup(ground_layer: TileMapLayer, props_layer: TileMapLayer, map_config: Dictionary, origin: Vector2i,
+		buildings_layer: TileMapLayer = null, buildings_faded_layer: TileMapLayer = null) -> void:
 	ground = ground_layer
 	props = props_layer
+	buildings = buildings_layer
+	buildings_faded = buildings_faded_layer
 	WorldTiles.load_variants(ground.tile_set)
 	config = map_config
 	chunk_size = int(config.chunkSize)
@@ -189,9 +197,12 @@ func _fetch_remote(chunk: Vector2i) -> void:
 				_on_data(chunk, data)
 		202, 429:
 			var wait := 5.0
+			var progress := {}
 			if typeof(res.data) == TYPE_DICTIONARY:
 				wait = float(res.data.get("retryAfter", wait))
-			chunk_pending.emit(chunk)
+				if res.data.has("stage"):
+					progress = res.data
+			chunk_pending.emit(chunk, progress)
 			_retry_later(chunk, wait)
 		503:
 			chunk_failed.emit(chunk, "el servidor no pudo obtener datos de esta zona")
@@ -236,6 +247,7 @@ func _process(_delta: float) -> void:
 		var base := global_to_local(Geo.chunk_origin(chunk, chunk_size))
 		var ground_bytes: PackedByteArray = data.ground
 		var prop_bytes: PackedByteArray = data.props
+		var level_bytes: PackedByteArray = data.get("levels", PackedByteArray())
 		var row: int = job.row
 		var end_row := mini(row + rows_left, chunk_size)
 
@@ -245,7 +257,11 @@ func _process(_delta: float) -> void:
 				var cell := base + Vector2i(x, y)
 				var gx := cell.x + origin_cell.x
 				var gy := cell.y + origin_cell.y
-				ground.set_cell(cell, WorldTiles.SOURCE_GROUND, WorldTiles.pick_ground(ground_bytes[i], gx, gy))
+				var kind := ground_bytes[i]
+				ground.set_cell(cell, WorldTiles.SOURCE_GROUND, WorldTiles.pick_ground(kind, gx, gy))
+				if buildings and WorldTiles.is_building(kind):
+					var levels := level_bytes[i] if i < level_bytes.size() else 0
+					buildings.set_cell(cell, WorldTiles.SOURCE_BUILDINGS, WorldTiles.pick_building(kind, levels, gx, gy))
 				var prop := prop_bytes[i]
 				if prop != WorldTiles.NO_PROP:
 					props.set_cell(cell, WorldTiles.SOURCE_PROPS, WorldTiles.pick_prop(prop, gx, gy))
@@ -269,6 +285,9 @@ func _remove_tiles(chunk: Vector2i) -> void:
 			var cell := base + Vector2i(x, y)
 			ground.erase_cell(cell)
 			props.erase_cell(cell)
+			if buildings:
+				buildings.erase_cell(cell)
+				buildings_faded.erase_cell(cell)
 	_tiled.erase(chunk)
 	if _applied.erase(chunk):
 		chunk_unloaded.emit(chunk)
@@ -297,10 +316,20 @@ func _decode(payload: Variant) -> Dictionary:
 	return {
 		"ground": ground_bytes,
 		"props": prop_bytes,
+		# Pisos por celda (chunks sin este campo: se usan los típicos por estilo).
+		"levels": _decode_levels(p.get("levels")),
 		"pois": p.get("pois", []),
 		"labels": p.get("labels", []),
+		"district": str(p.get("district", "")) if p.get("district") != null else "",
 		"osm_timestamp": p.get("osmTimestamp", ""),
 	}
+
+
+func _decode_levels(value: Variant) -> PackedByteArray:
+	if typeof(value) != TYPE_STRING:
+		return PackedByteArray()
+	var bytes := Marshalls.base64_to_raw(value)
+	return bytes if bytes.size() == chunk_size * chunk_size else PackedByteArray()
 
 
 func _cache_path(chunk: Vector2i) -> String:

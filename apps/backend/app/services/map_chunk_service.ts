@@ -4,15 +4,39 @@ import type { MapConfig } from '#config/map'
 import { encodeChunk } from '#map/chunk_codec'
 import { decodeFeatureSet, encodeFeatureSet, type FeatureSet } from '#map/features'
 import { childTiles, expandBBox, parentTile, tileBounds, isValidTile, tilesAround } from '#map/geo'
-import { MapRepository, type ClaimedJob, type ChunkRow } from '#map/map_repository'
+import {
+  MapRepository,
+  type ClaimedJob,
+  type ChunkRow,
+  type SourceTileRow,
+} from '#map/map_repository'
 import { OsmProvider, OsmProviderError } from '#map/providers/osm_provider'
 import { SourceRasterizer, tileCenterLatitude } from '#map/rasterizer'
 
+/** Cómo va la generación de una zona nueva (para la barra de carga del cliente). */
+export interface ChunkProgress {
+  /** queued: esperando turno · download: pidiendo los datos a OSM · build: armando los chunks. */
+  stage: 'queued' | 'download' | 'build'
+  /** Zonas que se procesan antes que esta. */
+  ahead: number
+  /** Segundos que lleva la etapa actual (solo download/build). */
+  elapsed: number
+  /** Duración típica de una zona (promedio de las últimas descargas), en segundos. */
+  expected: number
+  /** Intentos fallidos hasta ahora (el proveedor no respondió). */
+  attempts: number
+}
+
 export type ChunkResult =
   | { state: 'ready'; chunk: ChunkRow }
-  | { state: 'pending'; retryAfterSeconds: number }
+  | { state: 'pending'; retryAfterSeconds: number; progress: ChunkProgress }
   | { state: 'failed'; error: string | null }
   | { state: 'throttled'; retryAfterSeconds: number }
+
+/** Lo que suele tardar Overpass por source tile, hasta medir las primeras descargas. */
+const INITIAL_FETCH_SECONDS = 35
+/** Re-rasterizar desde datos guardados (sin consultar al proveedor). */
+const BUILD_SECONDS = 3
 
 /**
  * Orquesta la obtención de chunks:
@@ -25,6 +49,8 @@ export class MapChunkService {
   readonly #memory = new Map<string, ChunkRow>()
   readonly #enqueuesByIp = new Map<string, number[]>()
   #onEnqueue: (() => void) | null = null
+  /** Promedio móvil de lo que tarda el proveedor por source tile (segundos). */
+  #fetchSeconds = INITIAL_FETCH_SECONDS
 
   constructor(config: MapConfig) {
     this.config = config
@@ -70,7 +96,8 @@ export class MapChunkService {
       }
       await this.repo.enqueueSourceTile(sz, sx, sy, tileBounds(sz, sx, sy))
       this.#onEnqueue?.()
-      return { state: 'pending', retryAfterSeconds: 5 }
+      const queued = await this.repo.findSourceTile(sz, sx, sy)
+      return { state: 'pending', retryAfterSeconds: 5, progress: await this.#progress(queued) }
     }
 
     switch (tile.status) {
@@ -81,10 +108,30 @@ export class MapChunkService {
         // re-rasterizar desde los datos guardados, sin consultar al proveedor.
         await this.repo.requeue(tile.id)
         this.#onEnqueue?.()
-        return { state: 'pending', retryAfterSeconds: 2 }
+        return {
+          state: 'pending',
+          retryAfterSeconds: 2,
+          progress: { stage: 'build', ahead: 0, elapsed: 0, expected: BUILD_SECONDS, attempts: 0 },
+        }
       default:
-        return { state: 'pending', retryAfterSeconds: tile.status === 'fetching' ? 5 : 3 }
+        return {
+          state: 'pending',
+          retryAfterSeconds: tile.status === 'fetching' ? 5 : 3,
+          progress: await this.#progress(tile),
+        }
     }
+  }
+
+  async #progress(tile: SourceTileRow | null): Promise<ChunkProgress> {
+    const download = !tile || !(tile.hasData && tile.dataVersion >= this.config.dataVersion)
+    const expected = download ? Math.round(this.#fetchSeconds) : BUILD_SECONDS
+    const attempts = tile?.attempts ?? 0
+    if (tile?.status === 'fetching') {
+      const elapsed = Math.max(0, Math.round(tile.lockedSecondsAgo ?? 0))
+      return { stage: download ? 'download' : 'build', ahead: 0, elapsed, expected, attempts }
+    }
+    const ahead = tile ? await this.repo.queueAhead(tile.id) : 0
+    return { stage: 'queued', ahead, elapsed: 0, expected, attempts }
   }
 
   /**
@@ -132,7 +179,9 @@ export class MapChunkService {
     const cfg = this.config
     try {
       let features: FeatureSet
-      const stored = job.hasData ? await this.repo.loadSourceData(job.id) : null
+      // Datos guardados con una consulta vieja (les faltan etiquetas): se piden de nuevo.
+      const current = job.hasData && job.dataVersion >= cfg.dataVersion
+      const stored = current ? await this.repo.loadSourceData(job.id) : null
 
       if (stored) {
         features = decodeFeatureSet(stored)
@@ -145,7 +194,10 @@ export class MapChunkService {
           provider: provider.name,
           osmTimestamp: features.osmTimestamp,
           featureCount: features.features.length,
+          dataVersion: cfg.dataVersion,
         })
+        const seconds = (Date.now() - started) / 1000
+        this.#fetchSeconds = this.#fetchSeconds * 0.7 + seconds * 0.3
         logger.info(
           {
             tile: `${job.z}/${job.x}/${job.y}`,

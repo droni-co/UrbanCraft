@@ -179,4 +179,58 @@ test.group('Map labels · chunks', () => {
     const numbers = labels.filter((l) => l.kind === 'number').map((l) => l.name)
     assert.deepEqual(numbers.sort(), ['12', '14'])
   })
+
+  test('los barrios se etiquetan en su nodo, con rango alto', ({ assert }) => {
+    const labels = labelsOf([
+      {
+        kind: 'point',
+        id: 'n1',
+        tags: { place: 'neighbourhood', name: 'Chapinero Alto' },
+        coord: localToLonLat(C, 20.5, 30.5),
+      },
+    ])
+    assert.lengthOf(labels, 1)
+    assert.equal(labels[0].kind, 'district')
+    assert.equal(labels[0].name, 'Chapinero Alto')
+    assert.isAtLeast(labels[0].rank, 8)
+  })
+
+  test('el chunk sabe en qué barrio está aunque el punto caiga fuera', ({ assert }) => {
+    const place = (id: string, kind: string, name: string, x: number, y: number): Feature => ({
+      kind: 'point',
+      id,
+      tags: { place: kind, name },
+      coord: localToLonLat(C, x, y),
+    })
+    const districtOf = (features: Feature[]) => {
+      const r = new SourceRasterizer(
+        featureSet(features),
+        { cellZoom: CELL_ZOOM, chunkZoom: CHUNK_ZOOM },
+        tileCenterLatitude(CHUNK_ZOOM, C.y)
+      )
+      return r.rasterizeChunk(C.z, C.x, C.y).district
+    }
+
+    // El más cercano al centro del chunk (32, 32), aunque esté en otro chunk.
+    assert.equal(
+      districtOf([
+        place('n1', 'neighbourhood', 'Cerca', 150, 32),
+        place('n2', 'quarter', 'Lejos', -300, 32),
+      ]),
+      'Cerca'
+    )
+    // Un barrio al alcance gana a la localidad (suburb) aunque esta esté más cerca.
+    assert.equal(
+      districtOf([
+        place('n1', 'suburb', 'Chapinero', 40, 40),
+        place('n2', 'neighbourhood', 'Quinta Camacho', 200, 32),
+      ]),
+      'Quinta Camacho'
+    )
+    // Sin barrio, la localidad.
+    assert.equal(districtOf([place('n1', 'suburb', 'Chapinero', 40, 40)]), 'Chapinero')
+    // Demasiado lejos (> 1,5 km) o sin datos: null.
+    assert.isNull(districtOf([place('n1', 'neighbourhood', 'Lejísimos', 2000, 32)]))
+    assert.isNull(districtOf([]))
+  })
 })

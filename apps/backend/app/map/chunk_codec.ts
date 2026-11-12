@@ -20,8 +20,12 @@ export interface ChunkPayload {
   ground: string
   /** base64 de size*size bytes (ids de Prop, 255 = vacío). */
   props: string
+  /** base64 de size*size bytes: pisos del edificio de cada celda (0 = no es edificio). */
+  levels: string
   pois: Poi[]
   labels: MapLabel[]
+  /** Barrio en el que cae el chunk, o null (ver LabelIndex.districtAt). */
+  district: string | null
   osmTimestamp: string | null
   attribution: string
 }
@@ -50,8 +54,10 @@ export function encodeChunk(
     generatorVersion: meta.generatorVersion,
     ground: Buffer.from(grid.ground).toString('base64'),
     props: Buffer.from(grid.props).toString('base64'),
+    levels: Buffer.from(grid.levels).toString('base64'),
     pois: grid.pois,
     labels: grid.labels,
+    district: grid.district,
     osmTimestamp: meta.osmTimestamp,
     attribution: meta.attribution,
   }

@@ -1,7 +1,8 @@
-import { Ground, NO_PROP, Prop, UNWALKABLE_GROUND } from '#map/catalog'
+import { BUILDING_GROUNDS, Ground, NO_PROP, Prop, UNWALKABLE_GROUND } from '#map/catalog'
 import type { Feature, FeatureSet, Tags } from '#map/features'
 import { latToWorld, lonToWorld, metersPerUnit, worldToLat } from '#map/geo'
-import { LabelIndex, type MapLabel } from '#map/labels'
+import { interiorPoint, LabelIndex, type MapLabel } from '#map/labels'
+import { poiCategory, type PoiCategory } from '#map/poi_category'
 
 /**
  * Rasterizador: convierte features OSM (lon/lat) en la grilla de tiles de un
@@ -14,8 +15,13 @@ import { LabelIndex, type MapLabel } from '#map/labels'
 
 export interface Poi {
   id: string
+  /** Etiqueta OSM principal: "amenity:restaurant", "shop:bakery"… */
   kind: string
+  /** Categoría para el icono: food, shop, health… (ver poi_category.ts). */
+  cat: PoiCategory
   name: string
+  /** Detalle opcional (tipo de cocina…). */
+  detail?: string
   /** Celda local dentro del chunk. */
   cell: [number, number]
 }
@@ -29,9 +35,13 @@ export interface ChunkGrid {
   ground: Uint8Array
   /** size*size ids de Prop o NO_PROP. */
   props: Uint8Array
+  /** size*size pisos del edificio de cada celda (0 = no es edificio). */
+  levels: Uint8Array
   pois: Poi[]
   /** Nombres de calles, áreas y números de portal (ver labels.ts). */
   labels: MapLabel[]
+  /** Barrio en el que cae el chunk (punto de barrio más cercano), o null. */
+  district: string | null
 }
 
 // --- Reglas de estilo ---------------------------------------------------------
@@ -49,6 +59,10 @@ export interface Paint {
   widthMeters?: number
   /** Áreas pequeñas (edificios) que no cubren ningún centro de celda igual marcan 1 celda. */
   keepSmall?: boolean
+  /** Solo pinta sobre estos suelos (pasos de cebra: solo sobre el asfalto). */
+  onlyOver?: readonly number[]
+  /** Solo edificios: pisos (para dibujarlos en 3D isométrico). */
+  levels?: number
 }
 
 const ROAD_WIDTHS: Record<string, number> = {
@@ -112,8 +126,198 @@ const UNPAVED = new Set([
   'woodchips',
 ])
 
-const POI_KEYS = ['amenity', 'shop', 'tourism', 'leisure', 'historic'] as const
+const POI_KEYS = ['amenity', 'shop', 'tourism', 'leisure', 'historic', 'office', 'craft'] as const
 const MAX_POIS_PER_CHUNK = 64
+/** En áreas, solo locales y lugares (los parques ya tienen su etiqueta de área). */
+const AREA_POI_KEYS = ['amenity', 'shop', 'tourism', 'historic', 'office', 'craft'] as const
+
+/** Vías que en ciudad llevan andén a los lados (si no se mapeó aparte). */
+const SIDEWALK_ROADS = new Set([
+  'trunk',
+  'primary',
+  'secondary',
+  'tertiary',
+  'unclassified',
+  'residential',
+  'primary_link',
+  'secondary_link',
+  'tertiary_link',
+])
+const SIDEWALK_METERS = 2.5
+/** Hasta dónde se busca el punto de barrio más cercano (ver LabelIndex.districtAt). */
+const DISTRICT_REACH_METERS = 1500
+
+const RAILWAY_WIDTHS: Record<string, number> = {
+  rail: 3.5,
+  light_rail: 3,
+  tram: 2.5,
+  narrow_gauge: 3,
+  monorail: 2.5,
+}
+
+/** Separación de los árboles de una hilera (natural=tree_row), en metros. */
+const TREE_ROW_SPACING = 7
+
+// --- Edificios por tipo ------------------------------------------------------------
+
+const CIVIC_BUILDINGS = new Set([
+  'church',
+  'cathedral',
+  'chapel',
+  'mosque',
+  'temple',
+  'synagogue',
+  'shrine',
+  'religious',
+  'school',
+  'university',
+  'college',
+  'kindergarten',
+  'hospital',
+  'public',
+  'government',
+  'civic',
+  'museum',
+  'train_station',
+  'transportation',
+  'fire_station',
+  'townhall',
+  'stadium',
+])
+const CIVIC_AMENITIES = new Set([
+  'place_of_worship',
+  'school',
+  'university',
+  'college',
+  'hospital',
+  'townhall',
+  'library',
+  'theatre',
+  'courthouse',
+  'police',
+  'fire_station',
+])
+const INDUSTRIAL_BUILDINGS = new Set([
+  'industrial',
+  'warehouse',
+  'factory',
+  'manufacture',
+  'hangar',
+  'storage_tank',
+  'garage',
+  'garages',
+  'service',
+  'parking',
+  'shed',
+  'barn',
+  'greenhouse',
+])
+const COMMERCIAL_BUILDINGS = new Set([
+  'commercial',
+  'retail',
+  'office',
+  'supermarket',
+  'mall',
+  'hotel',
+  'kiosk',
+])
+const HOUSE_BUILDINGS = new Set([
+  'house',
+  'detached',
+  'semidetached_house',
+  'terrace',
+  'bungalow',
+  'farm',
+  'cabin',
+  'hut',
+])
+
+/**
+ * Techo según el tipo de edificio, su altura y algo de azar estable (por id)
+ * para que edificios vecinos no se fundan en un bloque del mismo color.
+ */
+export function classifyBuilding(tags: Tags, id: string): number {
+  const type = tags.building
+  const levels = mappedLevels(tags)
+  const tall = levels !== null && levels >= 5
+  const h = stringHash01(id)
+
+  if (CIVIC_BUILDINGS.has(type) || CIVIC_AMENITIES.has(tags.amenity)) return Ground.ROOF_CIVIC
+  if (INDUSTRIAL_BUILDINGS.has(type)) return Ground.ROOF_INDUSTRIAL
+  if (COMMERCIAL_BUILDINGS.has(type) || tags.shop || tags.office) {
+    return tall || h < 0.4 ? Ground.ROOF_DARK : Ground.ROOF_CONCRETE
+  }
+  if (type === 'apartments' || type === 'residential' || type === 'dormitory') {
+    if (tall) return h < 0.6 ? Ground.ROOF_CONCRETE : Ground.ROOF_DARK
+    return h < 0.7 ? Ground.ROOF_BRICK : Ground.ROOF_CONCRETE
+  }
+  if (HOUSE_BUILDINGS.has(type)) return h < 0.55 ? Ground.BUILDING : Ground.ROOF_BRICK
+  // building=yes (lo más común): mezcla según la altura.
+  if (tall) return h < 0.5 ? Ground.ROOF_CONCRETE : h < 0.8 ? Ground.ROOF_DARK : Ground.ROOF_BRICK
+  if (h < 0.42) return Ground.BUILDING
+  if (h < 0.8) return Ground.ROOF_BRICK
+  return Ground.ROOF_CONCRETE
+}
+
+/** Pisos según OSM (`building:levels`, o `height` / 3 m), o null si no lo dice. */
+export function mappedLevels(tags: Tags): number | null {
+  const levels = Number.parseFloat(tags['building:levels'] ?? '')
+  if (Number.isFinite(levels) && levels > 0) return Math.max(1, Math.round(levels))
+  const height = Number.parseFloat(tags.height ?? '')
+  if (Number.isFinite(height) && height > 0)
+    return Math.max(1, Math.round(height / METERS_PER_LEVEL))
+  return null
+}
+
+/**
+ * Pisos de un edificio: los de OSM o, si no los tiene, unos típicos para su
+ * tipo de techo (con algo de variación estable por edificio).
+ */
+export function buildingLevels(tags: Tags, ground: number, id: string): number {
+  const mapped = mappedLevels(tags)
+  if (mapped !== null) return Math.min(mapped, MAX_LEVELS)
+  const h = stringHash01(id + ':levels')
+  switch (ground) {
+    case Ground.ROOF_INDUSTRIAL:
+      return 1
+    case Ground.ROOF_CIVIC:
+      return 2
+    case Ground.ROOF_CONCRETE:
+      return h < 0.5 ? 3 : 4
+    case Ground.ROOF_DARK:
+      return h < 0.5 ? 5 : 6
+    case Ground.ROOF_BRICK:
+      return h < 0.6 ? 2 : 3
+    default:
+      return h < 0.35 ? 1 : 2
+  }
+}
+
+const METERS_PER_LEVEL = 3
+/** Tope (los pisos se guardan en un byte; el cliente además limita la altura dibujada). */
+const MAX_LEVELS = 200
+
+/** Andén a cada lado de una vía urbana (debajo del asfalto, encima del pasto). */
+export function classifySidewalk(tags: Tags): Paint | null {
+  const width = ROAD_WIDTHS[tags.highway]
+  if (!width || !SIDEWALK_ROADS.has(tags.highway) || isHidden(tags)) return null
+  // "separate": el andén está mapeado como su propia vía (ya se pinta).
+  if (['no', 'none', 'separate'].includes(tags.sidewalk)) return null
+  return {
+    priority: 59,
+    ground: Ground.PAVEMENT,
+    widthMeters: width + SIDEWALK_METERS * 2,
+    // No sobre el agua (puentes) ni sobre otras vías.
+    onlyOver: [
+      Ground.GRASS,
+      Ground.GRASS_DARK,
+      Ground.DIRT,
+      Ground.SAND,
+      Ground.STONE,
+      Ground.PAVEMENT,
+    ],
+  }
+}
 
 function isHidden(tags: Tags): boolean {
   if (tags.tunnel && tags.tunnel !== 'no') return true
@@ -122,11 +326,12 @@ function isHidden(tags: Tags): boolean {
   return Number.isFinite(layer) && layer < 0 && tags.bridge !== 'yes'
 }
 
-export function classifyArea(tags: Tags): Paint | null {
+export function classifyArea(tags: Tags, id = ''): Paint | null {
   if (isHidden(tags)) return null
 
   if (tags.building && tags.building !== 'no' && tags.building !== 'roof') {
-    return { priority: 70, ground: Ground.BUILDING, keepSmall: true }
+    const ground = classifyBuilding(tags, id)
+    return { priority: 70, ground, keepSmall: true, levels: buildingLevels(tags, ground, id) }
   }
   if (
     tags.natural === 'water' ||
@@ -185,9 +390,19 @@ export function classifyArea(tags: Tags): Paint | null {
 export function classifyLine(tags: Tags): Paint | null {
   if (isHidden(tags)) return null
 
+  if (tags.railway && RAILWAY_WIDTHS[tags.railway]) {
+    // Encima del asfalto: pasos a nivel y tranvías por la calle.
+    return { priority: 62, ground: Ground.RAIL, widthMeters: RAILWAY_WIDTHS[tags.railway] }
+  }
+
   const highway = tags.highway
   if (highway) {
     if (SKIPPED_HIGHWAYS.has(highway)) return null
+    if (highway === 'footway' && tags.footway === 'crossing') {
+      if (['unmarked', 'no'].includes(tags.crossing)) return null
+      return { priority: 61, ground: Ground.CROSSWALK, widthMeters: 3, onlyOver: [Ground.ASPHALT] }
+    }
+    if (highway === 'cycleway') return { priority: 57, ground: Ground.CYCLEWAY, widthMeters: 2.5 }
     if (ROAD_WIDTHS[highway]) {
       return { priority: 60, ground: Ground.ASPHALT, widthMeters: ROAD_WIDTHS[highway] }
     }
@@ -249,6 +464,7 @@ export class SourceRasterizer {
   readonly #points: ProjectedPoint[] = []
   readonly #cellZoom: number
   readonly #labels: LabelIndex
+  readonly #districtReach: number
 
   constructor(set: FeatureSet, options: RasterizerOptions, referenceLatitude?: number) {
     this.#cellZoom = options.cellZoom
@@ -257,6 +473,7 @@ export class SourceRasterizer {
 
     const lat = referenceLatitude ?? this.#guessLatitude(set.features)
     const metersPerCell = metersPerUnit(lat, options.cellZoom)
+    this.#districtReach = DISTRICT_REACH_METERS / metersPerCell
 
     for (const feature of set.features) this.#project(feature, metersPerCell)
 
@@ -277,19 +494,58 @@ export class SourceRasterizer {
     const ground = new Uint8Array(size * size).fill(Ground.GRASS)
     const decor = new Uint8Array(size * size).fill(Decor.NONE)
     const props = new Uint8Array(size * size).fill(NO_PROP)
+    const levels = new Uint8Array(size * size)
 
     for (const op of this.#ops) {
       if (op.maxX < ox || op.minX > ox + size || op.maxY < oy || op.minY > oy + size) continue
-      if (op.fill) this.#fillArea(op, ox, oy, size, ground, decor)
+      if (op.fill) this.#fillArea(op, ox, oy, size, ground, decor, levels)
       else this.#strokeLine(op, ox, oy, size, ground, decor)
     }
+    // Lo que se pintó encima de un edificio (una vía, un puente) ya no es edificio.
+    for (let i = 0; i < levels.length; i++) {
+      if (!BUILDING_GROUNDS.has(ground[i])) levels[i] = 0
+    }
 
-    // Árboles mapeados en OSM (solo sobre suelo natural).
+    // Pasos de cebra mapeados como nodo (lo más común): una mancha sobre el asfalto.
+    for (const p of this.#points) {
+      if (p.tags.highway !== 'crossing' || ['unmarked', 'no'].includes(p.tags.crossing)) continue
+      this.#paintDisk(
+        p.x,
+        p.y,
+        CROSSING_RADIUS,
+        ox,
+        oy,
+        size,
+        ground,
+        Ground.CROSSWALK,
+        Ground.ASPHALT
+      )
+    }
+
+    // Árboles mapeados en OSM (solo sobre suelo natural o andén).
     for (const p of this.#points) {
       if (p.tags.natural !== 'tree') continue
       const i = this.#localIndex(p.x, p.y, ox, oy, size)
-      if (i < 0 || !isNaturalGround(ground[i])) continue
+      if (i < 0 || !(isNaturalGround(ground[i]) || ground[i] === Ground.PAVEMENT)) continue
       props[i] = p.tags.leaf_type === 'needleleaved' ? Prop.PINE : Prop.TREE
+    }
+
+    // Mobiliario urbano: en su celda o en la libre más cercana fuera de la calzada
+    // (los semáforos y paradas suelen estar mapeados sobre la vía).
+    for (const p of this.#points) {
+      const prop = furnitureProp(p.tags)
+      if (prop === NO_PROP) continue
+      const i = this.#nearestFree(
+        p.x,
+        p.y,
+        ox,
+        oy,
+        size,
+        ground,
+        props,
+        FURNITURE_SEARCH[prop] ?? 1
+      )
+      if (i >= 0) props[i] = prop
     }
 
     // Decoración procedural determinista.
@@ -302,9 +558,11 @@ export class SourceRasterizer {
       }
     }
 
-    const pois = this.#collectPois(ox, oy, size)
+    const pois = this.#collectPois(ox, oy, size, ground, props)
     const labels = this.#labels.forChunk(ox, oy, size, new Set(pois.map((p) => p.name)))
-    return { z, x, y, size, ground, props, pois, labels }
+    const half = size / 2
+    const district = this.#labels.districtAt(ox + half, oy + half, this.#districtReach)
+    return { z, x, y, size, ground, props, levels, pois, labels, district }
   }
 
   // --- proyección ---
@@ -330,25 +588,64 @@ export class SourceRasterizer {
       return
     }
 
-    const paint = feature.kind === 'area' ? classifyArea(feature.tags) : classifyLine(feature.tags)
-    if (!paint) return
+    const polylines = (feature.kind === 'area' ? feature.rings : [feature.coords]).map((line) => {
+      const out = new Float64Array(line.length * 2)
+      line.forEach(([lon, lat], i) => {
+        out[i * 2] = lonToWorld(lon, z)
+        out[i * 2 + 1] = latToWorld(lat, z)
+      })
+      return out
+    })
 
-    const polylines = feature.kind === 'area' ? feature.rings : [feature.coords]
+    if (feature.kind === 'area') {
+      this.#pushOp(
+        feature.id,
+        classifyArea(feature.tags, feature.id),
+        polylines,
+        true,
+        metersPerCell
+      )
+      // Comercios y lugares mapeados como área (el local es el edificio): un POI
+      // en un punto interior.
+      if (feature.tags.name && AREA_POI_KEYS.some((k) => feature.tags[k])) {
+        const rings = polylines.filter((r) => r.length >= 6)
+        if (rings.length > 0) {
+          const { x, y } = interiorPoint(rings)
+          this.#points.push({ id: feature.id, tags: feature.tags, x, y })
+        }
+      }
+      return
+    }
+
+    this.#pushOp(feature.id, classifyLine(feature.tags), polylines, false, metersPerCell)
+    this.#pushOp(
+      `${feature.id}:sidewalk`,
+      classifySidewalk(feature.tags),
+      polylines,
+      false,
+      metersPerCell
+    )
+    if (feature.tags.natural === 'tree_row') this.#treeRow(feature.id, polylines[0], metersPerCell)
+  }
+
+  #pushOp(
+    id: string,
+    paint: Paint | null,
+    polylines: Float64Array[],
+    fill: boolean,
+    metersPerCell: number
+  ) {
+    if (!paint) return
     const values: number[] = []
     let minX = Infinity
     let minY = Infinity
     let maxX = -Infinity
     let maxY = -Infinity
-
     for (const line of polylines) {
-      let px = Number.NaN
-      let py = Number.NaN
-      for (const [lon, lat] of line) {
-        const cx = lonToWorld(lon, z)
-        const cy = latToWorld(lat, z)
-        if (!Number.isNaN(px)) values.push(px, py, cx, cy)
-        px = cx
-        py = cy
+      for (let i = 0; i < line.length; i += 2) {
+        const cx = line[i]
+        const cy = line[i + 1]
+        if (i > 0) values.push(line[i - 2], line[i - 1], cx, cy)
         if (cx < minX) minX = cx
         if (cx > maxX) maxX = cx
         if (cy < minY) minY = cy
@@ -359,20 +656,42 @@ export class SourceRasterizer {
 
     // Semiancho mínimo 0.75 celdas: garantiza caminos 4-conexos (el pathfinding
     // no corta esquinas en diagonal) incluso para senderos angostos.
-    const halfWidth =
-      feature.kind === 'line' ? Math.max((paint.widthMeters ?? 0) / 2 / metersPerCell, 0.75) : 0
+    const halfWidth = fill ? 0 : Math.max((paint.widthMeters ?? 0) / 2 / metersPerCell, 0.75)
 
     this.#ops.push({
-      id: feature.id,
+      id,
       paint,
       segments: Float64Array.from(values),
-      fill: feature.kind === 'area',
+      fill,
       halfWidth,
       minX: minX - halfWidth,
       minY: minY - halfWidth,
       maxX: maxX + halfWidth,
       maxY: maxY + halfWidth,
     })
+  }
+
+  /** Hilera de árboles: un árbol cada TREE_ROW_SPACING metros a lo largo de la línea. */
+  #treeRow(id: string, line: Float64Array, metersPerCell: number) {
+    const step = TREE_ROW_SPACING / metersPerCell
+    let carry = 0
+    let n = 0
+    for (let i = 2; i < line.length; i += 2) {
+      const x1 = line[i - 2]
+      const y1 = line[i - 1]
+      const len = Math.hypot(line[i] - x1, line[i + 1] - y1)
+      for (let d = carry; d <= len; d += step) {
+        const t = len > 0 ? d / len : 0
+        this.#points.push({
+          id: `${id}:${n++}`,
+          tags: { natural: 'tree' },
+          x: x1 + (line[i] - x1) * t,
+          y: y1 + (line[i + 1] - y1) * t,
+        })
+      }
+      // Distancia al próximo árbol desde el inicio del siguiente tramo.
+      carry = carry > len ? carry - len : step - ((len - carry) % step)
+    }
   }
 
   // --- pintado ---
@@ -384,9 +703,11 @@ export class SourceRasterizer {
     oy: number,
     size: number,
     ground: Uint8Array,
-    decor: Uint8Array
+    decor: Uint8Array,
+    levels: Uint8Array
   ) {
     const seg = op.segments
+    const level = op.paint.levels ?? 0
     const rowStart = Math.max(0, Math.floor(op.minY - oy))
     const rowEnd = Math.min(size - 1, Math.ceil(op.maxY - oy))
     const xs: number[] = []
@@ -410,8 +731,10 @@ export class SourceRasterizer {
         const end = Math.min(size - 1, Math.ceil(xs[k + 1] - ox - 0.5) - 1)
         for (let col = start; col <= end; col++) {
           const i = row * size + col
+          if (op.paint.onlyOver && !op.paint.onlyOver.includes(ground[i])) continue
           ground[i] = op.paint.ground
           decor[i] = op.paint.decor ?? Decor.NONE
+          levels[i] = level
           painted++
         }
       }
@@ -423,6 +746,7 @@ export class SourceRasterizer {
       if (i >= 0) {
         ground[i] = op.paint.ground
         decor[i] = Decor.NONE
+        levels[i] = level
       }
     }
   }
@@ -466,12 +790,75 @@ export class SourceRasterizer {
           const ey = y1 + t * dy - py
           if (ex * ex + ey * ey <= hw2) {
             const idx = row * size + col
+            if (op.paint.onlyOver && !op.paint.onlyOver.includes(ground[idx])) continue
             ground[idx] = op.paint.ground
             decor[idx] = Decor.NONE
           }
         }
       }
     }
+  }
+
+  /** Pinta las celdas a <= radius del punto que tengan el suelo `over`. */
+  #paintDisk(
+    gx: number,
+    gy: number,
+    radius: number,
+    ox: number,
+    oy: number,
+    size: number,
+    ground: Uint8Array,
+    paint: number,
+    over: number
+  ) {
+    const r = Math.ceil(radius)
+    const cx = Math.floor(gx - ox)
+    const cy = Math.floor(gy - oy)
+    for (let ly = cy - r; ly <= cy + r; ly++) {
+      for (let lx = cx - r; lx <= cx + r; lx++) {
+        if (lx < 0 || ly < 0 || lx >= size || ly >= size) continue
+        const dx = lx + 0.5 - (gx - ox)
+        const dy = ly + 0.5 - (gy - oy)
+        const i = ly * size + lx
+        if (dx * dx + dy * dy <= radius * radius && ground[i] === over) ground[i] = paint
+      }
+    }
+  }
+
+  /**
+   * Celda libre más cercana (sin prop, transitable y fuera de la calzada) a
+   * <= radius celdas del punto. -1 si no hay o si cae fuera del chunk: el
+   * chunk vecino lo coloca (cada nodo cae en un solo chunk).
+   */
+  #nearestFree(
+    gx: number,
+    gy: number,
+    ox: number,
+    oy: number,
+    size: number,
+    ground: Uint8Array,
+    props: Uint8Array,
+    radius: number
+  ): number {
+    const home = this.#localIndex(gx, gy, ox, oy, size)
+    if (home < 0) return -1
+    const cx = home % size
+    const cy = Math.floor(home / size)
+    let best = -1
+    let bestD = Infinity
+    for (let ly = cy - radius; ly <= cy + radius; ly++) {
+      for (let lx = cx - radius; lx <= cx + radius; lx++) {
+        if (lx < 0 || ly < 0 || lx >= size || ly >= size) continue
+        const i = ly * size + lx
+        if (props[i] !== NO_PROP || !isSideGround(ground[i])) continue
+        const d = (lx - cx) ** 2 + (ly - cy) ** 2
+        if (d < bestD) {
+          bestD = d
+          best = i
+        }
+      }
+    }
+    return best
   }
 
   #localIndex(gx: number, gy: number, ox: number, oy: number, size: number): number {
@@ -481,24 +868,117 @@ export class SourceRasterizer {
     return ly * size + lx
   }
 
-  #collectPois(ox: number, oy: number, size: number): Poi[] {
+  #collectPois(ox: number, oy: number, size: number, ground: Uint8Array, props: Uint8Array): Poi[] {
     const pois: Poi[] = []
+    const taken = new Set<number>()
     for (const p of this.#points) {
       if (!p.tags.name) continue
       const key = POI_KEYS.find((k) => p.tags[k])
       if (!key) continue
-      const i = this.#localIndex(p.x, p.y, ox, oy, size)
+      let i = this.#localIndex(p.x, p.y, ox, oy, size)
       if (i < 0) continue
-      pois.push({
+      // Un local dentro de un edificio (ahora con paredes) se marca en la
+      // puerta: la celda transitable más cercana, mejor al frente que detrás.
+      if (UNWALKABLE_GROUND.has(ground[i]) || props[i] !== NO_PROP || taken.has(i)) {
+        i = entranceCell(i, size, ground, props, taken)
+      }
+      taken.add(i)
+      const poi: Poi = {
         id: p.id,
         kind: `${key}:${p.tags[key]}`,
+        cat: poiCategory(p.tags),
         name: p.tags.name,
         cell: [i % size, Math.floor(i / size)],
-      })
-      if (pois.length >= MAX_POIS_PER_CHUNK) break
+      }
+      if (p.tags.cuisine) poi.detail = p.tags.cuisine.split(';')[0].replaceAll('_', ' ')
+      pois.push(poi)
     }
-    return pois
+    // Si hay demasiados, primero los más llamativos (comida, cultura…).
+    pois.sort((a, b) => POI_PRIORITY[b.cat] - POI_PRIORITY[a.cat] || (a.id < b.id ? -1 : 1))
+    return pois.slice(0, MAX_POIS_PER_CHUNK)
   }
+}
+
+const CROSSING_RADIUS = 1.6
+/** Hasta dónde (celdas) se busca la entrada de un local que cae dentro de un edificio. */
+const ENTRANCE_SEARCH = 12
+
+/**
+ * Celda libre (transitable y sin prop) más cercana a `home`, prefiriendo las de
+ * delante (abajo en pantalla), que no quedan tapadas por el edificio. Si no
+ * hay ninguna cerca, `home`.
+ */
+function entranceCell(
+  home: number,
+  size: number,
+  ground: Uint8Array,
+  props: Uint8Array,
+  taken: Set<number>
+): number {
+  const cx = home % size
+  const cy = Math.floor(home / size)
+  let best = home
+  let bestCost = Infinity
+  for (let ly = cy - ENTRANCE_SEARCH; ly <= cy + ENTRANCE_SEARCH; ly++) {
+    for (let lx = cx - ENTRANCE_SEARCH; lx <= cx + ENTRANCE_SEARCH; lx++) {
+      if (lx < 0 || ly < 0 || lx >= size || ly >= size) continue
+      const i = ly * size + lx
+      if (UNWALKABLE_GROUND.has(ground[i]) || props[i] !== NO_PROP || taken.has(i)) continue
+      const dx = lx - cx
+      const dy = ly - cy
+      const cost = dx * dx + dy * dy + (dx + dy < 0 ? 4 : 0)
+      if (cost < bestCost) {
+        bestCost = cost
+        best = i
+      }
+    }
+  }
+  return best
+}
+
+/** Cuánto (celdas) se puede alejar cada mueble de su nodo para no quedar en la calzada. */
+const FURNITURE_SEARCH: Partial<Record<number, number>> = {
+  [Prop.TRAFFIC_LIGHT]: 5,
+  [Prop.BUS_STOP]: 4,
+  [Prop.STREET_LAMP]: 3,
+}
+
+const POI_PRIORITY: Record<PoiCategory, number> = {
+  culture: 9,
+  food: 8,
+  worship: 7,
+  lodging: 6,
+  shop: 6,
+  health: 5,
+  education: 5,
+  money: 4,
+  sport: 4,
+  transport: 4,
+  service: 3,
+  other: 1,
+}
+
+export function furnitureProp(tags: Tags): number {
+  if (tags.amenity === 'bench') return Prop.BENCH
+  if (tags.highway === 'street_lamp') return Prop.STREET_LAMP
+  if (tags.highway === 'traffic_signals') return Prop.TRAFFIC_LIGHT
+  if (tags.highway === 'bus_stop') return Prop.BUS_STOP
+  if (tags.amenity === 'fountain') return Prop.FOUNTAIN
+  if (['memorial', 'monument', 'statue'].includes(tags.historic) || tags.tourism === 'artwork') {
+    return Prop.STATUE
+  }
+  return NO_PROP
+}
+
+/** Suelo donde puede ir un mueble: transitable y que no sea calzada ni vía. */
+function isSideGround(ground: number): boolean {
+  return (
+    !UNWALKABLE_GROUND.has(ground) &&
+    ground !== Ground.ASPHALT &&
+    ground !== Ground.CROSSWALK &&
+    ground !== Ground.RAIL &&
+    ground !== Ground.CYCLEWAY
+  )
 }
 
 function isNaturalGround(ground: number): boolean {
@@ -530,6 +1010,16 @@ function decorProp(decor: DecorId, ground: number, gx: number, gy: number): numb
       if (ground === Ground.GRASS && h < 0.004) return Prop.BUSH
       return NO_PROP
   }
+}
+
+/** Hash de un texto (id OSM) -> [0, 1). FNV-1a, determinista. */
+export function stringHash01(text: string): number {
+  let h = 0x811c9dc5
+  for (let i = 0; i < text.length; i++) {
+    h ^= text.charCodeAt(i)
+    h = Math.imul(h, 0x01000193)
+  }
+  return hash01(h, text.length, 7)
 }
 
 /** Hash entero -> [0, 1). Determinista y estable entre versiones de Node. */

@@ -21,14 +21,31 @@ const PROP_DESCRIPTIONS := {
 	WorldTiles.Prop.PINE: "Un pino alto. Huele a resina.",
 	WorldTiles.Prop.ROCK: "Una roca. Quizá algo se esconde debajo...",
 	WorldTiles.Prop.BUSH: "Un arbusto. Algo se mueve entre las hojas.",
+	WorldTiles.Prop.BENCH: "Una banca. Buen sitio para descansar.",
+	WorldTiles.Prop.STREET_LAMP: "Un poste de luz.",
+	WorldTiles.Prop.TRAFFIC_LIGHT: "Un semáforo. Espera el verde.",
+	WorldTiles.Prop.BUS_STOP: "Un paradero de bus.",
+	WorldTiles.Prop.FOUNTAIN: "Una fuente. El agua suena tranquila.",
+	WorldTiles.Prop.STATUE: "Un monumento.",
 }
 const GROUND_DESCRIPTIONS := {
 	WorldTiles.Ground.WATER: "Agua. Todavía no sabes nadar.",
-	WorldTiles.Ground.BUILDING: "Un edificio. Las puertas aún no se abren.",
+	WorldTiles.Ground.BUILDING: "Una casa. Las puertas aún no se abren.",
+	WorldTiles.Ground.ROOF_BRICK: "Un edificio de ladrillo. Las puertas aún no se abren.",
+	WorldTiles.Ground.ROOF_CONCRETE: "Un edificio. Las puertas aún no se abren.",
+	WorldTiles.Ground.ROOF_DARK: "Un edificio de oficinas o comercio.",
+	WorldTiles.Ground.ROOF_CIVIC: "Un edificio público.",
+	WorldTiles.Ground.ROOF_INDUSTRIAL: "Una bodega.",
+	WorldTiles.Ground.CROSSWALK: "Un paso de cebra.",
+	WorldTiles.Ground.RAIL: "La vía del tren. Mira a ambos lados.",
+	WorldTiles.Ground.CYCLEWAY: "Una ciclorruta.",
 }
 
 @onready var ground: TileMapLayer = $Ground
 @onready var props: TileMapLayer = $Entities/Props
+@onready var buildings: TileMapLayer = $Entities/Buildings
+@onready var buildings_faded: TileMapLayer = $Entities/BuildingsFaded
+@onready var building_fader: BuildingFader = $BuildingFader
 @onready var entities: Node2D = $Entities
 @onready var player: Player = $Entities/Player
 @onready var camera: GameCamera = $Camera
@@ -57,6 +74,10 @@ var _location_cell := Vector2i(-99999, -99999)
 var _minimap_area_chunk := Vector2i(-99999, -99999)
 ## Ciudad y país de la zona ("Madrid, España"), del backend (Nominatim/OSM).
 var _place_label := ""
+## Barrio donde está el jugador (OSM place=neighbourhood), si hay uno cerca.
+var _district := ""
+## chunk -> barrio en el que cae (lo calcula el backend; "" si no se sabe).
+var _chunk_districts := {}
 var _remote_players: RemotePlayers
 
 
@@ -95,7 +116,7 @@ func _ready() -> void:
 		_start_demo("Modo demo: mapa procedural")
 		return
 
-	hud.set_loading("Conectando con el servidor...")
+	hud.set_loading("Conectando con el servidor…", 0.03)
 	var res := await Api.request_json(HTTPClient.METHOD_GET, "/api/v1/map/config")
 	hud.set_online(res.ok)
 	if not res.ok or typeof(res.data) != TYPE_DICTIONARY:
@@ -103,7 +124,7 @@ func _ready() -> void:
 		return
 
 	if not LocationService.is_located:
-		hud.set_loading("Buscando tu ubicación...")
+		hud.set_loading("Buscando tu ubicación…", 0.07)
 		await LocationService.locate()
 	_start_real(res.data)
 	_fetch_place()
@@ -123,7 +144,8 @@ func _start_real(config: Dictionary) -> void:
 	play_radius_cells = float(config.playRadiusMeters) / meters_per_cell
 
 	var origin := Geo.chunk_origin(Geo.cell_to_chunk(anchor_cell, size), size)
-	chunks.setup(ground, props, config, origin)
+	chunks.setup(ground, props, config, origin, buildings, buildings_faded)
+	building_fader.setup(buildings, buildings_faded)
 	chunks.chunk_loaded.connect(_on_chunk_loaded)
 	chunks.chunk_unloaded.connect(_on_chunk_unloaded)
 	chunks.chunk_pending.connect(_on_chunk_pending)
@@ -138,7 +160,7 @@ func _start_real(config: Dictionary) -> void:
 		_update_minimap_area(chunks.local_to_global(player_cell), true))
 
 	hud.set_attribution(str(config.attribution))
-	hud.set_loading("Cargando mapa...")
+	hud.set_loading("Cargando el mapa…", 0.12)
 	chunks.update_center(anchor_cell)
 	_start_online()
 
@@ -256,6 +278,7 @@ func _physics_process(delta: float) -> void:
 
 func _process(_delta: float) -> void:
 	player_cell = world_to_cell(player.global_position)
+	building_fader.update(buildings.to_local(player.global_position))
 	if mode != Mode.LOADING:
 		var grid_position := _player_grid_position()
 		hud.minimap.set_player(grid_position - Vector2(_minimap_center_local), player.facing)
@@ -263,10 +286,12 @@ func _process(_delta: float) -> void:
 		if player_cell != _location_cell:
 			_location_cell = player_cell
 			hud.set_location(map_labels.location_name(grid_position))
+			_district = _chunk_districts.get(chunks.chunk_of_global(chunks.local_to_global(player_cell)), "")
 		_send_online_state(grid_position)
 	var parts: Array[String] = []
 	if mode == Mode.REAL:
-		parts.append(_place_label if not _place_label.is_empty() else "Ubicando…")
+		var place := _place_label if not _place_label.is_empty() else "Ubicando…"
+		parts.append(place if _district.is_empty() else "%s, %s" % [_district, place])
 		parts.append(_online_label())
 		if GameSettings.debug_info_visible:
 			var chunk := chunks.chunk_of_global(chunks.local_to_global(player_cell))
@@ -340,30 +365,35 @@ func _on_chunk_loaded(chunk: Vector2i, data: Dictionary) -> void:
 	_add_pois(chunk, data.get("pois", []))
 	var base := chunks.global_to_local(Geo.chunk_origin(chunk, chunks.chunk_size))
 	map_labels.add_chunk(chunk, base, data.get("labels", []), data.get("pois", []))
+	_chunk_districts[chunk] = data.get("district", "")
 	_location_cell = Vector2i(-99999, -99999)  # recalcular el nombre del lugar
 	if not player.is_physics_processing() and chunk == chunks.chunk_of_global(anchor_cell):
 		_spawn_player_at(chunks.global_to_local(anchor_cell))
 		hud.set_loading("")
+		if hud.loading_screen.is_open():
+			await hud.loading_screen.closed
 		hud.show_message(_welcome_message(), 5.0)
 
 
 func _on_chunk_unloaded(chunk: Vector2i) -> void:
 	map_labels.remove_chunk(chunk)
+	_chunk_districts.erase(chunk)
 	for marker: PoiMarker in _poi_markers.get(chunk, []):
 		_pois.erase(world_to_cell(marker.global_position))
 		marker.queue_free()
 	_poi_markers.erase(chunk)
 
 
-func _on_chunk_pending(chunk: Vector2i) -> void:
+## Zona nueva: el servidor la está generando. La pantalla de carga muestra cómo va.
+func _on_chunk_pending(chunk: Vector2i, progress: Dictionary) -> void:
 	if not player.is_physics_processing() and chunk == chunks.chunk_of_global(anchor_cell):
-		hud.set_loading("Generando el mapa de esta zona por primera vez...\nPuede tardar hasta un minuto.")
+		hud.loading_screen.server_progress(progress)
 
 
 func _on_chunk_failed(chunk: Vector2i, reason: String) -> void:
 	push_warning("Chunk %s: %s" % [chunk, reason])
 	if not player.is_physics_processing() and chunk == chunks.chunk_of_global(anchor_cell):
-		hud.set_loading("No se pudo cargar el mapa (%s).\nReintentando..." % reason)
+		hud.set_loading("No se pudo cargar el mapa (%s). Reintentando…" % reason)
 
 
 func _add_pois(chunk: Vector2i, pois: Array) -> void:
@@ -499,7 +529,7 @@ func _on_player_interacted(facing: Vector2) -> void:
 	for c in [here, cell]:
 		if _pois.has(c):
 			var marker: PoiMarker = _pois[c]
-			hud.show_message("%s  (%s)" % [marker.poi_name, marker.poi_kind.replace(":", " · ")], 3.0)
+			hud.show_message(marker.description(), 3.0)
 			return
 
 	if props.get_cell_source_id(cell) != -1:

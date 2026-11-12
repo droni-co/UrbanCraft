@@ -154,6 +154,7 @@ export class OsmSourceTileSchema extends BaseModel {
     'bounds',
     'createdAt',
     'data',
+    'dataVersion',
     'featureCount',
     'fetchedAt',
     'id',
@@ -178,6 +179,8 @@ export class OsmSourceTileSchema extends BaseModel {
   declare createdAt: DateTime
   @column()
   declare data: Buffer | null
+  @column()
+  declare dataVersion: number
   @column()
   declare featureCount: number | null
   @column.dateTime()

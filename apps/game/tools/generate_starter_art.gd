@@ -32,6 +32,8 @@ func _initialize() -> void:
 	force = "--force" in OS.get_cmdline_user_args()
 	_ground_tiles()
 	_props()
+	_buildings()
+	_poi_icons()
 	_player_sheet()
 	print("Arte inicial: %d archivos escritos, %d existentes conservados%s" % [
 		written, kept, "" if force else " (usa --force para regenerarlos)"])
@@ -132,6 +134,14 @@ func _ground_tiles() -> void:
 		"asphalt": ["asphalt_0@12", "asphalt_1@1.5", "asphalt_2@0.3"],
 		"pavement": ["pavement_0@10", "pavement_1@1.5", "pavement_2@0.5"],
 		"building": ["building_0@60", "building_1@1", "building_2@1"],
+		"roof_brick": ["roof_brick_0@20", "roof_brick_1@2", "roof_brick_2@1"],
+		"roof_concrete": ["roof_concrete_0@20", "roof_concrete_1@2", "roof_concrete_2@1.5"],
+		"roof_dark": ["roof_dark_0@20", "roof_dark_1@1.5"],
+		"roof_civic": ["roof_civic_0@20", "roof_civic_1@1"],
+		"roof_industrial": ["roof_industrial_0@20", "roof_industrial_1@2"],
+		"crosswalk": ["crosswalk_0@1"],
+		"rail": ["rail_0@4", "rail_1@1"],
+		"cycleway": ["cycleway_0@8", "cycleway_1@1"],
 	}
 	for kind: String in specs:
 		var names: Array = specs[kind]
@@ -384,6 +394,163 @@ func _paint_building(img: Image, variant: int, rng: RandomNumberGenerator) -> vo
 				_spot(img, p.x + dx, p.y + dy, Color("d7d9de") if edge else (Color("8fb4d6") if dx + dy < 0 else Color("6a8fb3")))
 
 
+## Ladrillo a la vista (azoteas de Bogotá): hiladas a lo largo de u.
+func _paint_roof_brick(img: Image, variant: int, rng: RandomNumberGenerator) -> void:
+	_fill(img, func(x: int, y: int, uv: Vector2) -> Color:
+		var row := uv.y * 10.0
+		var fr := row - floorf(row)
+		var col := uv.x * 5.0 + 0.5 * posmod(floori(row), 2)
+		var fc := col - floorf(col)
+		var c := Color("b65a3c") if posmod(floori(col) + floori(row), 3) != 0 else Color("a8513a")
+		if fr < 0.18 or fc < 0.05:
+			c = Color("c9a58c")  # junta de mortero
+		if rng.randf() < 0.05:
+			c = c.darkened(0.08)
+		return c)
+	if variant == 1:
+		_water_tank(img, rng)
+	if variant == 2:
+		_vent(img, rng)
+
+
+## Losa de concreto clara, en paneles.
+func _paint_roof_concrete(img: Image, variant: int, rng: RandomNumberGenerator) -> void:
+	var noise := PeriodicNoise.new(6, 33)
+	_fill(img, func(x: int, y: int, uv: Vector2) -> Color:
+		var c := Color("b9b6ae") if noise.at(uv.x, uv.y) < 0.55 else Color("b1aea6")
+		var fa := uv.x * 2.0 - floorf(uv.x * 2.0)
+		var fb := uv.y * 2.0 - floorf(uv.y * 2.0)
+		if fa < 0.03 or fb < 0.03:
+			c = Color("9d9a92")
+		if rng.randf() < 0.05:
+			c = c.darkened(0.05)
+		return c)
+	if variant == 1:
+		_water_tank(img, rng)
+	if variant == 2:
+		_ac_unit(img, rng)
+
+
+## Grava oscura / tela asfáltica (oficinas, comercio alto).
+func _paint_roof_dark(img: Image, variant: int, rng: RandomNumberGenerator) -> void:
+	_fill(img, func(x: int, y: int, uv: Vector2) -> Color:
+		var r := rng.randf()
+		var c := Color("5b6170")
+		if r < 0.25:
+			c = Color("535867")
+		elif r > 0.9:
+			c = Color("6a7080")
+		return c)
+	if variant == 1:  # claraboya de vidrio
+		var p := _random_point(rng, 8)
+		for dy in range(-3, 4):
+			for dx in range(-7, 8):
+				var edge := absi(dy) == 3 or absi(dx) == 7
+				_spot(img, p.x + dx, p.y + dy, Color("c9ccd2") if edge else (Color("9cc3e6") if dx + dy * 2 < 0 else Color("6f97bd")))
+
+
+## Edificios públicos (iglesias, colegios, hospitales): teja crema.
+func _paint_roof_civic(img: Image, variant: int, rng: RandomNumberGenerator) -> void:
+	_fill(img, func(x: int, y: int, uv: Vector2) -> Color:
+		var row := uv.y * 6.0
+		var fr := row - floorf(row)
+		var c := Color("dcc29a")
+		if fr < 0.15:
+			c = Color("b89c74")
+		elif fr > 0.75:
+			c = Color("e8d2ad")
+		if rng.randf() < 0.04:
+			c = c.darkened(0.06)
+		return c)
+	if variant == 1:  # remate / campanario visto desde arriba
+		for dy in range(-4, 5):
+			for dx in range(-8, 9):
+				if absi(dx) / 2 + absi(dy) <= 4:
+					_spot(img, W / 2 + dx, H / 2 + dy, Color("a8553d") if dx < 0 else Color("8e4532"))
+
+
+## Lámina metálica ondulada (bodegas, industria).
+func _paint_roof_industrial(img: Image, variant: int, rng: RandomNumberGenerator) -> void:
+	_fill(img, func(x: int, y: int, uv: Vector2) -> Color:
+		var c := Color("8f9ba7") if posmod(floori(uv.x * 16.0), 2) == 0 else Color("7d8994")
+		if rng.randf() < 0.03:
+			c = c.lightened(0.1)
+		return c)
+	if variant == 1:  # óxido
+		for i in 3:
+			var p := _random_point(rng, 6)
+			for k in 10:
+				_spot(img, p.x + rng.randi_range(-4, 4), p.y + rng.randi_range(-2, 2), Color("9a6a48") if k % 2 == 0 else Color("85593c"))
+
+
+## Paso de cebra: asfalto con franjas blancas.
+func _paint_crosswalk(img: Image, _variant: int, rng: RandomNumberGenerator) -> void:
+	_fill(img, func(x: int, y: int, uv: Vector2) -> Color:
+		var c := Color("e6e4dc") if posmod(floori(uv.x * 6.0), 2) == 0 else Color("464951")
+		if rng.randf() < 0.06:
+			c = c.darkened(0.08)
+		return c)
+
+
+## Vía férrea: balasto con traviesas y rieles.
+func _paint_rail(img: Image, variant: int, rng: RandomNumberGenerator) -> void:
+	_fill(img, func(x: int, y: int, uv: Vector2) -> Color:
+		var r := rng.randf()
+		var c := Color("8a8478") if r < 0.5 else (Color("7c766b") if r < 0.85 else Color("9d978b"))
+		var fu := uv.x * 4.0 - floorf(uv.x * 4.0)
+		if fu < 0.22:
+			c = Color("6b4f36") if r < 0.8 else Color("5c432e")  # traviesa
+		var fv := uv.y - floorf(uv.y)
+		if absf(fv - 0.3) < 0.035 or absf(fv - 0.7) < 0.035:
+			c = Color("b9bec6") if fv < 0.5 else Color("a3a8b0")  # rieles
+		return c)
+	if variant == 1:  # maleza entre el balasto
+		for i in 6:
+			var p := _random_point(rng, 3)
+			_spot(img, p.x, p.y, Color("5f8f3e"))
+
+
+## Ciclorruta: pavimento rojo.
+func _paint_cycleway(img: Image, variant: int, rng: RandomNumberGenerator) -> void:
+	_fill(img, func(x: int, y: int, uv: Vector2) -> Color:
+		var r := rng.randf()
+		return Color("a24a3e") if r < 0.6 else (Color("963f35") if r < 0.9 else Color("b25a4c")))
+	if variant == 1:  # bicicleta pintada
+		for a in 16:
+			var t := TAU * a / 16.0
+			_spot(img, W / 2 - 5 + roundi(cos(t) * 3), H / 2 + roundi(sin(t) * 2), Color.WHITE)
+			_spot(img, W / 2 + 5 + roundi(cos(t) * 3), H / 2 + roundi(sin(t) * 2), Color.WHITE)
+		for dx in range(-5, 6):
+			_spot(img, W / 2 + dx, H / 2 - 2 + absi(dx) / 3, Color.WHITE)
+
+
+## Tanque de agua (los negros de las azoteas), visto desde arriba.
+func _water_tank(img: Image, rng: RandomNumberGenerator) -> void:
+	var p := _random_point(rng, 9)
+	for dy in range(-4, 5):
+		for dx in range(-7, 8):
+			var d := (dx * dx) / 49.0 + (dy * dy) / 16.0
+			if d <= 1.0:
+				_spot(img, p.x + dx, p.y + dy, Color("2c2f36") if d > 0.55 else (Color("3d424b") if dx + dy < 0 else Color("33373f")))
+
+
+func _vent(img: Image, rng: RandomNumberGenerator) -> void:
+	var p := _random_point(rng, 7)
+	for dy in range(-2, 3):
+		for dx in range(-3, 4):
+			_spot(img, p.x + dx, p.y + dy, Color("8f9096") if dx < 1 else Color("6c6d73"))
+
+
+func _ac_unit(img: Image, rng: RandomNumberGenerator) -> void:
+	var p := _random_point(rng, 8)
+	for dy in range(-3, 4):
+		for dx in range(-5, 6):
+			var c := Color("d4d6da") if dy < 0 else Color("aeb1b7")
+			if (dx * dx) / 9.0 + (dy * dy) / 4.0 <= 1.0:
+				c = Color("5d6168")  # ventilador
+			_spot(img, p.x + dx, p.y + dy, c)
+
+
 # =============================================================================
 # Props (64x64, base en PROP_BASE)
 # =============================================================================
@@ -401,6 +568,12 @@ func _props() -> void:
 		"rock_1@2": _rock.bind(9, 7, 1),
 		"bush_0@3": _bush.bind(false, 0),
 		"bush_1@1": _bush.bind(true, 1),
+		"bench_0@1": _bench,
+		"street_lamp_0@1": _street_lamp,
+		"traffic_light_0@1": _traffic_light,
+		"bus_stop_0@1": _bus_stop,
+		"fountain_0@1": _fountain,
+		"statue_0@1": _statue,
 	}
 	for name: String in specs:
 		var img := Image.create_empty(PROP.x, PROP.y, false, Image.FORMAT_RGBA8)
@@ -535,6 +708,374 @@ func _bush(img: Image, flowers: bool, variant: int) -> void:
 			if img.get_pixel(p.x, p.y).a > 0.5:
 				img.set_pixel(p.x, p.y, Color("f7c6d9") if i % 2 == 0 else Color("fff4f0"))
 	_outline(img, OUTLINE)
+
+
+## Polígono relleno (centros de píxel dentro del polígono).
+func _poly(img: Image, pts: PackedVector2Array, c: Color) -> void:
+	var r := Rect2(pts[0], Vector2.ZERO)
+	for p in pts:
+		r = r.expand(p)
+	for y in range(floori(r.position.y), ceili(r.end.y) + 1):
+		for x in range(floori(r.position.x), ceili(r.end.x) + 1):
+			if x >= 0 and y >= 0 and x < img.get_width() and y < img.get_height() \
+					and Geometry2D.is_point_in_polygon(Vector2(x + 0.5, y + 0.5), pts):
+				img.set_pixel(x, y, c)
+
+
+## Caja isométrica: base (centro de su planta), semilados a (eje u) y b (eje v)
+## en píxeles de pantalla, alto h, elevada z. Luz desde arriba a la izquierda.
+func _iso_box(img: Image, base: Vector2, a: float, b: float, h: float, top: Color, z := 0.0) -> void:
+	var du := Vector2(1, 0.5)
+	var dv := Vector2(-1, 0.5)
+	var o := base + Vector2(0, -z)
+	var c0 := o - du * a - dv * b
+	var c1 := o + du * a - dv * b
+	var c2 := o + du * a + dv * b
+	var c3 := o - du * a + dv * b
+	var up := Vector2(0, -h)
+	_poly(img, PackedVector2Array([c3, c2, c2 + up, c3 + up]), top.darkened(0.22))
+	_poly(img, PackedVector2Array([c2, c1, c1 + up, c2 + up]), top.darkened(0.4))
+	_poly(img, PackedVector2Array([c0 + up, c1 + up, c2 + up, c3 + up]), top)
+
+
+func _pole(img: Image, x: int, top: int, bottom: int, c: Color) -> void:
+	for y in range(top, bottom + 1):
+		img.set_pixel(x, y, c.lightened(0.15))
+		img.set_pixel(x + 1, y, c.darkened(0.15))
+
+
+func _bench(img: Image) -> void:
+	var base := Vector2(PROP_BASE)
+	_shadow(img, 14, 5)
+	var wood := Color("a3713f")
+	var iron := Color("3a3d44")
+	for side: float in [-1.0, 1.0]:
+		_iso_box(img, base + Vector2(1, 0.5) * 8.0 * side, 1.0, 2.5, 6.0, iron)
+	_iso_box(img, base, 10.0, 3.0, 2.0, wood, 6.0)
+	_iso_box(img, base + Vector2(-1, 0.5) * -3.0, 10.0, 0.8, 6.0, wood.darkened(0.08), 8.0)
+	_outline(img, Color("2a1f17"))
+
+
+func _street_lamp(img: Image) -> void:
+	_shadow(img, 5, 2)
+	var grey := Color("68707d")
+	_box(img, 29, 45, 6, 4, grey.darkened(0.2))
+	_pole(img, 31, 8, 46, grey)
+	for x in range(32, 39):
+		img.set_pixel(x, 8, grey)
+	_box(img, 36, 9, 6, 3, Color("2f3540"))
+	_box(img, 37, 12, 4, 1, Color("ffe7a3"))
+	for y in range(13, 17):  # halo de luz
+		for x in range(34, 45):
+			_blend(img, x, y, Color(1.0, 0.92, 0.6, 0.12))
+	_outline(img, Color("23272e"), Vector2i.ZERO, Vector2i(64, 13))
+
+
+func _traffic_light(img: Image) -> void:
+	_shadow(img, 5, 2)
+	_pole(img, 31, 16, 47, Color("5d6470"))
+	_box(img, 28, 3, 8, 19, Color("2b2f36"))
+	var colors := [Color("e5483d"), Color("f2c14e").darkened(0.35), Color("4fc46b")]
+	for i in 3:
+		var cy := 6 + i * 6
+		_box(img, 29, cy - 3, 6, 1, Color("1d2025"))  # visera
+		for dy in range(-2, 2):
+			for dx in range(-2, 2):
+				if dx * dx + dy * dy <= 4:
+					img.set_pixel(32 + dx, cy + dy, colors[i])
+	_outline(img, Color("15171b"))
+
+
+func _bus_stop(img: Image) -> void:
+	var base := Vector2(PROP_BASE) + Vector2(-2, 0)
+	_shadow(img, 18, 6)
+	var frame := Color("4a5260")
+	for px: int in [-11, 11]:  # postes
+		_pole(img, int(base.x) + px, int(base.y) - 29, int(base.y) - 1, frame)
+	# Panel trasero de vidrio
+	_poly(img, PackedVector2Array([base + Vector2(-11, -6), base + Vector2(11, -6), base + Vector2(11, -26), base + Vector2(-11, -26)]), Color(0.62, 0.78, 0.9, 0.55))
+	_iso_box(img, base + Vector2(0, -2), 9.0, 1.5, 1.5, Color("9aa3ad"), 5.0)  # banca
+	_iso_box(img, base + Vector2(0, -1), 13.0, 5.0, 2.0, Color("3f6fb5"), 27.0)  # techo
+	_pole(img, int(base.x) + 16, int(base.y) - 30, int(base.y) + 2, Color("8a929c"))  # señal
+	_box(img, int(base.x) + 13, int(base.y) - 36, 9, 7, Color("2f6fd6"))
+	_box(img, int(base.x) + 15, int(base.y) - 34, 5, 3, Color.WHITE)
+	_outline(img, Color("1f2530"))
+
+
+func _fountain(img: Image) -> void:
+	var c := Vector2i(PROP_BASE) + Vector2i(0, -3)
+	_shadow(img, 19, 7)
+	var stone := Color("b7b1a5")
+	for k in range(5, -1, -1):  # borde con volumen
+		for y in range(-10, 11):
+			for x in range(-19, 20):
+				if (x * x) / 361.0 + (y * y) / 90.0 <= 1.0:
+					img.set_pixel(c.x + x, c.y + y - k, stone.darkened(0.25) if k < 5 else stone)
+	for y in range(-8, 9):
+		for x in range(-16, 17):
+			if (x * x) / 256.0 + (y * y) / 64.0 <= 1.0:
+				img.set_pixel(c.x + x, c.y + y - 5, Color("4f8fd6") if posmod(x + y, 5) != 0 else Color("78aee6"))
+	_box(img, c.x - 2, c.y - 18, 4, 13, stone.darkened(0.1))
+	for i in 9:  # chorros
+		_blend(img, c.x - 4 + i, c.y - 20 + absi(i - 4), Color(0.85, 0.93, 1.0, 0.85))
+	_outline(img, Color("3c3a36"))
+
+
+func _statue(img: Image) -> void:
+	var base := Vector2(PROP_BASE)
+	_shadow(img, 12, 4)
+	_iso_box(img, base, 6.0, 6.0, 12.0, Color("aaa498"))
+	var bronze := Color("6f6043")
+	var x0 := int(base.x)
+	var top := int(base.y) - 18
+	_box(img, x0 - 3, top - 14, 6, 14, bronze)
+	_box(img, x0 - 3, top - 14, 2, 14, bronze.lightened(0.15))
+	_box(img, x0 + 3, top - 12, 2, 7, bronze.darkened(0.2))  # brazo
+	for dy in range(-3, 3):
+		for dx in range(-3, 3):
+			if dx * dx + dy * dy <= 7:
+				img.set_pixel(x0 + dx, top - 18 + dy, bronze.lightened(0.1) if dx < 0 else bronze)
+	_outline(img, Color("2b2720"))
+
+
+# =============================================================================
+# Edificios: fachadas de un piso (las apila tools/build_art.gd)
+# =============================================================================
+
+const FLOOR_PX := WorldTiles.BUILDING_FLOOR_PX
+const FACE_W := 32
+
+## Estilo -> archivos de planta baja ("ground") y de pisos altos ("upper").
+## El estilo es el nombre del suelo de su techo (WorldTiles.BUILDING_STYLES).
+const FACADES := {
+	"building": {"ground": ["0@3", "1@3", "2@1"], "upper": ["0@5", "1@2", "2@1"]},
+	"roof_brick": {"ground": ["0@3", "1@3", "2@2"], "upper": ["0@5", "1@2", "2@1"]},
+	"roof_concrete": {"ground": ["0@3", "1@2", "2@1"], "upper": ["0@5", "1@1", "2@1"]},
+	"roof_dark": {"ground": ["0@3", "1@1"], "upper": ["0@4", "1@1"]},
+	"roof_civic": {"ground": ["0@3", "1@1"], "upper": ["0@1"]},
+	"roof_industrial": {"ground": ["0@2", "1@1"], "upper": ["0@3", "1@1"]},
+}
+
+
+func _buildings() -> void:
+	for style: String in FACADES:
+		for part: String in ["ground", "upper"]:
+			var names: Array = FACADES[style][part]
+			for variant in names.size():
+				var img := Image.create_empty(WorldTiles.BUILDING_FACADE_SIZE.x, WorldTiles.BUILDING_FACADE_SIZE.y, false, Image.FORMAT_RGBA8)
+				var rng := RandomNumberGenerator.new()
+				rng.seed = hash(style + part) + variant * 7919
+				var painter: Callable = Callable(self, "_facade_" + style).bind(part == "ground", variant, rng)
+				_facade(img, painter, part == "ground")
+				_write("buildings/%s_%s_%s.png" % [style, part, names[variant]], img)
+
+
+## Recorre los píxeles de las dos paredes visibles de un piso. painter(face, s, t):
+## face 0 = pared izquierda (iluminada), 1 = derecha (en sombra); s = 0..31 a lo
+## largo de la pared; t = 0..FLOOR_PX-1 desde arriba. Así las ventanas quedan
+## inclinadas con la pared. La planta baja oscurece un poco su zócalo.
+func _facade(img: Image, painter: Callable, ground_floor: bool) -> void:
+	for x in WorldTiles.BUILDING_FACADE_SIZE.x:
+		var face := 0 if x < FACE_W else 1
+		var s := x if face == 0 else x - FACE_W
+		var top := x / 2 if face == 0 else (WorldTiles.BUILDING_FACADE_SIZE.x - 1 - x) / 2
+		for t in FLOOR_PX:
+			var c: Color = painter.call(face, s, t)
+			if c.a <= 0.0:
+				continue
+			if ground_floor and t >= FLOOR_PX - 2:
+				c = c.darkened(0.35)  # zócalo
+			if face == 1:
+				c = c.darkened(0.24)
+			img.set_pixel(x, top + t, c)
+
+
+## Ventana: marco, vidrio con reflejo (o luz cálida) y alféizar. "" si (s, t) no cae en ella.
+func _window(s: int, t: int, s0: int, t0: int, w: int, h: int, frame: Color, lit := false) -> Variant:
+	if s < s0 or s >= s0 + w or t < t0 or t > t0 + h:
+		return null
+	if t == t0 + h:
+		return frame.darkened(0.12)  # alféizar
+	if s == s0 or s == s0 + w - 1 or t == t0 or t == t0 + h - 1 or t == t0 + h / 2:
+		return frame
+	if lit:
+		return Color("f3d68e") if (s + t) % 7 != 0 else Color("e8c374")
+	# Reflejo: franja clara en diagonal.
+	return Color("a9c8e4") if posmod(s - t, 9) < 2 else (Color("7fa3c7") if t < t0 + h / 2 else Color("6a8db3"))
+
+
+func _door(s: int, t: int, s0: int, w: int, wood: Color) -> Variant:
+	if s < s0 or s >= s0 + w or t < 6:
+		return null
+	if s == s0 or s == s0 + w - 1 or t == 6:
+		return wood.darkened(0.3)
+	if s == s0 + w - 3 and t == 15:
+		return Color("e0c060")  # manija
+	return wood if (s - s0) % 3 != 0 else wood.darkened(0.1)
+
+
+## Casas (techo de teja): pañete claro, ventanas con postigos, puerta de madera.
+func _facade_building(face: int, s: int, t: int, ground_floor: bool, variant: int, rng: RandomNumberGenerator) -> Color:
+	var wall := Color("eadbbd") if rng.randf() > 0.06 else Color("dfcfae")
+	if t <= 1:
+		wall = Color("cdb994")  # cornisa / entrepiso
+	if ground_floor and variant == 1 and face == 0:
+		var d: Variant = _door(s, t, 11, 10, Color("7a5234"))
+		if d != null:
+			return d
+	var shutter := Color("4f7a5a") if variant != 2 else Color("8a5a3a")
+	if (s == 8 or s == 9 or s == 22 or s == 23) and t >= 7 and t <= 19:
+		return shutter if t % 2 == 0 else shutter.darkened(0.12)
+	var win: Variant = _window(s, t, 10, 7, 12, 13, Color("f4efe4"), not ground_floor and variant == 2)
+	if win != null:
+		return win
+	if not ground_floor and variant == 1 and t >= 20 and t <= 22 and s >= 9 and s <= 22:
+		return Color("4e8f3c") if (s + t) % 3 else Color("e86a8a")  # matera con flores
+	return wall
+
+
+## Ladrillo a la vista (lo más común en Bogotá).
+func _facade_roof_brick(face: int, s: int, t: int, ground_floor: bool, variant: int, rng: RandomNumberGenerator) -> Color:
+	var row := t / 3
+	var brick := (s + (row % 2) * 3) / 6
+	var wall := Color("b65a3c") if (brick + row) % 3 != 0 else Color("a8513a")
+	if t % 3 == 2 or (s + (row % 2) * 3) % 6 == 0:
+		wall = Color("c9a58c")  # mortero
+	if rng.randf() < 0.04:
+		wall = wall.darkened(0.08)
+	if t <= 1:
+		wall = Color("d6c3ae")  # remate de concreto
+	if ground_floor:
+		if variant == 1 and face == 0:
+			var d: Variant = _door(s, t, 10, 11, Color("5d4030"))
+			if d != null:
+				return d
+		if variant == 2 and s >= 3 and s <= 28 and t >= 5:
+			# Local con persiana metálica.
+			if s == 3 or s == 28 or t == 5:
+				return Color("6f747a")
+			return Color("a7adb3") if t % 2 == 0 else Color("8f959b")
+	var win: Variant = _window(s, t, 9, 6, 14, 14, Color("ece7dc"), not ground_floor and variant == 2)
+	if win != null:
+		return win
+	if not ground_floor and variant == 1 and t >= 18 and t <= 23 and s >= 6 and s <= 25:
+		# Balcón con baranda.
+		if t == 18 or s == 6 or s == 25 or s % 3 == 0:
+			return Color("3a3a3e")
+		return Color(0, 0, 0, 0)
+	return wall
+
+
+## Concreto claro, ventanas corridas (oficinas y apartamentos).
+func _facade_roof_concrete(face: int, s: int, t: int, ground_floor: bool, variant: int, rng: RandomNumberGenerator) -> Color:
+	var wall := Color("cfccc4") if rng.randf() > 0.05 else Color("c4c1b9")
+	if t <= 2:
+		wall = Color("aeaaa1")  # placa
+	if ground_floor:
+		var awning: Color = [Color("d9534f"), Color("2f7fc1"), Color("3c9a5f")][variant % 3]
+		if variant >= 1 and t >= 4 and t <= 6 and s >= 2 and s <= 29:
+			return awning if s % 4 < 2 else awning.lightened(0.35)  # toldo
+		if s >= 3 and s <= 28 and t >= 7:
+			# Vitrina de local (o portería).
+			if s == 3 or s == 28 or t == 7 or s == 15:
+				return Color("55595f")
+			return Color("9cc0dc") if posmod(s - t, 11) < 2 else Color("6f93b5")
+		return wall
+	var win: Variant = _window(s, t, 3, 7, 26, 12, Color("8a8d92"), variant == 2)
+	if win != null:
+		return win
+	if variant == 1 and t >= 7 and t <= 19 and (s == 12 or s == 20):
+		return Color("8a8d92")
+	return wall
+
+
+## Muro cortina de vidrio (edificios altos).
+func _facade_roof_dark(face: int, s: int, t: int, ground_floor: bool, variant: int, rng: RandomNumberGenerator) -> Color:
+	if t <= 3:
+		return Color("3a404c")  # franja de losa
+	if s % 8 == 0:
+		return Color("2f3540")  # parteluz
+	if ground_floor and variant == 1 and face == 0 and s >= 9 and s <= 22 and t >= 8:
+		return Color("2f3540") if s == 9 or s == 22 or s == 16 else Color("d9e6f2")  # entrada iluminada
+	var lit := not ground_floor and variant == 1 and (s / 8) % 2 == 1
+	if lit:
+		return Color("f0d58c")
+	var reflect := posmod(s - t * 2, 23) < 4
+	var base := Color("5f7f9f") if t < FLOOR_PX / 2 else Color("4d6b8a")
+	if ground_floor:
+		base = base.darkened(0.15)
+	return base.lightened(0.25) if reflect else (base if rng.randf() > 0.04 else base.lightened(0.06))
+
+
+## Edificios públicos: piedra clara, pilastras y ventanas en arco.
+func _facade_roof_civic(face: int, s: int, t: int, ground_floor: bool, variant: int, _rng: RandomNumberGenerator) -> Color:
+	var wall := Color("e6d9bb")
+	if t % 6 == 5 or (t / 6 + s / 8) % 2 == 0 and s % 8 == 0:
+		wall = Color("cdbf9f")  # juntas de los bloques
+	if s <= 1 or s >= 30:
+		wall = Color("f2e8cf")  # pilastras
+	if t <= 1:
+		wall = Color("cdbf9f")
+	# Arco: rectángulo con remate semicircular.
+	var s0 := 11
+	var w := 10
+	var top := 5 if ground_floor and variant == 0 else 7
+	var cx := s0 + (w - 1) / 2.0
+	var in_rect := s >= s0 and s < s0 + w and t >= top + 4 and t < FLOOR_PX - (1 if ground_floor else 4)
+	var in_arch := t >= top and t < top + 5 and Vector2(s - cx, (t - (top + 4)) * 1.1).length() <= w / 2.0
+	if in_rect or in_arch:
+		var edge := s == s0 or s == s0 + w - 1 or (in_arch and Vector2(s - cx, (t - (top + 4)) * 1.1).length() > w / 2.0 - 1.2)
+		if edge:
+			return Color("b8a882")
+		if ground_floor and variant == 0:
+			return Color("6b4a32") if (s - s0) % 3 != 0 else Color("5a3d29")  # portón de madera
+		return Color("7fa3c7") if t < top + 6 else Color("6a8db3")
+	return wall
+
+
+## Bodegas: lámina ondulada (como su techo), portón enrollable en la planta baja.
+func _facade_roof_industrial(face: int, s: int, t: int, ground_floor: bool, variant: int, rng: RandomNumberGenerator) -> Color:
+	var wall := Color("8f9ba7") if s % 4 < 2 else Color("7d8994")
+	if rng.randf() < 0.03:
+		wall = wall.lightened(0.08)
+	if ground_floor and variant == 0 and face == 0 and s >= 4 and s <= 27 and t >= 5:
+		if s == 4 or s == 27 or t == 5:
+			return Color("5e6872")
+		return Color("c2c6ca") if t % 3 != 0 else Color("a5aaaf")
+	if not ground_floor and variant == 1 and t >= 4 and t <= 8 and s >= 4 and s <= 27:
+		return Color("5e6872") if t == 4 or t == 8 or s % 6 == 4 else Color("9cc0dc")
+	return wall
+
+# =============================================================================
+# Iconos de categoría de los puntos de interés (assets/art/ui/poi/<cat>.png)
+# =============================================================================
+
+const POI_ICONS := {
+	"food": ["X.X.X..", "X.X.X.X", "X.X.X.X", ".XXX.XX", "..X...X", "..X...X", "..X...X"],
+	"shop": ["..XXX..", ".X...X.", "XXXXXXX", "XXXXXXX", "XXXXXXX", "XXXXXXX", ".XXXXX."],
+	"health": ["..XXX..", "..XXX..", "XXXXXXX", "XXXXXXX", "XXXXXXX", "..XXX..", "..XXX.."],
+	"education": ["...X...", ".XXXXX.", "XXXXXXX", ".XXXXX.", ".X...X.", ".XXXXX.", "...X..."],
+	"worship": ["...X...", "..XXX..", "...X...", "..XXX..", ".XXXXX.", ".XX.XX.", ".XX.XX."],
+	"money": ["...X...", ".XXXXX.", "X..X...", ".XXXXX.", "...X..X", ".XXXXX.", "...X..."],
+	"transport": [".XXXXX.", "XXXXXXX", "X.X.X.X", "XXXXXXX", "XXXXXXX", ".X...X.", "......."],
+	"culture": ["...X...", "..XXX..", "XXXXXXX", ".X.X.X.", ".X.X.X.", ".X.X.X.", "XXXXXXX"],
+	"lodging": ["X......", "X.XX...", "XXXXXXX", "XXXXXXX", "X.....X", "X.....X", "......."],
+	"sport": ["..XXX..", ".X.X.X.", "XXX.XXX", "X.XXX.X", "XXX.XXX", ".X.X.X.", "..XXX.."],
+	"service": ["...X...", ".......", "..XX...", "...X...", "...X...", "...X...", "..XXX.."],
+	"other": [".......", "..XXX..", ".XXXXX.", ".XXXXX.", ".XXXXX.", "..XXX..", "......."],
+}
+
+
+func _poi_icons() -> void:
+	for cat: String in POI_ICONS:
+		var rows: Array = POI_ICONS[cat]
+		var img := Image.create_empty(7, 7, false, Image.FORMAT_RGBA8)
+		for y in rows.size():
+			var row: String = rows[y]
+			for x in row.length():
+				if row[x] == "X":
+					img.set_pixel(x, y, Color.WHITE)
+		_write("ui/poi/%s.png" % cat, img)
 
 
 # =============================================================================

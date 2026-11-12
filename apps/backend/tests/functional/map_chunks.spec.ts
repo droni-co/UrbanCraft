@@ -5,6 +5,7 @@ import db from '@adonisjs/lucid/services/db'
 import type { MapConfig } from '#config/map'
 import { Ground } from '#map/catalog'
 import type { ChunkPayload } from '#map/chunk_codec'
+import type { ChunkProgress } from '#services/map_chunk_service'
 import { OsmProvider, OsmProviderError } from '#map/providers/osm_provider'
 import { MapChunkService } from '#services/map_chunk_service'
 import { MapWorker } from '#services/map_worker'
@@ -79,7 +80,13 @@ test.group('Map chunks API', (group) => {
     const pending = await client.get(url())
     pending.assertStatus(202)
     assert.equal(pending.header('retry-after'), '5')
-    assert.equal((pending.body() as { status: string }).status, 'pending')
+    const progress = pending.body() as Record<string, unknown>
+    assert.equal(progress.status, 'pending')
+    // Cómo va, para la barra de carga: en cola, nadie delante, hay que descargar.
+    assert.equal(progress.stage, 'queued')
+    assert.equal(progress.ahead, 0)
+    assert.isAbove(progress.expected as number, 5)
+    assert.equal(progress.attempts, 0)
 
     // Un segundo jugador pidiendo otro chunk del mismo source tile no duplica trabajo.
     await expectStatus(client.get(url(C.z, C.x + 1, C.y)), 202)
@@ -110,6 +117,19 @@ test.group('Map chunks API', (group) => {
 
     const notModified = await client.get(url()).header('If-None-Match', ready.header('etag') ?? '')
     notModified.assertStatus(304)
+  })
+
+  test('el progreso dice cuántas zonas hay delante en la cola', async ({ client, assert }) => {
+    setup(roadProvider())
+    await expectStatus(client.get(url()), 202)
+    // Otro source tile (8 chunks más al este): queda detrás del primero.
+    const second = await client.get(url(C.z, C.x + 8, C.y))
+    second.assertStatus(202)
+    const progress = second.body() as unknown as ChunkProgress
+    assert.equal(progress.stage, 'queued')
+    assert.equal(progress.ahead, 1)
+    // El primero sigue sin nadie delante.
+    assert.equal(((await client.get(url())).body() as unknown as ChunkProgress).ahead, 0)
   })
 
   test('envía el chunk comprimido tal cual está guardado', async ({ client, assert }) => {

@@ -23,6 +23,14 @@ const GROUND_COLORS: Array[Color] = [
 	Color("474a52"),  # ASPHALT
 	Color("c9c2b4"),  # PAVEMENT
 	Color("a9513b"),  # BUILDING
+	Color("b05a3e"),  # ROOF_BRICK
+	Color("b4b1a9"),  # ROOF_CONCRETE
+	Color("5b6170"),  # ROOF_DARK
+	Color("d8bf98"),  # ROOF_CIVIC
+	Color("87939f"),  # ROOF_INDUSTRIAL
+	Color("9a9a96"),  # CROSSWALK
+	Color("7a6a58"),  # RAIL
+	Color("a24a3e"),  # CYCLEWAY
 ]
 
 const PALETTE_SHADER := """

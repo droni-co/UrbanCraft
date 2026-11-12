@@ -10,7 +10,6 @@ extends CanvasLayer
 @onready var status_label: Label = %StatusLabel
 @onready var message_label: Label = %MessageLabel
 @onready var touch_controls: Control = %TouchControls
-@onready var loading_label: Label = %LoadingLabel
 @onready var attribution_label: Label = %AttributionLabel
 @onready var minimap: Minimap = %Minimap
 
@@ -33,6 +32,8 @@ var _location_text := ""
 var _location_tween: Tween
 
 var _message_tween: Tween
+## Pantalla de carga con barra de progreso (encima del HUD, debajo del menú).
+var loading_screen: LoadingScreen
 
 
 func _ready() -> void:
@@ -40,9 +41,10 @@ func _ready() -> void:
 	GameSettings.touch_controls_changed.connect(func(enabled: bool) -> void: touch_controls.visible = enabled)
 	message_label.modulate.a = 0.0
 	set_online(false)
-	set_loading("")
 	set_attribution("")
 	location_label = _make_location_label()
+	loading_screen = LoadingScreen.new()
+	add_child(loading_screen)
 	_build_menu()
 	GameSettings.minimap_settings_changed.connect(_layout_around_minimap)
 	GameSettings.labels_settings_changed.connect(_refresh_location)
@@ -195,9 +197,13 @@ func _layout_location_label() -> void:
 
 
 ## Texto central de carga; vacío lo oculta.
-func set_loading(text: String) -> void:
-	loading_label.text = text
-	loading_label.visible = not text.is_empty()
+## Muestra la pantalla de carga con este texto ("" = el mapa está listo).
+## `progress` (0..1) adelanta la barra; < 0 la deja como está.
+func set_loading(text: String, progress := -1.0) -> void:
+	if text.is_empty():
+		loading_screen.finish()
+	else:
+		loading_screen.set_status(text, progress)
 
 
 ## Atribución obligatoria de los datos del mapa (licencia ODbL de OSM).

@@ -68,8 +68,22 @@ export const KEPT_TAGS = new Set([
   'parking',
   'leaf_type',
   'area:highway',
-  // Números de portal (etiquetas de casas). Requiere volver a pedir los datos: --refetch.
+  // Números de portal (etiquetas de casas).
   'addr:housenumber',
+  // Detalle local (dataVersion 2): tipos y alturas de edificio, vías férreas,
+  // pasos de cebra, andenes, mobiliario urbano, barrios y más comercios.
+  'building:levels',
+  'height',
+  'railway',
+  'crossing',
+  'footway',
+  'sidewalk',
+  'service',
+  'office',
+  'craft',
+  'cuisine',
+  'public_transport',
+  'bus',
 ])
 
 export function pickTags(tags: Record<string, string> | undefined): Tags {

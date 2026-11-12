@@ -34,7 +34,8 @@ export default class MapController {
    *
    * 200: chunk listo (JSON, enviado gzip si el cliente lo acepta). Con ?v= igual a
    *      la versión actual se marca immutable, ideal para un CDN.
-   * 202: se está generando; reintentar tras Retry-After segundos.
+   * 202: se está generando; reintentar tras Retry-After segundos. El cuerpo dice
+   *      cómo va (stage, ahead, elapsed, expected, attempts: ver ChunkProgress).
    * 429: demasiadas zonas nuevas pedidas; reintentar más tarde.
    * 503: no se pudieron obtener datos de la zona.
    */
@@ -57,8 +58,17 @@ export default class MapController {
         return response.serviceUnavailable({ status: 'failed', error: result.error })
       }
       response.header('Retry-After', String(result.retryAfterSeconds))
-      const body = { status: result.state, retryAfter: result.retryAfterSeconds }
-      return result.state === 'throttled' ? response.tooManyRequests(body) : response.accepted(body)
+      if (result.state === 'throttled') {
+        return response.tooManyRequests({
+          status: result.state,
+          retryAfter: result.retryAfterSeconds,
+        })
+      }
+      return response.accepted({
+        status: result.state,
+        retryAfter: result.retryAfterSeconds,
+        ...result.progress,
+      })
     }
 
     const { data, etag } = result.chunk

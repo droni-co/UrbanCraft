@@ -12,12 +12,22 @@ import { latToWorld, lonToWorld, type LonLat } from '#map/geo'
  *   - Áreas (parques, agua, plazas, edificios con nombre): un punto interior.
  *     Solo la emite el chunk que contiene ese punto (una vez por área).
  *   - Números de portal (addr:housenumber) en nodos y edificios.
+ *   - Barrios (place=suburb/neighbourhood/quarter): en su nodo, de lejos.
  *
  * Coordenadas: celdas locales del chunk con decimales (0..size).
  */
 
 export type LabelKind =
-  'street' | 'path' | 'waterway' | 'park' | 'water' | 'square' | 'building' | 'place' | 'number'
+  | 'street'
+  | 'path'
+  | 'waterway'
+  | 'park'
+  | 'water'
+  | 'square'
+  | 'building'
+  | 'place'
+  | 'number'
+  | 'district'
 
 export interface MapLabel {
   /** Id OSM estable (para calles: el menor id de las vías con ese nombre). */
@@ -55,6 +65,7 @@ const STREET_RANKS: Record<string, number> = {
   pedestrian: 4,
   service: 3,
 }
+const DISTRICT_RANKS: Record<string, number> = { suburb: 9, quarter: 8, neighbourhood: 8 }
 const PATH_HIGHWAYS = new Set(['footway', 'cycleway', 'path', 'steps', 'bridleway', 'track'])
 const WATERWAYS = new Set(['river', 'canal', 'stream'])
 
@@ -157,6 +168,29 @@ export class LabelIndex {
     this.#numbers.sort(byId)
   }
 
+  /**
+   * Barrio en el que cae (x, y): el punto de barrio más cercano dentro de
+   * `maxCells`. OSM casi siempre mapea los barrios como un punto, así que esto
+   * aproxima sus límites (un Voronoi). Se prefiere el barrio (neighbourhood,
+   * quarter) a la zona grande (suburb, p. ej. una localidad).
+   */
+  districtAt(x: number, y: number, maxCells: number): string | null {
+    let best: PointSource | null = null
+    let bestScore = Infinity
+    for (const s of this.#areas) {
+      if (s.kind !== 'district') continue
+      const d = Math.hypot(s.x - x, s.y - y)
+      if (d > maxCells) continue
+      // La zona grande solo gana si no hay ningún barrio al alcance.
+      const score = d + (s.rank > DISTRICT_RANKS.neighbourhood ? maxCells : 0)
+      if (score < bestScore) {
+        bestScore = score
+        best = s
+      }
+    }
+    return best?.name ?? null
+  }
+
   /** Etiquetas de un chunk (ox, oy = celda global de su esquina). */
   forChunk(ox: number, oy: number, size: number, poiNames: Set<string>): MapLabel[] {
     return [
@@ -181,6 +215,18 @@ export class LabelIndex {
     const housenumber = feature.tags['addr:housenumber']
 
     if (feature.kind === 'point') {
+      const district = DISTRICT_RANKS[feature.tags.place]
+      if (district && feature.tags.name) {
+        this.#areas.push({
+          id: feature.id,
+          kind: 'district',
+          name: feature.tags.name,
+          rank: district,
+          x: lonToWorld(feature.coord[0], this.cellZoom),
+          y: latToWorld(feature.coord[1], this.cellZoom),
+        })
+        return
+      }
       // Un nodo con nombre y categoría ya es un POI (tiene su propio marcador).
       if (!housenumber || feature.tags.name) return
       this.#numbers.push({

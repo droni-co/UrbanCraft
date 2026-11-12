@@ -9,6 +9,41 @@ export interface OverpassOptions {
   userAgent: string
 }
 
+/** Lo que se pide de cada source tile (cada línea lleva el bbox del tile). */
+const SELECTORS = [
+  'way[highway]',
+  'way[building]',
+  'relation[building][type=multipolygon]',
+  'way[natural]',
+  'relation[natural][type=multipolygon]',
+  'way[landuse]',
+  'relation[landuse][type=multipolygon]',
+  'way[leisure]',
+  'relation[leisure][type=multipolygon]',
+  'way[waterway]',
+  'way[amenity=parking]',
+  'way[place=square]',
+  'way["area:highway"]',
+  'way[railway~"^(rail|light_rail|tram|narrow_gauge|monorail)$"]',
+  'way[name][~"^(amenity|shop|tourism|historic|office|craft)$"~"."]',
+  'node[natural=tree]',
+  'node["addr:housenumber"]',
+  'node[name][~"^(amenity|shop|tourism|leisure|historic|office|craft)$"~"."]',
+  'node[highway~"^(bus_stop|traffic_signals|street_lamp|crossing)$"]',
+  'node[amenity~"^(bench|fountain)$"]',
+  'node[historic~"^(memorial|monument|statue)$"]',
+  'node[tourism=artwork]',
+]
+
+/**
+ * Los barrios son un punto (no un área): se buscan con más margen para que cada
+ * chunk sepa en cuál está aunque el punto caiga en otro source tile (~1,6 km).
+ */
+const DISTRICT_SELECTOR = 'node[place~"^(suburb|neighbourhood|quarter)$"][name]'
+const DISTRICT_MARGIN_DEGREES = 0.015
+
+const bboxText = (...v: number[]) => v.map((n) => Number(n.toFixed(7))).join(',')
+
 /**
  * Proveedor basado en la API Overpass.
  *
@@ -24,22 +59,22 @@ export class OverpassProvider extends OsmProvider {
     super()
   }
 
+  /**
+   * Ojo: sin [bbox:...] global. Overpass lo INTERSECTA con el bbox propio de
+   * cada línea, así que no se podría pedir nada más allá del tile. Por eso
+   * cada línea lleva su bbox y la geometría se recorta al tile en el `out`.
+   */
   buildQuery(bbox: BBox): string {
-    const b = `${bbox.south},${bbox.west},${bbox.north},${bbox.east}`
-    return `[out:json][timeout:${this.options.timeoutSeconds}][bbox:${b}];
+    const b = bboxText(bbox.south, bbox.west, bbox.north, bbox.east)
+    const m = DISTRICT_MARGIN_DEGREES
+    const near = bboxText(bbox.south - m, bbox.west - m, bbox.north + m, bbox.east + m)
+    return `[out:json][timeout:${this.options.timeoutSeconds}];
 (
-  way[highway];
-  way[building]; relation[building][type=multipolygon];
-  way[natural]; relation[natural][type=multipolygon];
-  way[landuse]; relation[landuse][type=multipolygon];
-  way[leisure]; relation[leisure][type=multipolygon];
-  way[waterway];
-  way[amenity=parking]; way[place=square]; way["area:highway"];
-  node[natural=tree];
-  node["addr:housenumber"];
-  node[name][~"^(amenity|shop|tourism|leisure|historic)$"~"."];
+${SELECTORS.map((s) => `  ${s}(${b});`).join('\n')}
 );
-out geom;`
+out geom(${b});
+${DISTRICT_SELECTOR}(${near});
+out;`
   }
 
   async fetchFeatures(bbox: BBox): Promise<FeatureSet> {

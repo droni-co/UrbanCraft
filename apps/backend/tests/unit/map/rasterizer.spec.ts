@@ -1,6 +1,7 @@
 import { test } from '@japa/runner'
-import { Ground, NO_PROP, Prop } from '#map/catalog'
-import { SourceRasterizer, tileCenterLatitude } from '#map/rasterizer'
+import { BUILDING_GROUNDS, Ground, NO_PROP, Prop } from '#map/catalog'
+import { SourceRasterizer, classifyBuilding, tileCenterLatitude } from '#map/rasterizer'
+import { poiCategory } from '#map/poi_category'
 import {
   CELL_ZOOM,
   CHUNK_SIZE,
@@ -47,7 +48,9 @@ test.group('Map rasterizer', () => {
     ])
     // 7 m a ~1.82 m/celda => semiancho ~1.9 celdas => filas 9, 10 y 11
     for (const row of [9, 10, 11]) assert.equal(at(grid.ground, 30, row), Ground.ASPHALT)
-    for (const row of [7, 13]) assert.equal(at(grid.ground, 30, row), Ground.GRASS)
+    // Andén de 2,5 m a cada lado, y después el pasto.
+    for (const row of [8, 12]) assert.equal(at(grid.ground, 30, row), Ground.PAVEMENT)
+    for (const row of [6, 14]) assert.equal(at(grid.ground, 30, row), Ground.GRASS)
   })
 
   test('relleno de áreas y huecos de multipolígonos (par-impar)', ({ assert }) => {
@@ -99,7 +102,7 @@ test.group('Map rasterizer', () => {
     const grid = rasterize([
       { kind: 'area', id: 'w1', tags: { building: 'yes' }, rings: [rect(C, 5.2, 5.2, 5.4, 5.4)] },
     ])
-    assert.equal(at(grid.ground, 5, 5), Ground.BUILDING)
+    assert.isTrue(BUILDING_GROUNDS.has(at(grid.ground, 5, 5)))
   })
 
   test('senderos diagonales angostos quedan 4-conectados (transitables)', ({ assert }) => {
@@ -160,7 +163,7 @@ test.group('Map rasterizer', () => {
     assert.equal(at(grid.props, 10, 40), Prop.TREE)
     assert.equal(at(grid.props, 10, 20), NO_PROP, 'no hay árboles sobre la calle')
     assert.deepEqual(grid.pois, [
-      { id: 'n3', kind: 'amenity:cafe', name: 'Café Test', cell: [7, 8] },
+      { id: 'n3', kind: 'amenity:cafe', cat: 'food', name: 'Café Test', cell: [7, 8] },
     ])
   })
 
@@ -174,5 +177,186 @@ test.group('Map rasterizer', () => {
     const trees = Array.from(a.props).filter((p) => p === Prop.TREE || p === Prop.PINE).length
     assert.isAbove(trees, 64 * 64 * 0.15)
     assert.isBelow(trees, 64 * 64 * 0.3)
+  })
+
+  test('techos según el tipo de edificio, y variados entre vecinos', ({ assert }) => {
+    assert.equal(classifyBuilding({ building: 'church' }, 'w1'), Ground.ROOF_CIVIC)
+    assert.equal(classifyBuilding({ building: 'yes', amenity: 'school' }, 'w1'), Ground.ROOF_CIVIC)
+    assert.equal(classifyBuilding({ building: 'warehouse' }, 'w1'), Ground.ROOF_INDUSTRIAL)
+    assert.include(
+      [Ground.ROOF_CONCRETE, Ground.ROOF_DARK],
+      classifyBuilding({ 'building': 'apartments', 'building:levels': '12' }, 'w1')
+    )
+    assert.include(
+      [Ground.ROOF_CONCRETE, Ground.ROOF_DARK],
+      classifyBuilding({ building: 'yes', shop: 'supermarket' }, 'w1')
+    )
+    // Una manzana de building=yes no queda de un solo color.
+    const roofs = new Set(
+      Array.from({ length: 40 }, (_, i) => classifyBuilding({ building: 'yes' }, `w${i}`))
+    )
+    assert.isAtLeast(roofs.size, 3)
+    // Determinista
+    assert.equal(
+      classifyBuilding({ building: 'yes' }, 'w7'),
+      classifyBuilding({ building: 'yes' }, 'w7')
+    )
+  })
+
+  test('pasos de cebra solo sobre el asfalto; vías férreas y ciclorrutas', ({ assert }) => {
+    const grid = rasterize([
+      {
+        kind: 'line',
+        id: 'w1',
+        tags: { highway: 'residential' },
+        coords: line(C, [
+          [0, 20.5],
+          [63, 20.5],
+        ]),
+      },
+      {
+        kind: 'point',
+        id: 'n1',
+        tags: { highway: 'crossing', crossing: 'marked' },
+        coord: localToLonLat(C, 30.5, 20.5),
+      },
+      {
+        kind: 'line',
+        id: 'w2',
+        tags: { railway: 'rail' },
+        coords: line(C, [
+          [10.5, 30],
+          [10.5, 63],
+        ]),
+      },
+      {
+        kind: 'line',
+        id: 'w3',
+        tags: { highway: 'cycleway' },
+        coords: line(C, [
+          [40.5, 30],
+          [40.5, 63],
+        ]),
+      },
+    ])
+    assert.equal(at(grid.ground, 30, 20), Ground.CROSSWALK)
+    assert.equal(at(grid.ground, 30, 18), Ground.PAVEMENT, 'el andén no se vuelve paso de cebra')
+    assert.equal(at(grid.ground, 10, 45), Ground.RAIL)
+    assert.equal(at(grid.ground, 40, 45), Ground.CYCLEWAY)
+  })
+
+  test('el andén no se pinta sobre el agua', ({ assert }) => {
+    const grid = rasterize([
+      { kind: 'area', id: 'w1', tags: { natural: 'water' }, rings: [rect(C, 0, 0, 64, 64)] },
+      {
+        kind: 'line',
+        id: 'w2',
+        tags: { highway: 'residential', bridge: 'yes' },
+        coords: line(C, [
+          [0, 20.5],
+          [63, 20.5],
+        ]),
+      },
+    ])
+    assert.equal(at(grid.ground, 30, 20), Ground.ASPHALT)
+    assert.equal(at(grid.ground, 30, 17), Ground.WATER)
+  })
+
+  test('mobiliario urbano: el semáforo de la calzada se pone en el andén', ({ assert }) => {
+    const grid = rasterize([
+      {
+        kind: 'line',
+        id: 'w1',
+        tags: { highway: 'residential' },
+        coords: line(C, [
+          [0, 20.5],
+          [63, 20.5],
+        ]),
+      },
+      {
+        kind: 'point',
+        id: 'n1',
+        tags: { highway: 'traffic_signals' },
+        coord: localToLonLat(C, 30.5, 20.5),
+      },
+      { kind: 'point', id: 'n2', tags: { amenity: 'bench' }, coord: localToLonLat(C, 5.5, 40.5) },
+      {
+        kind: 'point',
+        id: 'n3',
+        tags: { historic: 'memorial' },
+        coord: localToLonLat(C, 50.5, 40.5),
+      },
+    ])
+    const lights = Array.from(grid.props)
+      .map((p, i) => [p, i] as const)
+      .filter(([p]) => p === Prop.TRAFFIC_LIGHT)
+    assert.lengthOf(lights, 1)
+    assert.equal(grid.ground[lights[0][1]], Ground.PAVEMENT)
+    assert.equal(at(grid.props, 5, 40), Prop.BENCH)
+    assert.equal(at(grid.props, 50, 40), Prop.STATUE)
+  })
+
+  test('hileras de árboles y locales mapeados como edificio', ({ assert }) => {
+    const grid = rasterize([
+      {
+        kind: 'line',
+        id: 'w1',
+        tags: { natural: 'tree_row' },
+        coords: line(C, [
+          [2.5, 50.5],
+          [62.5, 50.5],
+        ]),
+      },
+      {
+        kind: 'area',
+        id: 'w2',
+        tags: { building: 'yes', shop: 'bakery', name: 'Panadería La Espiga' },
+        rings: [rect(C, 20, 10, 30, 16)],
+      },
+    ])
+    const trees = Array.from({ length: 64 }, (_, x) => at(grid.props, x, 50)).filter(
+      (p) => p === Prop.TREE
+    )
+    assert.isAbove(trees.length, 10) // ~110 m de hilera, un árbol cada 7 m
+    assert.lengthOf(grid.pois, 1)
+    assert.equal(grid.pois[0].name, 'Panadería La Espiga')
+    assert.equal(grid.pois[0].cat, 'food')
+    assert.closeTo(grid.pois[0].cell[0], 25, 1)
+    // El pin queda en la entrada (al frente del edificio), no dentro de él.
+    const [px, py] = grid.pois[0].cell
+    assert.isFalse(BUILDING_GROUNDS.has(at(grid.ground, px, py)))
+    assert.equal(py, 16)
+  })
+
+  test('pisos de cada edificio: de OSM, por altura o típicos según el tipo', ({ assert }) => {
+    const building = (id: string, x: number, tags: Record<string, string>): Feature => ({
+      kind: 'area',
+      id,
+      tags: { building: 'yes', ...tags },
+      rings: [rect(C, x, 10, x + 6, 16)],
+    })
+    const grid = rasterize([
+      building('w1', 2, { 'building:levels': '7' }),
+      building('w2', 12, { height: '13.5' }),
+      building('w3', 22, { building: 'warehouse' }),
+      building('w4', 32, { building: 'house' }),
+    ])
+    assert.equal(at(grid.levels, 4, 12), 7)
+    assert.equal(at(grid.levels, 14, 12), 5) // 13,5 m / 3 m por piso
+    assert.equal(at(grid.levels, 24, 12), 1) // bodega
+    assert.oneOf(at(grid.levels, 34, 12), [1, 2, 3]) // casa sin datos
+    assert.equal(at(grid.levels, 4, 30), 0, 'fuera de los edificios: 0')
+    // Todas las celdas de un edificio tienen los mismos pisos.
+    const w4 = new Set([at(grid.levels, 33, 11), at(grid.levels, 36, 14), at(grid.levels, 34, 12)])
+    assert.equal(w4.size, 1)
+  })
+
+  test('categorías de POI', ({ assert }) => {
+    assert.equal(poiCategory({ amenity: 'pharmacy' }), 'health')
+    assert.equal(poiCategory({ shop: 'clothes' }), 'shop')
+    assert.equal(poiCategory({ tourism: 'museum' }), 'culture')
+    assert.equal(poiCategory({ amenity: 'place_of_worship' }), 'worship')
+    assert.equal(poiCategory({ office: 'lawyer' }), 'service')
+    assert.equal(poiCategory({ amenity: 'loquesea' }), 'other')
   })
 })

@@ -21,6 +21,10 @@ export interface SourceTileRow {
   attempts: number
   rasterizedVersion: number
   hasData: boolean
+  /** Versión de los datos guardados (ver config/map.ts dataVersion). */
+  dataVersion: number
+  /** Segundos desde que un worker lo tomó (solo con status 'fetching'). */
+  lockedSecondsAgo: number | null
 }
 
 export interface ClaimedJob extends SourceTileRow {}
@@ -43,11 +47,14 @@ function toSourceTile(row: any): SourceTileRow {
     attempts: row.attempts,
     rasterizedVersion: row.rasterized_version,
     hasData: row.has_data,
+    dataVersion: row.data_version,
+    lockedSecondsAgo: row.locked_seconds_ago === null ? null : Number(row.locked_seconds_ago),
   }
 }
 
 const SOURCE_COLUMNS =
-  'id, z, x, y, status, attempts, rasterized_version, (data IS NOT NULL) AS has_data'
+  'id, z, x, y, status, attempts, rasterized_version, data_version, (data IS NOT NULL) AS has_data, ' +
+  'EXTRACT(EPOCH FROM now() - locked_at) AS locked_seconds_ago'
 
 export class MapRepository {
   async findChunk(z: number, x: number, y: number, version: number): Promise<ChunkRow | null> {
@@ -107,6 +114,19 @@ export class MapRepository {
     return rows[0].n
   }
 
+  /** Cuántos trabajos en cola se procesan antes que este (el orden de claimNextJob). */
+  async queueAhead(id: number): Promise<number> {
+    const { rows } = await db.rawQuery(
+      `SELECT count(*)::int AS n FROM osm_source_tiles o, osm_source_tiles t
+       WHERE t.id = ? AND o.id <> t.id AND (
+         o.status = 'fetching' OR
+         (o.status = 'queued' AND (o.next_attempt_at, o.id) < (t.next_attempt_at, t.id))
+       )`,
+      [id]
+    )
+    return rows[0]?.n ?? 0
+  }
+
   /** Toma el siguiente trabajo pendiente de forma atómica (seguro con varios workers). */
   async claimNextJob(lockTimeoutMs: number): Promise<ClaimedJob | null> {
     const { rows } = await db.rawQuery(
@@ -133,13 +153,19 @@ export class MapRepository {
   async saveSourceData(
     id: number,
     data: Buffer,
-    meta: { provider: string; osmTimestamp: string | null; featureCount: number }
+    meta: {
+      provider: string
+      osmTimestamp: string | null
+      featureCount: number
+      dataVersion: number
+    }
   ): Promise<void> {
     await db.rawQuery(
       `UPDATE osm_source_tiles
-       SET data = ?, provider = ?, osm_timestamp = ?, feature_count = ?, fetched_at = now(), updated_at = now()
+       SET data = ?, provider = ?, osm_timestamp = ?, feature_count = ?, data_version = ?,
+           fetched_at = now(), updated_at = now()
        WHERE id = ?`,
-      [data, meta.provider, meta.osmTimestamp, meta.featureCount, id]
+      [data, meta.provider, meta.osmTimestamp, meta.featureCount, meta.dataVersion, id]
     )
   }
 

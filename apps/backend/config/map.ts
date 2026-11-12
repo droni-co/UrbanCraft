@@ -21,7 +21,18 @@ const mapConfig = {
    * estilo (catalog/rasterizer): los chunks se regeneran desde los datos OSM ya
    * guardados, sin volver a consultar al proveedor.
    */
-  generatorVersion: 2,
+  generatorVersion: 4,
+
+  /**
+   * Versión de la consulta de datos OSM (qué etiquetas y elementos se piden).
+   * Súbela al pedir datos nuevos al proveedor (overpass_provider/features):
+   * los source tiles con datos más viejos se vuelven a pedir al regenerarse.
+   *   1: calles, edificios, áreas, árboles, POIs (nodos), números de portal
+   *   2: + tipos/alturas de edificio, vías férreas, pasos de cebra, mobiliario
+   *      urbano, comercios mapeados como áreas, barrios (con ~1,6 km de margen),
+   *      altura de edificios (height)
+   */
+  dataVersion: 2,
 
   /** Margen extra al pedir datos de un source tile (para calles que rozan el borde). */
   sourceMarginMeters: 40,

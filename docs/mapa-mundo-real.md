@@ -56,16 +56,25 @@ Medido con datos reales del Retiro de Madrid:
 - `app/map/geo.ts`: proyección y jerarquía de tiles.
 - `app/map/catalog.ts`: ids de tiles. **Deben coincidir con `WorldTiles.gd`**; el cliente los valida al arrancar.
 - `app/map/providers/`: `OsmProvider` (interfaz), `OverpassProvider` y el parser.
+  - La consulta **no usa `[bbox:...]` global**: Overpass lo intersecta con el bbox de cada línea. Cada línea lleva el bbox del tile, la geometría se recorta con `out geom(bbox)` y los puntos de barrio se piden con ~1,6 km de margen.
 - `app/map/rasterizer.ts`: reglas de estilo OSM → suelo/props/POIs. Es determinista:
   - Áreas: relleno scanline con regla par-impar. Soporta multipolígonos con huecos sin tener que ensamblar anillos.
   - Calles y ríos: buffer según su ancho real. Usa un mínimo de 0.75 celdas para que los senderos sean transitables.
   - Prioridades: los puentes van sobre el agua y los túneles se omiten.
   - Edificios más chicos que una celda ocupan igual 1 celda.
   - Decoración: árboles en bosques y parques con un hash por celda global, así que son estables entre chunks y versiones.
+  - Edificios (`classifyBuilding`): el techo depende del tipo y la altura. Casas → ladrillo; comercio u oficinas → concreto; 5 pisos o más → oscuro; iglesias, colegios y hospitales → cívico; bodegas e industria → metal. Cuando OSM no lo dice, el id del edificio elige entre ladrillo, concreto y oscuro, así que una cuadra no queda de un solo color.
+  - Andenes: 2,5 m de pavimento a cada lado de las calles urbanas (`classifySidewalk`), salvo si OSM dice `sidewalk=no/separate`. Solo se pintan sobre suelo natural o pavimento, nunca sobre agua ni edificios.
+  - Pasos de cebra (`footway=crossing` y nodos `highway=crossing`), vías férreas y ciclorrutas tienen su propio suelo.
+  - Mobiliario urbano desde nodos OSM: bancas, postes de luz, semáforos, paraderos, fuentes y estatuas. Se ponen en la celda libre más cercana de andén o pasto, nunca en la calzada. Las hileras de árboles (`natural=tree_row`) siembran un árbol cada 7 m.
+  - Pisos (`levels`, un byte por celda, 0 = no es edificio): `building:levels`, o `height` / 3 m, o unos típicos según el tipo (casas 1–3, concreto 3–4, vidrio 5–6, bodegas 1), con variación estable por edificio. El cliente dibuja hasta 6.
+  - POIs: nodos **y áreas** con nombre (un local mapeado como edificio también cuenta), con `cat` (categoría, ver `app/map/poi_category.ts`) y `detail` (la cocina, de `cuisine`). Máximo 64 por chunk, primero los más importantes. Si el punto cae dentro de un edificio, el pin se mueve a la "entrada": la celda transitable más cercana, mejor al frente que detrás (así no queda tapado y se puede interactuar).
 - `app/map/labels.ts`: etiquetas de cada chunk (campo `labels`):
   - Calles, senderos y ríos con nombre: los trozos de su trazado recortados al chunk (`paths`), agrupados por nombre porque una calle suele estar partida en varias vías OSM. También lleva el tramo recto más largo (`at`, `angle`, `len`) como referencia.
   - Parques, agua, plazas y edificios con nombre: un punto interior. Es el centroide o, si cae fuera (formas en L), el centro del tramo interior más ancho. Solo lo emite el chunk que contiene ese punto, así cada área sale una sola vez. No se repite si un POI del chunk ya tiene ese nombre.
   - Números de portal (`addr:housenumber`) de nodos y edificios, sin duplicar el mismo número en el edificio y en su portal.
+  - Barrios (`place=suburb/quarter/neighbourhood`): una etiqueta grande en su punto.
+  - Además, cada chunk trae `district`, el barrio en el que cae: el punto de barrio más cercano a su centro (hasta 1,5 km). Los barrios ganan a las localidades (`suburb`). El HUD lo muestra como "Chicó Lago, Bogotá".
   - Los números suben el chunk de ~1 KB a ~1.7 KB (gzip).
 - `app/services/map_chunk_service.ts`: caché en memoria → BD → cola, reintentos con backoff y límites por IP.
 - `app/services/map_worker.ts`: consume la cola. Funciona con varias instancias gracias a `FOR UPDATE SKIP LOCKED`.
@@ -87,11 +96,13 @@ Medido con datos reales del Retiro de Madrid:
   - Une los trozos de cada calle entre chunks en tramos rectos y reparte el nombre en puntos fijos de cada tramo, pintado en el suelo con una fuente MSDF y transformación isométrica.
   - Los lugares y números van en una capa superior a tamaño fijo en pantalla, con detección de choques.
   - `location_name()` alimenta el texto de "dónde estás" del HUD.
+- Edificios en 3D: cada celda de edificio pone un bloque alto (`WorldTiles.pick_building`, según estilo, pisos y un hash) en la capa `Entities/Buildings`, ordenada por profundidad con el jugador y los props. `scenes/world/building_fader.gd` pasa a `BuildingsFaded` (semitransparente) los bloques que tapan al jugador cuando camina por detrás.
+- `scripts/map/poi_catalog.gd`: color e icono por categoría de POI y el nombre en español del tipo de lugar y de la cocina. `scenes/world/poi_marker.gd` dibuja el pin.
 - `scripts/autoload/location_service.gd`: la ubicación real (el "ancla"). El jugador se mueve libremente dentro de `playRadiusMeters` (5 km).
   - `teleport(lat, lon)` (menú del jugador) mueve el ancla y guarda la real; `return_home()` la restaura. El mundo se recarga con `reload_current_scene()`, y como `LocationService` es un autoload, la zona nueva arranca sin volver a ubicar al jugador.
 - La zona de juego **no se descarga entera**: con 5 km serían ~5,600 chunks y ~90 source tiles. Se fija como datos solo el área del minimapa alrededor del jugador (`minimap_view_radius_meters`, 400 m por defecto) y se mueve con él.
 - Eso alimenta el minimapa y, de paso, pide por adelantado las zonas cercanas, así el servidor las genera antes de que el jugador llegue.
-- Al entrar en un source tile nuevo puede haber una espera de 30–60 s (Overpass). Para las ciudades de lanzamiento, pregenera con `map:pregenerate --radius=5000`. Fuentes: argumentos → GPS del navegador → GPS nativo (pendiente) → IP vía backend → última conocida → por defecto.
+- Al entrar en un source tile nuevo puede haber una espera de 30–60 s (Overpass). Mientras tanto el 202 del chunk dice cómo va (`stage`: queued/download/build, `ahead`: zonas delante en la cola, `elapsed`, `expected`: promedio de las últimas descargas, `attempts`) y el cliente muestra una barra de progreso estimada (`scenes/ui/loading/loading_screen.gd`). Para las ciudades de lanzamiento, pregenera con `map:pregenerate --radius=5000`. Fuentes: argumentos → GPS del navegador → GPS nativo (pendiente) → IP vía backend → última conocida → por defecto.
 
 ### Ciudad, país y ubicación por IP (`apps/backend/app/geo`)
 
@@ -122,7 +133,9 @@ godot --path apps/game -- --demo
 
 Cambiar las reglas de estilo: edita `rasterizer.ts` o `labels.ts` y sube `generatorVersion`. Los chunks se regeneran **desde los datos OSM ya guardados**, sin volver a consultar Overpass.
 
-Si agregas un tag a `KEPT_TAGS` (como `addr:housenumber`), los datos guardados no lo tienen. Para volver a pedirlos al proveedor:
+Pedir datos nuevos (un selector en `OverpassProvider` o un tag en `KEPT_TAGS`): sube `dataVersion` en `config/map.ts` (y `generatorVersion` si cambia lo que se dibuja). Cada source tile guarda la versión de sus datos (`osm_source_tiles.data_version`). Al regenerar un chunk, si sus datos son de una versión anterior, se vuelven a pedir al proveedor. Así cada zona se actualiza sola la primera vez que alguien la visita, con la espera de Overpass de esa primera vez.
+
+Para actualizar una zona por adelantado:
 
 ```bash
 pnpm map:pregenerate --lat=40.42 --lon=-3.6887 --radius=2000 --refetch --wait
@@ -167,7 +180,9 @@ Las zonas que no se vuelvan a pedir siguen funcionando, solo que sin ese dato (p
 ## Limitaciones conocidas
 
 - **Mar abierto**: el mar no está en OSM como polígono (solo `natural=coastline`), así que las zonas costeras se ven como pasto. Solución: importar los *water polygons* de osmdata.openstreetmap.de.
-- **Edificios planos**: se dibujan como techos, sin altura ni interiores.
+- **Edificios por celdas**: cada celda es un bloque de paredes rectas y techo plano. No hay techos inclinados, ni retranqueos, ni interiores. Los nombres de los edificios se dibujan a nivel del suelo, no sobre el techo.
+- **Barrios aproximados**: OSM casi siempre mapea los barrios como un punto, no como un área, así que el barrio de un chunk es el punto más cercano. Cerca del límite entre dos barrios puede mostrar el vecino.
+- **Detalle desigual**: lo que se ve depende de lo que la comunidad haya mapeado en OSM. En zonas con pocos datos (sin locales, sin tipo de edificio) el mapa se ve más genérico.
 - **GPS en móvil**: Godot no trae una API de geolocalización. En Android/iOS hace falta un plugin (permiso `ACCESS_FINE_LOCATION` en Android), y `LocationService.set_location()` ya está listo para recibirlo. Mientras tanto, el móvil usa la IP, que es aproximada.
 - **El ancla no se actualiza en vivo**: la zona se fija al entrar al mundo. Seguir al GPS mientras se juega (recentrar la zona al caminar en la vida real) es el siguiente paso.
 - **Escala**: cambia un poco con la latitud por Web Mercator (las celdas miden menos metros lejos del ecuador). El radio de juego se calcula en metros, así que es justo en todas partes.

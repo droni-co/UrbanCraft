@@ -1,4 +1,4 @@
-[gd_scene load_steps=9 format=3]
+[gd_scene load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://scenes/world/world.gd" id="1_world"]
 [ext_resource type="TileSet" path="res://resources/tilesets/world_tileset.tres" id="2_tileset"]
@@ -8,6 +8,7 @@
 [ext_resource type="PackedScene" path="res://scenes/ui/hud.tscn" id="6_hud"]
 [ext_resource type="Script" path="res://scripts/map/chunk_manager.gd" id="7_chunks"]
 [ext_resource type="Script" path="res://scenes/world/map_labels.gd" id="8_labels"]
+[ext_resource type="Script" path="res://scenes/world/building_fader.gd" id="9_fader"]
 
 [node name="World" type="Node2D"]
 script = ExtResource("1_world")
@@ -28,7 +29,19 @@ y_sort_enabled = true
 y_sort_enabled = true
 tile_set = ExtResource("2_tileset")
 
+[node name="Buildings" type="TileMapLayer" parent="Entities"]
+y_sort_enabled = true
+tile_set = ExtResource("2_tileset")
+
+[node name="BuildingsFaded" type="TileMapLayer" parent="Entities"]
+modulate = Color(1, 1, 1, 0.35)
+y_sort_enabled = true
+tile_set = ExtResource("2_tileset")
+
 [node name="Player" parent="Entities" instance=ExtResource("4_player")]
+
+[node name="BuildingFader" type="Node" parent="."]
+script = ExtResource("9_fader")
 
 [node name="Camera" type="Camera2D" parent="."]
 zoom = Vector2(1, 1)

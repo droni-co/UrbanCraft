@@ -5,6 +5,7 @@ extends SceneTree
 ##   - Forma isométrica 64x32, layout diamond-down
 ##   - Capa física 0 (layer "world"): agua y props bloquean
 ##   - Custom data "walkable" (bool) usado por IsoPathfinder
+##   - Edificios en 3D: bloques altos sin colisión propia (la pone su suelo)
 ## Uso:  pnpm game:assets
 
 const OUT := "res://resources/tilesets/world_tileset.tres"
@@ -28,6 +29,8 @@ func _initialize() -> void:
 	var manifest := _manifest()
 	ts.set_meta(WorldTiles.META_GROUND_WEIGHTS, manifest.ground)
 	ts.set_meta(WorldTiles.META_PROP_WEIGHTS, manifest.props)
+	var building_variants := int(manifest.get("buildings", 1))
+	ts.set_meta(WorldTiles.META_BUILDING_VARIANTS, building_variants)
 
 	# Suelo
 	var ground := TileSetAtlasSource.new()
@@ -59,6 +62,22 @@ func _initialize() -> void:
 			data.set_custom_data(WorldTiles.WALKABLE, false)
 			data.add_collision_polygon(0)
 			data.set_collision_polygon_points(0, 0, _diamond(14, 7))
+
+	# Edificios: columna = estilo, fila = (pisos - 1) * variantes + variante.
+	if ResourceLoader.exists("res://assets/tiles/buildings.png"):
+		var buildings := TileSetAtlasSource.new()
+		buildings.texture = load("res://assets/tiles/buildings.png")
+		buildings.texture_region_size = WorldTiles.BUILDING_REGION
+		ts.add_source(buildings, WorldTiles.SOURCE_BUILDINGS)
+		for style in WorldTiles.BUILDING_STYLES.size():
+			for row in WorldTiles.BUILDING_MAX_FLOORS * building_variants:
+				var coords := Vector2i(style, row)
+				buildings.create_tile(coords)
+				var data := buildings.get_tile_data(coords, 0)
+				data.texture_origin = WorldTiles.BUILDING_TEXTURE_ORIGIN
+				data.set_custom_data(WorldTiles.WALKABLE, false)
+	else:
+		push_warning("Sin assets/tiles/buildings.png: los edificios se verán planos (ejecuta tools/build_art.gd)")
 
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUT.get_base_dir()))
 	var err := ResourceSaver.save(ts, OUT)

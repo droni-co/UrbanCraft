@@ -19,11 +19,11 @@ extends Node2D
 ## Coordenadas: "grilla" = celdas locales con decimales (centro de celda = n + 0.5).
 
 const LINE_KINDS := ["street", "path", "waterway"]
-const AREA_KINDS := ["park", "water", "square", "place", "building"]
+const AREA_KINDS := ["park", "water", "square", "place", "building", "district"]
 
 ## Distancia máxima (celdas) a la que se ve cada tipo de etiqueta.
 const STREET_RADIUS := 22.0
-const AREA_RADIUS := {"park": 40.0, "water": 40.0, "square": 30.0, "place": 22.0, "building": 16.0}
+const AREA_RADIUS := {"park": 40.0, "water": 40.0, "square": 30.0, "place": 22.0, "building": 16.0, "district": 80.0}
 const POI_RADIUS := 13.0
 const NUMBER_RADIUS := 7.0
 ## Distancia máxima a una calle para considerar que el jugador está en ella.
@@ -48,6 +48,7 @@ const WATERWAY_COLOR := Color(0.85, 0.94, 1.0, 0.35)
 
 ## Estilo de la capa superior: tamaño en píxeles de pantalla (resolución base) y color.
 const BILLBOARD_STYLE := {
+	"district": {"size": 11, "color": Color(1.0, 0.93, 0.78, 0.72)},
 	"park": {"size": 8, "color": Color(0.8, 1.0, 0.78, 0.8)},
 	"water": {"size": 8, "color": Color(0.78, 0.9, 1.0, 0.8)},
 	"square": {"size": 8, "color": Color(1, 0.97, 0.9, 0.8)},
@@ -161,6 +162,8 @@ func location_name(grid_position: Vector2) -> String:
 	var best_distance := INF
 	for entry: Dictionary in _chunks.values():
 		for item: Dictionary in entry.areas + entry.pois:
+			if item.kind == "district":
+				continue  # el barrio va aparte (lo manda el backend por chunk)
 			var reach: float = 24.0 if item.kind in ["park", "square", "water"] else 8.0
 			var d := grid_position.distance_to(item.at)
 			if d < reach and d < best_distance:

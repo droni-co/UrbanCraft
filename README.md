@@ -154,6 +154,10 @@ Las preferencias viven en `GameSettings` y se aplican en vivo (pensadas para una
 | `minimap_follow_player` | `true`        | Siguiendo al jugador o centrado en tu ubicación real |
 | `compass_visible`       | `true`        | Mostrar u ocultar la brújula                         |
 
+### Pantalla de carga
+
+Mientras se conecta, ubica al jugador y carga el mapa, una barra muestra el progreso. Si la zona es nueva (el servidor la descarga de OpenStreetMap, 30–60 s), dice en qué va ("En cola", "Descargando…", "Faltan unos 20 s"), usando lo que responde el servidor. Al terminar se cierra sola. Código en `apps/game/scenes/ui/loading/loading_screen.gd`.
+
 ### Etiquetas del mapa
 
 Nombres discretos para orientarse, sacados de las etiquetas `name` y `addr:housenumber` de OpenStreetMap:
@@ -162,6 +166,10 @@ Nombres discretos para orientarse, sacados de las etiquetas `name` y `addr:house
 - **Parques, plazas, edificios con nombre y puntos de interés**: texto pequeño sobre el lugar, solo cerca del jugador.
 - **Números de portal**: solo en las casas de alrededor (unas 7 celdas).
 - **Dónde estás**: debajo del minimapa aparece la calle que pisas, el lugar en el que estás o "Cerca de …".
+- **Barrio**: arriba, junto a la ciudad ("Chicó Lago, Bogotá"), y como un nombre grande sobre el mapa en el punto del barrio.
+- **Lugares (POIs)**: un pin con el color y el icono de su categoría (comida, tiendas, salud, educación…). Al interactuar se ve el tipo en español y la cocina, por ejemplo "Osaki · Restaurante · japonesa".
+
+El mapa también reproduce el entorno real: edificios en 3D isométrico con sus pisos (de 1 a 6) y su fachada según el tipo (casas, ladrillo, concreto, vidrio, edificios públicos, bodegas), que se vuelven transparentes si tapan al jugador, andenes, pasos de cebra, vías férreas, ciclorrutas, bancas, postes de luz, semáforos, paraderos, fuentes y estatuas, todo según lo que haya en OpenStreetMap. Detalles en [docs/mapa-mundo-real.md](docs/mapa-mundo-real.md).
 
 Todas se desvanecen con la distancia y evitan pisarse entre sí y tapar al jugador. Preferencias en `GameSettings` (señal `labels_settings_changed`):
 
