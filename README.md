@@ -30,12 +30,22 @@ pnpm db:up            # levanta Postgres/PostGIS + Redis
 pnpm db:migrate       # migraciones del backend
 pnpm dev              # backend en http://localhost:3333 (HMR)
 pnpm game:editor      # abre el proyecto en el editor de Godot
-pnpm game             # ejecuta el juego
+pnpm game             # ejecuta el juego (conectado a la nube)
+pnpm game:local       # ejecuta el juego contra el backend local
 ```
 
 El backend usa `apps/backend/.env` (copiar de `.env.example` y generar llave con `node ace generate:key`).
 
-El cliente lee la URL del backend del ajuste `urbancraft/network/api_base_url` en `apps/game/project.godot`.
+Por defecto el juego se conecta al servidor en la nube (`https://urbancraft.droni.vip`). Para depurar contra el backend local:
+
+| Cómo | Backend |
+| --- | --- |
+| `pnpm game:local` (o `godot --path apps/game -- --local`) | `http://localhost:3333` |
+| `pnpm game:editor:local` (el editor y lo que ejecutes con F5 usan el local) | `http://localhost:3333` |
+| `URBANCRAFT_API_URL=local` / `URBANCRAFT_API_URL=http://host:puerto` | el indicado |
+| `-- --api-url=http://host:puerto` | el indicado |
+
+Prioridad: `--api-url` → `--local` → `URBANCRAFT_API_URL` → ajuste `urbancraft/network/api_base_url` de `apps/game/project.godot`. La sesión se guarda por separado para cada servidor, así que alternar no cierra la de la nube.
 
 ## Backend (apps/backend)
 

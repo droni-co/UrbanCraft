@@ -10,7 +10,7 @@ Para depurar y para pruebas automáticas no hace falta Google:
 
 - **Pantalla inicial**, en builds de depuración: campo de nombre + **Entrar como usuario de prueba**.
 - **Al arrancar:** `godot --path apps/game -- --dev-login=ana`. Sin nombre usa `tester`.
-- **Otro backend:** `-- --api-url=http://localhost:3334`.
+- **Backend local:** el juego usa la nube por defecto; añade `--local` (`-- --local --dev-login=ana`) o `--api-url=http://localhost:3334` para otro.
 - **API:** `POST /api/v1/auth/dev/login { "name": "ana" }` devuelve `{ data: { user, token } }`.
 
 Cada nombre es siempre el mismo usuario (`ana@dev.urbancraft.test`, apodo `ana` si está libre), así que sirve para probar con varios jugadores.

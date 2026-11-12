@@ -126,7 +126,7 @@ textures/vram_compression/import_etc2_astc=true
 
 [urbancraft]
 
-network/api_base_url="http://localhost:3333"
+network/api_base_url="https://urbancraft.droni.vip"
 debug/force_touch_controls=false
 map/default_latitude=40.42
 map/default_longitude=-3.6887
