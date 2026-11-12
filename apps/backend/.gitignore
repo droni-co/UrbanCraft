@@ -12,6 +12,8 @@ tmp/*
 
 # Frontend assets compiled code
 public/assets
+# Versión web del juego (pnpm game:export:web)
+public/play
 
 # Build tools specific
 npm-debug.log

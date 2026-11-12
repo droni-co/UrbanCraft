@@ -22,12 +22,33 @@ RUN pnpm --filter @urbancraft/backend build
 # Dependencias de producción autocontenidas (sin symlinks al workspace)
 RUN pnpm --filter @urbancraft/backend deploy --prod --legacy /prod
 
+# ---- Versión web del juego (/play): export de Godot ----
+# GODOT_VERSION debe ser la misma con la que se trabaja el proyecto (godot --version).
+FROM debian:bookworm-slim AS game-web
+ARG GODOT_VERSION=4.7.2
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl unzip gzip \
+  && rm -rf /var/lib/apt/lists/*
+RUN curl -fsSL -o /tmp/godot.zip \
+    https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip \
+  && unzip -q /tmp/godot.zip -d /tmp/godot && mv /tmp/godot/Godot_v* /usr/local/bin/godot && rm -rf /tmp/godot*
+# De las plantillas (~1,3 GB) solo se guarda la web sin hilos; la capa queda en caché.
+RUN T=/root/.local/share/godot/export_templates/${GODOT_VERSION}.stable && mkdir -p $T \
+  && curl -fsSL -o /tmp/templates.tpz \
+    https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable/Godot_v${GODOT_VERSION}-stable_export_templates.tpz \
+  && unzip -q -j /tmp/templates.tpz templates/web_nothreads_release.zip templates/version.txt -d $T \
+  && rm /tmp/templates.tpz
+COPY apps/game /game
+RUN mkdir -p /out && godot --headless --path /game --import \
+  && godot --headless --path /game --export-release Web /out/index.html \
+  && cd /out && gzip -kf9 *.wasm *.js
+
 # ---- Producción ----
 FROM node:24-slim
 ENV NODE_ENV=production
 WORKDIR /app
 COPY --from=build /prod/node_modules ./node_modules
 COPY --from=build /app/apps/backend/build ./
+COPY --from=game-web /out ./public/play
 COPY apps/backend/docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 USER node
 EXPOSE 3333

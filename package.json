@@ -17,6 +17,7 @@
     "game:export:windows": "mkdir -p apps/game/export/windows && godot --headless --path apps/game --export-release Windows export/windows/UrbanCraft.exe",
     "game:export:android": "mkdir -p apps/game/export/android && godot --headless --path apps/game --export-release Android export/android/UrbanCraft.apk",
     "game:export:android:debug": "mkdir -p apps/game/export/android && godot --headless --path apps/game --export-debug Android export/android/UrbanCraft-debug.apk",
+    "game:export:web": "rm -rf apps/backend/public/play && mkdir -p apps/backend/public/play && godot --headless --path apps/game --export-release Web ../backend/public/play/index.html && cd apps/backend/public/play && gzip -kf9 *.wasm *.js",
     "game:export": "pnpm game:export:linux && pnpm game:export:windows && pnpm game:export:android",
     "game:input": "godot --headless --path apps/game -s res://tools/setup_input_map.gd",
     "game:assets": "godot --headless --path apps/game --import && godot --headless --path apps/game -s res://tools/generate_starter_art.gd && godot --headless --path apps/game -s res://tools/build_art.gd && godot --headless --path apps/game --import && godot --headless --path apps/game -s res://tools/generate_tileset.gd",
