@@ -18,6 +18,13 @@ export type ScannedRoutes = {
     'player.stats': { paramsTuple?: []; params?: {} }
     'player.heartbeat': { paramsTuple?: []; params?: {} }
     'player.stats.dev': { paramsTuple?: []; params?: {} }
+    'friends.index': { paramsTuple?: []; params?: {} }
+    'friends.search': { paramsTuple?: []; params?: {} }
+    'friends.requests.store': { paramsTuple?: []; params?: {} }
+    'friends.requests.accept': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'friends.requests.reject': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'friends.location': { paramsTuple: [ParamValue]; params: {'userId': ParamValue} }
+    'friends.destroy': { paramsTuple: [ParamValue]; params: {'userId': ParamValue} }
     'map.map.config': { paramsTuple?: []; params?: {} }
     'map.map.chunk': { paramsTuple: [ParamValue,ParamValue,ParamValue]; params: {'z': ParamValue,'x': ParamValue,'y': ParamValue} }
     'geo.geo.place': { paramsTuple?: []; params?: {} }
@@ -29,6 +36,9 @@ export type ScannedRoutes = {
     'auth.methods': { paramsTuple?: []; params?: {} }
     'profile.profile.show': { paramsTuple?: []; params?: {} }
     'player.stats': { paramsTuple?: []; params?: {} }
+    'friends.index': { paramsTuple?: []; params?: {} }
+    'friends.search': { paramsTuple?: []; params?: {} }
+    'friends.location': { paramsTuple: [ParamValue]; params: {'userId': ParamValue} }
     'map.map.config': { paramsTuple?: []; params?: {} }
     'map.map.chunk': { paramsTuple: [ParamValue,ParamValue,ParamValue]; params: {'z': ParamValue,'x': ParamValue,'y': ParamValue} }
     'geo.geo.place': { paramsTuple?: []; params?: {} }
@@ -40,6 +50,9 @@ export type ScannedRoutes = {
     'auth.methods': { paramsTuple?: []; params?: {} }
     'profile.profile.show': { paramsTuple?: []; params?: {} }
     'player.stats': { paramsTuple?: []; params?: {} }
+    'friends.index': { paramsTuple?: []; params?: {} }
+    'friends.search': { paramsTuple?: []; params?: {} }
+    'friends.location': { paramsTuple: [ParamValue]; params: {'userId': ParamValue} }
     'map.map.config': { paramsTuple?: []; params?: {} }
     'map.map.chunk': { paramsTuple: [ParamValue,ParamValue,ParamValue]; params: {'z': ParamValue,'x': ParamValue,'y': ParamValue} }
     'geo.geo.place': { paramsTuple?: []; params?: {} }
@@ -54,9 +67,15 @@ export type ScannedRoutes = {
     'profile.access_tokens.destroy': { paramsTuple?: []; params?: {} }
     'player.heartbeat': { paramsTuple?: []; params?: {} }
     'player.stats.dev': { paramsTuple?: []; params?: {} }
+    'friends.requests.store': { paramsTuple?: []; params?: {} }
+    'friends.requests.accept': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
   }
   PATCH: {
     'profile.profile.update': { paramsTuple?: []; params?: {} }
+  }
+  DELETE: {
+    'friends.requests.reject': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'friends.destroy': { paramsTuple: [ParamValue]; params: {'userId': ParamValue} }
   }
 }
 declare module '@adonisjs/core/types/http' {

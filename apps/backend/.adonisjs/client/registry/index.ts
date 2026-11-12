@@ -92,6 +92,48 @@ const routes = {
     tokens: [[0,"api"],[0,"v1"],[0,"player"],[0,"stats"],[0,"dev"]],
     types: placeholder as Registry['player.stats.dev']['types'],
   },
+  'friends.index': {
+    methods: ["GET","HEAD"],
+    pattern: '/api/v1/friends',
+    tokens: [[0,"api"],[0,"v1"],[0,"friends"]],
+    types: placeholder as Registry['friends.index']['types'],
+  },
+  'friends.search': {
+    methods: ["GET","HEAD"],
+    pattern: '/api/v1/friends/search',
+    tokens: [[0,"api"],[0,"v1"],[0,"friends"],[0,"search"]],
+    types: placeholder as Registry['friends.search']['types'],
+  },
+  'friends.requests.store': {
+    methods: ["POST"],
+    pattern: '/api/v1/friends/requests',
+    tokens: [[0,"api"],[0,"v1"],[0,"friends"],[0,"requests"]],
+    types: placeholder as Registry['friends.requests.store']['types'],
+  },
+  'friends.requests.accept': {
+    methods: ["POST"],
+    pattern: '/api/v1/friends/requests/:id/accept',
+    tokens: [[0,"api"],[0,"v1"],[0,"friends"],[0,"requests"],[1,"id"],[0,"accept"]],
+    types: placeholder as Registry['friends.requests.accept']['types'],
+  },
+  'friends.requests.reject': {
+    methods: ["DELETE"],
+    pattern: '/api/v1/friends/requests/:id',
+    tokens: [[0,"api"],[0,"v1"],[0,"friends"],[0,"requests"],[1,"id"]],
+    types: placeholder as Registry['friends.requests.reject']['types'],
+  },
+  'friends.location': {
+    methods: ["GET","HEAD"],
+    pattern: '/api/v1/friends/:userId/location',
+    tokens: [[0,"api"],[0,"v1"],[0,"friends"],[1,"userId"],[0,"location"]],
+    types: placeholder as Registry['friends.location']['types'],
+  },
+  'friends.destroy': {
+    methods: ["DELETE"],
+    pattern: '/api/v1/friends/:userId',
+    tokens: [[0,"api"],[0,"v1"],[0,"friends"],[1,"userId"]],
+    types: placeholder as Registry['friends.destroy']['types'],
+  },
   'map.map.config': {
     methods: ["GET","HEAD"],
     pattern: '/api/v1/map/config',

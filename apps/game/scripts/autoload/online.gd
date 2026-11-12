@@ -22,6 +22,8 @@ signal radar_updated
 signal info_updated(player_ids: Array)
 ## Otro jugador hizo una acción visible ("interact", "wave").
 signal action_received(player_id: int, kind: String)
+## Cambio en amigos: event = "request" (solicitud nueva) o "accepted".
+signal friends_event(event: String, nickname: String)
 
 const WS_PATH := "/ws"
 const MOVE_SEND_INTERVAL := 0.1
@@ -208,6 +210,8 @@ func _handle(raw: String) -> void:
 			radar_updated.emit()
 		"act":
 			action_received.emit(int(msg.id), str(msg.k))
+		"friends":
+			friends_event.emit(str(msg.get("e", "")), str(msg.get("n", "")))
 		"reject":
 			# Salto rechazado (velocidad o teletransporte muy seguido):
 			# se reintenta como aparición cuando el servidor lo permita.

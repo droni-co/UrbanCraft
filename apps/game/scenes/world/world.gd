@@ -99,6 +99,8 @@ func _ready() -> void:
 	hud.teleport.teleport_requested.connect(_teleport_to)
 	hud.teleport.home_requested.connect(_return_home)
 	hud.teleport.current_position_provider = _player_lat_lon
+	hud.friends.teleport_requested.connect(func(lat: float, lon: float, _nickname: String) -> void:
+		_teleport_to(lat, lon))
 
 	# Hace falta sesión para jugar (también si se abre esta escena directamente).
 	await Auth.wait_startup()

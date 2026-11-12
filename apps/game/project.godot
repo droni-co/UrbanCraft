@@ -25,6 +25,7 @@ Api="*res://scripts/autoload/api_client.gd"
 Auth="*res://scripts/autoload/auth.gd"
 PlayerStats="*res://scripts/autoload/player_stats.gd"
 Online="*res://scripts/autoload/online.gd"
+Friends="*res://scripts/autoload/friends.gd"
 
 [display]
 

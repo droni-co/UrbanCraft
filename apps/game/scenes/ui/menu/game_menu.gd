@@ -128,6 +128,14 @@ func add_section(title: String, control: Control) -> void:
 		_show_section(0)
 
 
+## Cambia el texto del botón de una sección (p. ej. "Amigos (2)"); el título
+## con el que se abre (open()) no cambia.
+func set_section_label(control: Control, text: String) -> void:
+	for s in _sections:
+		if s.control == control:
+			s.button.text = text
+
+
 func open(section_title := "") -> void:
 	for i in _sections.size():
 		if _sections[i].title == section_title:

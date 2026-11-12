@@ -17,6 +17,7 @@ const GeoController = () => import('#controllers/geo_controller')
 const GoogleAuthController = () => import('#controllers/google_auth_controller')
 const DevLoginController = () => import('#controllers/dev_login_controller')
 const PlayerStatsController = () => import('#controllers/player_stats_controller')
+const FriendsController = () => import('#controllers/friends_controller')
 
 router.get('/', () => {
   return { name: 'UrbanCraft API', version: 'v1' }
@@ -80,6 +81,32 @@ router
       })
       .prefix('player')
       .as('player')
+      .use(middleware.auth())
+
+    router
+      .group(() => {
+        router.get('/', [FriendsController, 'index']).as('index')
+        router.get('search', [FriendsController, 'search']).as('search')
+        router.post('requests', [FriendsController, 'store']).as('requests.store')
+        router
+          .post('requests/:id/accept', [FriendsController, 'accept'])
+          .where('id', router.matchers.number())
+          .as('requests.accept')
+        router
+          .delete('requests/:id', [FriendsController, 'reject'])
+          .where('id', router.matchers.number())
+          .as('requests.reject')
+        router
+          .get(':userId/location', [FriendsController, 'location'])
+          .where('userId', router.matchers.number())
+          .as('location')
+        router
+          .delete(':userId', [FriendsController, 'destroy'])
+          .where('userId', router.matchers.number())
+          .as('destroy')
+      })
+      .prefix('friends')
+      .as('friends')
       .use(middleware.auth())
 
     router

@@ -36,7 +36,7 @@ El protocolo completo está documentado en `apps/backend/app/realtime/protocol.t
 Como cada jugador empieza en su **ubicación real**, su posición en el juego dice dónde está en el mundo. Medidas actuales:
 
 - Fuera de tu pantalla solo se ve un punto **sin nombre**, redondeado a 25 m.
-- El modo fantasma te oculta del todo.
+- El modo fantasma te oculta del todo (también para tus [amigos](amigos.md), que sí pueden ver tu posición exacta e ir a donde estás).
 - La pantalla inicial cierra la conexión: solo apareces mientras estás en el mundo.
 
 Pendiente de decidir: una **zona privada** alrededor de la ubicación real (por ejemplo 200–300 m) en la que no se muestre al jugador a los demás, o hacer aparecer a todos con un desplazamiento aleatorio.
@@ -48,8 +48,8 @@ cd apps/backend && node ace test --files tests/functional/realtime.spec.ts   # 9
 node ace test --files tests/unit/realtime.spec.ts                            # protocolo e índice espacial
 
 # Dos jugadores en la misma zona (servidor con DEV_LOGIN_ENABLED=true):
-godot --path apps/game -- --dev-login=ana  --lat=40.42    --lon=-3.6887
-godot --path apps/game -- --dev-login=beto --lat=40.42003 --lon=-3.68866
+godot --path apps/game -- --local --dev-login=ana  --lat=40.42    --lon=-3.6887
+godot --path apps/game -- --local --dev-login=beto --lat=40.42003 --lon=-3.68866
 ```
 
 ## Escalar más adelante

@@ -22,6 +22,7 @@ var teleport: TeleportSection
 var account: AccountSection
 var online: OnlineSection
 var character: CharacterSection
+var friends: FriendsSection
 var menu_button: Button
 ## Hambre, nivel, dinero… bajo el botón de menú.
 var stats_panel: StatsPanel
@@ -70,6 +71,10 @@ func _build_menu() -> void:
 	menu.add_section("Personaje", character)
 	online = OnlineSection.new()
 	menu.add_section("Multijugador", online)
+	friends = FriendsSection.new()
+	menu.add_section("Amigos", friends)
+	Friends.changed.connect(_update_friends_badge)
+	Friends.notified.connect(_on_friends_notified)
 	account = AccountSection.new()
 	menu.add_section("Cuenta", account)
 	if OS.is_debug_build():
@@ -99,6 +104,20 @@ func _build_menu() -> void:
 	move_child(stats_panel, menu.get_index())
 	PlayerStats.level_up.connect(func(_key: String, level: int) -> void:
 		show_message("¡Subiste al nivel %d!" % level, 3.0))
+
+
+## "Amigos (2)" en el menú si hay solicitudes por responder.
+func _update_friends_badge() -> void:
+	var pending := Friends.pending_count()
+	menu.set_section_label(friends, "Amigos (%d)" % pending if pending > 0 else "Amigos")
+
+
+func _on_friends_notified(event: String, nickname: String) -> void:
+	match event:
+		"request":
+			show_message("%s te envió una solicitud de amistad (Menú → Amigos)." % nickname, 4.0)
+		"accepted":
+			show_message("%s aceptó tu solicitud de amistad." % nickname, 3.0)
 
 
 ## Sección de depuración del menú: solo si el servidor permite herramientas de desarrollo.

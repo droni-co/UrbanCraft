@@ -190,6 +190,97 @@ export interface Registry {
       rawResponse: ExtractRawResponse<Awaited<ReturnType<import('#controllers/player_stats_controller').default['devUpdate']>>>
     }
   }
+  'friends.index': {
+    methods: ["GET","HEAD"]
+    pattern: '/api/v1/friends'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/friends_controller').default['index']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/friends_controller').default['index']>>>
+      rawResponse: ExtractRawResponse<Awaited<ReturnType<import('#controllers/friends_controller').default['index']>>>
+    }
+  }
+  'friends.search': {
+    methods: ["GET","HEAD"]
+    pattern: '/api/v1/friends/search'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/friends_controller').default['search']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/friends_controller').default['search']>>>
+      rawResponse: ExtractRawResponse<Awaited<ReturnType<import('#controllers/friends_controller').default['search']>>>
+    }
+  }
+  'friends.requests.store': {
+    methods: ["POST"]
+    pattern: '/api/v1/friends/requests'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/friends_controller').default['store']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/friends_controller').default['store']>>>
+      rawResponse: ExtractRawResponse<Awaited<ReturnType<import('#controllers/friends_controller').default['store']>>>
+    }
+  }
+  'friends.requests.accept': {
+    methods: ["POST"]
+    pattern: '/api/v1/friends/requests/:id/accept'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/friends_controller').default['accept']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/friends_controller').default['accept']>>>
+      rawResponse: ExtractRawResponse<Awaited<ReturnType<import('#controllers/friends_controller').default['accept']>>>
+    }
+  }
+  'friends.requests.reject': {
+    methods: ["DELETE"]
+    pattern: '/api/v1/friends/requests/:id'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/friends_controller').default['reject']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/friends_controller').default['reject']>>>
+      rawResponse: ExtractRawResponse<Awaited<ReturnType<import('#controllers/friends_controller').default['reject']>>>
+    }
+  }
+  'friends.location': {
+    methods: ["GET","HEAD"]
+    pattern: '/api/v1/friends/:userId/location'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { userId: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/friends_controller').default['location']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/friends_controller').default['location']>>>
+      rawResponse: ExtractRawResponse<Awaited<ReturnType<import('#controllers/friends_controller').default['location']>>>
+    }
+  }
+  'friends.destroy': {
+    methods: ["DELETE"]
+    pattern: '/api/v1/friends/:userId'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { userId: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/friends_controller').default['destroy']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/friends_controller').default['destroy']>>>
+      rawResponse: ExtractRawResponse<Awaited<ReturnType<import('#controllers/friends_controller').default['destroy']>>>
+    }
+  }
   'map.map.config': {
     methods: ["GET","HEAD"]
     pattern: '/api/v1/map/config'
