@@ -21,7 +21,7 @@ const mapConfig = {
    * estilo (catalog/rasterizer): los chunks se regeneran desde los datos OSM ya
    * guardados, sin volver a consultar al proveedor.
    */
-  generatorVersion: 4,
+  generatorVersion: 5,
 
   /**
    * Versión de la consulta de datos OSM (qué etiquetas y elementos se piden).

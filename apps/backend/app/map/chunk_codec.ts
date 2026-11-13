@@ -22,6 +22,8 @@ export interface ChunkPayload {
   props: string
   /** base64 de size*size bytes: pisos del edificio de cada celda (0 = no es edificio). */
   levels: string
+  /** base64 de size*size bytes: parte del tejado de cada celda (ver roofByte en rasterizer.ts). */
+  roofs: string
   pois: Poi[]
   labels: MapLabel[]
   /** Barrio en el que cae el chunk, o null (ver LabelIndex.districtAt). */
@@ -55,6 +57,7 @@ export function encodeChunk(
     ground: Buffer.from(grid.ground).toString('base64'),
     props: Buffer.from(grid.props).toString('base64'),
     levels: Buffer.from(grid.levels).toString('base64'),
+    roofs: Buffer.from(grid.roofs).toString('base64'),
     pois: grid.pois,
     labels: grid.labels,
     district: grid.district,

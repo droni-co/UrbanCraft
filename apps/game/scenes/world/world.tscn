@@ -1,4 +1,4 @@
-[gd_scene load_steps=10 format=3]
+[gd_scene load_steps=13 format=3]
 
 [ext_resource type="Script" path="res://scenes/world/world.gd" id="1_world"]
 [ext_resource type="TileSet" path="res://resources/tilesets/world_tileset.tres" id="2_tileset"]
@@ -9,6 +9,9 @@
 [ext_resource type="Script" path="res://scripts/map/chunk_manager.gd" id="7_chunks"]
 [ext_resource type="Script" path="res://scenes/world/map_labels.gd" id="8_labels"]
 [ext_resource type="Script" path="res://scenes/world/building_fader.gd" id="9_fader"]
+[ext_resource type="Script" path="res://scenes/world/building_shadows.gd" id="10_shadows"]
+[ext_resource type="Script" path="res://scenes/world/atmosphere.gd" id="11_atmosphere"]
+[ext_resource type="Script" path="res://scenes/world/day_night.gd" id="12_daynight"]
 
 [node name="World" type="Node2D"]
 script = ExtResource("1_world")
@@ -16,6 +19,9 @@ script = ExtResource("1_world")
 [node name="Ground" type="TileMapLayer" parent="."]
 texture_filter = 4
 tile_set = ExtResource("2_tileset")
+
+[node name="BuildingShadows" type="CanvasGroup" parent="."]
+script = ExtResource("10_shadows")
 
 [node name="MapLabels" type="Node2D" parent="."]
 script = ExtResource("8_labels")
@@ -52,6 +58,13 @@ zoom = Vector2(1, 1)
 position_smoothing_enabled = true
 position_smoothing_speed = 8.0
 script = ExtResource("5_camera")
+
+[node name="Atmosphere" type="CanvasLayer" parent="." node_paths=PackedStringArray("camera")]
+script = ExtResource("11_atmosphere")
+camera = NodePath("../Camera")
+
+[node name="DayNight" type="Node" parent="."]
+script = ExtResource("12_daynight")
 
 [node name="HUD" parent="." instance=ExtResource("6_hud")]
 

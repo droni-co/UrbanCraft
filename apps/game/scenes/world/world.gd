@@ -53,6 +53,9 @@ const GROUND_DESCRIPTIONS := {
 @onready var hud: Hud = $HUD
 @onready var chunks: ChunkManager = $ChunkManager
 @onready var map_labels: MapLabels = $MapLabels
+@onready var building_shadows: BuildingShadows = $BuildingShadows
+@onready var atmosphere: Atmosphere = $Atmosphere
+@onready var day_night: DayNight = $DayNight
 
 var mode := Mode.LOADING
 var pathfinder: IsoPathfinder
@@ -94,6 +97,20 @@ func _ready() -> void:
 
 	camera.target = player
 	camera.tapped.connect(_on_tapped)
+	# Ventanas que se encienden de noche en los bloques sin datos de techo
+	# (el shader necesita saber cuántas variantes tiene el atlas).
+	WorldTiles.load_variants(ground.tile_set)
+	buildings.material = RoofStyles.layer_material()
+	buildings_faded.material = RoofStyles.layer_material()
+	day_night.setup(atmosphere, player)
+	# Ambiente: árboles que se mecen, brillos en el agua y pájaros de día.
+	props.material = AmbientShaders.props_material()
+	ground.material = AmbientShaders.ground_material()
+	var birds := Birds.new()
+	birds.name = "Birds"
+	birds.day_night = day_night
+	birds.view_provider = atmosphere.view_rect
+	add_child(birds)
 	camera.hovered.connect(_on_hovered)
 
 	hud.teleport.teleport_requested.connect(_teleport_to)
@@ -245,6 +262,7 @@ func _update_minimap_others() -> void:
 func _wave() -> void:
 	hud.menu.close()
 	Online.send_action("wave")
+	player.wave()
 	hud.show_message("¡Saludaste!" if Online.others_in_range() > 0 else "Saludaste… pero no hay nadie cerca.")
 
 
@@ -367,6 +385,8 @@ func _on_chunk_loaded(chunk: Vector2i, data: Dictionary) -> void:
 	_add_pois(chunk, data.get("pois", []))
 	var base := chunks.global_to_local(Geo.chunk_origin(chunk, chunks.chunk_size))
 	map_labels.add_chunk(chunk, base, data.get("labels", []), data.get("pois", []))
+	building_shadows.add_chunk(chunk, base, chunks.chunk_size, [buildings, buildings_faded], props)
+	day_night.add_chunk(chunk, base, chunks.chunk_size, data.props, props)
 	_chunk_districts[chunk] = data.get("district", "")
 	_location_cell = Vector2i(-99999, -99999)  # recalcular el nombre del lugar
 	if not player.is_physics_processing() and chunk == chunks.chunk_of_global(anchor_cell):
@@ -379,6 +399,8 @@ func _on_chunk_loaded(chunk: Vector2i, data: Dictionary) -> void:
 
 func _on_chunk_unloaded(chunk: Vector2i) -> void:
 	map_labels.remove_chunk(chunk)
+	building_shadows.remove_chunk(chunk)
+	day_night.remove_chunk(chunk)
 	_chunk_districts.erase(chunk)
 	for marker: PoiMarker in _poi_markers.get(chunk, []):
 		_pois.erase(world_to_cell(marker.global_position))

@@ -29,6 +29,7 @@ export type ScannedRoutes = {
     'friends.destroy': { paramsTuple: [ParamValue]; params: {'userId': ParamValue} }
     'map.map.config': { paramsTuple?: []; params?: {} }
     'map.map.chunk': { paramsTuple: [ParamValue,ParamValue,ParamValue]; params: {'z': ParamValue,'x': ParamValue,'y': ParamValue} }
+    'time': { paramsTuple?: []; params?: {} }
     'geo.geo.place': { paramsTuple?: []; params?: {} }
     'geo.geo.ip': { paramsTuple?: []; params?: {} }
   }
@@ -45,6 +46,7 @@ export type ScannedRoutes = {
     'friends.location': { paramsTuple: [ParamValue]; params: {'userId': ParamValue} }
     'map.map.config': { paramsTuple?: []; params?: {} }
     'map.map.chunk': { paramsTuple: [ParamValue,ParamValue,ParamValue]; params: {'z': ParamValue,'x': ParamValue,'y': ParamValue} }
+    'time': { paramsTuple?: []; params?: {} }
     'geo.geo.place': { paramsTuple?: []; params?: {} }
     'geo.geo.ip': { paramsTuple?: []; params?: {} }
   }
@@ -61,6 +63,7 @@ export type ScannedRoutes = {
     'friends.location': { paramsTuple: [ParamValue]; params: {'userId': ParamValue} }
     'map.map.config': { paramsTuple?: []; params?: {} }
     'map.map.chunk': { paramsTuple: [ParamValue,ParamValue,ParamValue]; params: {'z': ParamValue,'x': ParamValue,'y': ParamValue} }
+    'time': { paramsTuple?: []; params?: {} }
     'geo.geo.place': { paramsTuple?: []; params?: {} }
     'geo.geo.ip': { paramsTuple?: []; params?: {} }
   }

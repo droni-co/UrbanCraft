@@ -29,6 +29,8 @@ var _path: Array[Vector2] = []
 var _sprite: AnimatedSprite2D
 var _stuck_time := 0.0
 var _walk_time := 0.0
+var _wave_left := 0.0
+var _time := 0.0
 var _chat_bubble: ChatBubble
 
 
@@ -93,7 +95,12 @@ func is_running() -> bool:
 
 
 func animation_name() -> String:
-	return ("walk_" if is_moving else "idle_") + facing_direction()
+	return CharacterSkins.animation_for(_sprite, is_moving, _wave_left > 0.0, facing_direction())
+
+
+## Saluda con la mano (si la hoja tiene la animación); moverse lo corta.
+func wave() -> void:
+	_wave_left = CharacterSkins.WAVE_SECONDS
 
 
 ## Globo con tu mensaje de chat (cuando el servidor lo confirma).
@@ -135,6 +142,8 @@ func _physics_process(delta: float) -> void:
 	if direction != Vector2.ZERO:
 		facing = direction
 	_walk_time = _walk_time + delta if is_moving else 0.0
+	_wave_left = 0.0 if is_moving else maxf(_wave_left - delta, 0.0)
+	_time += delta
 
 	if Input.is_action_just_pressed("interact") and not typing:
 		interacted.emit(facing)
@@ -144,6 +153,7 @@ func _physics_process(delta: float) -> void:
 		if _sprite.animation != anim:
 			_sprite.play(anim)
 		_sprite.speed_scale = 1.6 if Input.is_action_pressed("run") and is_moving else 1.0
+		CharacterSkins.breathe(_sprite, is_moving, _time)
 	queue_redraw()
 
 

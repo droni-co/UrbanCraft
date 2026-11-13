@@ -98,12 +98,15 @@ Los árboles (`tree`, incluidos dos guayacanes en flor), los pinos (`pine`) y lo
 
 Después de `pnpm game:art:reset` corre también `props.sh`.
 
+Los techos de `building` (casas), `roof_brick` y `roof_concrete` usan texturas de Layer (teja de barro y concreto, en `source/textures/roof_*.png`), recortadas a un número entero de tejas para que repitan sin costura. `tools/layer_art/roofs.sh` las proyecta al rombo y, con `transplant.py`, les pasa los detalles de las variantes procedurales: tanques, chimeneas, tragaluces y aires acondicionados. Esas variantes originales están guardadas en `source/roof_details/`. Después de `game:art:reset` corre también `roofs.sh`.
+
 Las variantes se estampan sobre la variante 0 de cada tipo. Si la cambias, o después de `pnpm game:art:reset` (que vuelve a pintar el andén procedural), corre otra vez `variants.sh`. Para agregar una variante, añade una línea a `variants.sh`; el peso va en el nombre, como siempre. Ni `source/` ni `baseStyle.jpeg` se exportan con el juego.
 
 ## Props: `props/` (256×256)
 
 - La base del objeto (donde toca el suelo) va en el píxel **(128, 192)** del PNG ((32, 48) lógico): es el centro del rombo de su celda. Lo que sobresale hacia arriba tapa lo que está detrás, porque se ordena por profundidad.
 - Incluye la sombra en el suelo (elipse negra semitransparente, con borde difuso).
+- Árboles, pinos y arbustos además proyectan una sombra larga en el juego (ver "Luz y sombras").
 - Los props bloquean el paso. La colisión es un rombo pequeño en la base y no depende de la imagen.
 
 ## Edificios en 3D: `buildings/` (256×168)
@@ -121,6 +124,14 @@ Cada celda de edificio se dibuja como un bloque isométrico: las dos paredes del
 - Cada celda elige una de 4 combinaciones (planta baja, pisos y variante de techo) con un hash de su posición: si un edificio se ve muy repetido, agrega variantes de fachada o cambia los pesos. Son 4 (`BUILDING_VARIANTS` en `build_art.gd`) para que los atlas de edificios no pesen demasiado a x4.
 - La altura de un piso (26 px) y el máximo de pisos están en `WorldTiles` (`BUILDING_FLOOR_PX`, `BUILDING_MAX_FLOORS`). Si los cambias, cambia también el alto de las fachadas.
 
+## Luz y sombras (en el juego, no en los PNG)
+
+- `scenes/world/building_shadows.gd`: cada edificio proyecta su sombra sobre el suelo, hacia abajo a la derecha (el sol viene de arriba a la izquierda, como en todo el arte) y más larga cuanto más alto es; los árboles también. Dirección (`SUN`), color y opacidad (`TINT`) están al principio del script.
+- `scenes/world/atmosphere.gd`: etalonaje de pantalla completa (saturación, contraste, luces cálidas y sombras frías), sombras de nubes que pasan sobre el mapa y una viñeta suave. Los parámetros están en el shader del script.
+- `scenes/world/day_night.gd`: ciclo de día y noche con la **hora del servidor** (`GET /api/v1/time`, autoload `GameClock`; cambiar el reloj del dispositivo no hace nada) y la altura real del sol en la ubicación del jugador (`scripts/world/sun.gd`): amanece y anochece a la misma hora que en su ciudad. Tiñe la imagen (dorado al atardecer, azul de noche), enciende los postes de luz, una luz suave alrededor del jugador y las ventanas de los edificios (`scripts/world/roof_styles.gd`, por ventana entera). Para probar otra hora en desarrollo: `DEV_CLOCK_OFFSET_HOURS=12` en el backend (se ignora en producción).
+- Ambiente (`scripts/world/ambient_shaders.gd`): los árboles, pinos y arbustos se mecen con el viento (con ráfagas, cada uno a su ritmo) y el agua tiene brillos que se mueven. `scenes/world/birds.gd`: de día pasan bandadas de pájaros con su sombra en el suelo.
+- Por eso el arte no lleva sombras proyectadas largas: solo la de contacto (props) y el sombreado propio (pared derecha más oscura).
+
 ## Iconos de lugares: `ui/poi/<categoría>.png` (28×28)
 
 - Se muestran a 7×7 lógicos. Blancos sobre fondo transparente; el pin les pone el color de la categoría (`scripts/map/poi_catalog.gd`).
@@ -130,12 +141,17 @@ Cada celda de edificio se dibuja como un bloque isométrico: las dos paredes del
 
 Cada PNG de `characters/` es un **personaje (skin)** que el jugador puede elegir en **Menú → Personaje**: `player01.png` … `player05.png`. Para agregar uno basta con poner otra hoja ahí: aparece sola en el selector como "Personaje N" (`player06.png`) o con su nombre (`ninja_rojo.png` → "Ninja Rojo"). `player01` es el personaje por defecto. El personaje elegido se guarda en la cuenta y los demás jugadores lo ven.
 
-Cada hoja mide **160×384**, con 5 columnas × 8 filas de frames de **32×48**. También puede ir a una escala entera (**320×768** a x2, **640×1536** a x4…): el juego la detecta por el ancho, la muestra al mismo tamaño y con filtro lineal (a x1 usa *nearest*, para pixel art). Las medidas de abajo son lógicas.
+Hay dos formatos de hoja, ambos con 8 filas (direcciones) de frames de **32×48** lógicos; el juego los distingue por el ancho y acepta cualquier escala entera (a x1 usa *nearest*, para pixel art; a x2 o más, filtro lineal).
 
-| Columna | Contenido |
-| ------- | --------- |
-| 0 | Quieto |
-| 1–4 | Ciclo de caminata (8 fps; al correr se acelera) |
+**Hoja animada** (la de los 5 personajes actuales): **512×384** lógicos, a x3 = **1536×1152**.
+
+| Columnas | Animación |
+| -------- | --------- |
+| 0–3 | Quieto: respira (y parpadea), 3 fps |
+| 4–11 | Caminata de 8 cuadros, 11 fps (al correr se acelera) |
+| 12–15 | Saludo con la mano, 6 fps (tecla G o el botón Saludar) |
+
+**Hoja simple** (pixel art clásico): **160×384** lógicos, columna 0 quieto y 1–4 caminata (8 fps). Al estar quieto el juego le agrega una respiración leve (estira el sprite desde los pies) y no tiene saludo. Si sus filas quedan un poco corridas, el juego las **alinea al cargar** (mueve cada fila en bloque para que su píxel más bajo quede en y = 44); el PNG no se modifica.
 
 | Fila | Dirección en pantalla |
 | ---- | --------------------- |
@@ -149,9 +165,19 @@ Cada hoja mide **160×384**, con 5 columnas × 8 filas de frames de **32×48**. 
 | 7 | `ne` ↗ |
 
 - Los **pies** van en el píxel **(16, 44)** de cada frame: es el punto que toca el suelo.
-- Si las filas quedan un poco corridas (el dibujo no cae justo cada 48 px, típico de hojas generadas), el juego las **alinea al cargar**: mueve cada fila en bloque para que su píxel más bajo quede en y = 44. El PNG no se modifica.
 - La sombra la dibuja el juego, así que no la incluyas.
-- Las animaciones (`idle_<dir>`, `walk_<dir>`) se arman desde la hoja al iniciar (`scripts/characters/character_skins.gd`), así que basta con editar el PNG. Si cambias tamaños o número de frames, ajusta las constantes de ese archivo.
+- Las animaciones (`idle_<dir>`, `walk_<dir>`, `wave_<dir>`) se arman desde la hoja al iniciar (`scripts/characters/character_skins.gd`), así que basta con editar el PNG. Velocidades y columnas están en `ANIMATED` de ese archivo.
+
+### Cómo se hicieron las hojas animadas (Layer.ai)
+
+Los originales están en `source/characters/` (WebP): por personaje, un *turnaround* con 5 vistas (`playerNN_turnaround`) y una hoja de 4×4 cuadros por dirección (`playerNN_s|se|e|ne|n`: fila 1 respirar, filas 2–3 caminar, fila 4 saludar), hechas con la herramienta *Sprite sheet* de Layer (GPT Image 2.5, fondo transparente) usando el turnaround y la hoja de frente como guía. `tools/layer_art/char_sheet.py` las convierte en la hoja final:
+
+```sh
+python tools/layer_art/char_sheet.py assets/art/characters/player06.png \
+  --s s.png --se se.png --e e.png --ne ne.png --n n.png   # [--height 39] [--scale 3]
+```
+
+Recorta cada cuadro (se queda con la mancha más grande, sin restos del vecino), escala todo el personaje igual (quieto de frente mide `--height` px lógicos), pone el píxel más bajo en la línea de los pies y centra el torso, y arma `sw`, `w` y `nw` como espejo de `se`, `e` y `ne`.
 
 ## Estilo
 

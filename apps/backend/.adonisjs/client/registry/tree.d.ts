@@ -57,6 +57,7 @@ export interface ApiDefinition {
       chunk: typeof routes['map.map.chunk']
     }
   }
+  time: typeof routes['time']
   geo: {
     geo: {
       place: typeof routes['geo.geo.place']

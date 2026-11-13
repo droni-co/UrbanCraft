@@ -19,6 +19,8 @@ var skin := ""
 ## [{ t, pos: Vector2, d, m }] ordenados por t
 var _samples: Array[Dictionary] = []
 var _sprite: AnimatedSprite2D
+var _wave_left := 0.0
+var _time := 0.0
 var _name_label: Label
 var _bubble: Label
 var _bubble_tween: Tween
@@ -90,13 +92,17 @@ func show_action(kind: String) -> void:
 	_bubble_tween = create_tween().set_parallel()
 	_bubble_tween.tween_property(_bubble, "position:y", _bubble.position.y - 6, 1.4)
 	_bubble_tween.tween_property(_bubble, "modulate:a", 0.0, 0.5).set_delay(0.9)
-	if kind == "wave" and _sprite:
+	if kind == "wave" and _sprite and _sprite.sprite_frames.has_animation("wave_s"):
+		_wave_left = CharacterSkins.WAVE_SECONDS
+	elif kind == "wave" and _sprite:
 		var hop := create_tween()
 		hop.tween_property(_sprite, "position:y", -4.0, 0.12)
 		hop.tween_property(_sprite, "position:y", 0.0, 0.12)
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	_time += delta
+	_wave_left = maxf(_wave_left - delta, 0.0)
 	if _samples.is_empty():
 		return
 	var render_time := Time.get_ticks_msec() / 1000.0 - INTERP_DELAY
@@ -116,10 +122,13 @@ func _process(_delta: float) -> void:
 	_dir = int(current.d)
 	_move = 0 if stale else int(current.m)
 	if _sprite:
-		var anim := ("walk_" if _move > 0 else "idle_") + Player.DIRECTIONS[_dir]
+		if _move > 0:
+			_wave_left = 0.0
+		var anim := CharacterSkins.animation_for(_sprite, _move > 0, _wave_left > 0.0, Player.DIRECTIONS[_dir])
 		if _sprite.animation != anim:
 			_sprite.play(anim)
 		_sprite.speed_scale = 1.6 if _move == 2 else 1.0
+		CharacterSkins.breathe(_sprite, _move > 0, _time)
 	queue_redraw()
 
 

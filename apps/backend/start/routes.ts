@@ -11,6 +11,7 @@ import { middleware } from '#start/kernel'
 import router from '@adonisjs/core/services/router'
 import { controllers } from '#generated/controllers'
 import db from '@adonisjs/lucid/services/db'
+import env from '#start/env'
 
 const MapController = () => import('#controllers/map_controller')
 const GeoController = () => import('#controllers/geo_controller')
@@ -123,6 +124,21 @@ router
       })
       .prefix('map')
       .as('map')
+
+    /**
+     * Hora del servidor (ms desde epoch, UTC). El juego calcula el ciclo de día
+     * y noche con esta hora más la zona horaria del jugador, así que cambiar el
+     * reloj del dispositivo no adelanta la noche.
+     */
+    router
+      .get('time', ({ response }) => {
+        response.header('Cache-Control', 'no-store')
+        // Solo en desarrollo: DEV_CLOCK_OFFSET_HOURS mueve la hora para probar la noche.
+        const offset =
+          env.get('NODE_ENV') === 'production' ? 0 : env.get('DEV_CLOCK_OFFSET_HOURS', 0)
+        return { now: Date.now() + offset * 3_600_000 }
+      })
+      .as('time')
 
     router
       .group(() => {
