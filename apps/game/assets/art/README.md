@@ -35,7 +35,8 @@ art/
 ├── buildings/      fachadas de un piso para los edificios en 3D, 256×168 (64×42)
 ├── characters/     hojas de sprites de personajes (pixel art a x1, o a x2/x4)
 ├── ui/icons/       iconos de la interfaz, 48×48 (12×12) (stats del HUD; ver ui/icons/README.md)
-└── ui/poi/         icono de cada categoría de lugar, 28×28 (7×7) blanco (va dentro del pin)
+├── ui/poi/         icono de cada categoría de lugar, 28×28 (7×7) blanco (va dentro del pin)
+└── source/         material de Layer.ai para las variantes de suelo (no se exporta; ver «Variantes con detalles»)
 ```
 
 ## Nombres y variantes
@@ -67,6 +68,37 @@ Agregar un **tipo nuevo** (por ejemplo `snow`) no se hace solo con un archivo. H
 - `building` y `roof_*` son techos vistos desde arriba. Las celdas de un mismo edificio eligen variantes distintas, así que las variantes de un techo deberían ser del mismo color, con detalles sueltos como tanques de agua, ductos o tragaluces. Qué techo lleva cada edificio lo decide el backend (`classifyBuilding` en `rasterizer.ts`): `roof_brick` para casas, `roof_concrete` para comercio y oficinas, `roof_dark` para edificios altos, `roof_civic` para iglesias, colegios y hospitales, y `roof_industrial` para bodegas.
 - `crosswalk` se pinta sobre el asfalto: las franjas tienen que seguir la dirección de la grilla.
 - El minimapa usa un color por tipo, definido en `scenes/ui/minimap.gd` (`GROUND_COLORS`). Si cambias mucho un color, actualízalo ahí.
+
+### Variantes con detalles (Layer.ai)
+
+Para que el mapa no se vea repetido, `grass`, `grass_dark`, `dirt`, `asphalt` y `pavement` tienen variantes extra con detalles sueltos: flores, tréboles, setas, hojas, piedras, alcantarillas, rejillas, parches, grietas, charcos y manchas de aceite. Se arman con `tools/layer_art/variants.sh` a partir de:
+
+- `source/decals/`: los detalles, vistos desde arriba, generados en [Layer.ai](https://layer.ai) con `baseStyle.jpeg` como referencia de estilo.
+- `source/textures/pavement.png`: la textura del andén, una textura cuadrada sin costura de Layer.
+
+Cómo funciona `tools/layer_art/iso_project.py`:
+
+- Proyecta una textura cuadrada sin costura a un rombo: el rombo cubre exactamente un período de la textura, así que encaja con cualquier vecino.
+- Con `--over` estampa detalles sobre un tile que ya existe, siempre dentro del rombo, sin tocar el borde, para que las variantes encajen con la base:
+  - `--decal` para los planos, que se proyectan con el suelo;
+  - `--sprite` para los que tienen altura (flores, matas), que van de pie.
+
+Uso (necesita Python con numpy y Pillow):
+
+```bash
+PYTHON=/ruta/a/python apps/game/tools/layer_art/variants.sh   # escribe en tiles/ground/
+pnpm game:assets
+```
+
+Los árboles (`tree`, incluidos dos guayacanes en flor), los pinos (`pine`) y los arbustos (`bush`) de `props/` también vienen de Layer. Los originales con fondo transparente están en `source/props/`. Para regenerarlos, `tools/layer_art/props.sh` los pasa por `fit_prop.py`, que:
+
+- recorta el sprite y lo escala a la altura de cada uno;
+- pone el pie en (128, 192);
+- dibuja la sombra del suelo.
+
+Después de `pnpm game:art:reset` corre también `props.sh`.
+
+Las variantes se estampan sobre la variante 0 de cada tipo. Si la cambias, o después de `pnpm game:art:reset` (que vuelve a pintar el andén procedural), corre otra vez `variants.sh`. Para agregar una variante, añade una línea a `variants.sh`; el peso va en el nombre, como siempre. Ni `source/` ni `baseStyle.jpeg` se exportan con el juego.
 
 ## Props: `props/` (256×256)
 
