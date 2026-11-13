@@ -1,11 +1,14 @@
 extends SceneTree
 ## Construye resources/tilesets/world_tileset.tres a partir de los atlas de
 ## assets/tiles (los arma tools/build_art.gd desde assets/art). Define:
-##   - Un tile por tipo y variante (columna = tipo, fila = variante)
+##   - Un tile por tipo y variante (ver WorldTiles.ground_coords / prop_coords)
 ##   - Forma isométrica 64x32, layout diamond-down
+##   - Texturas HDTexture: el atlas es x4 (WorldTiles.ART_SCALE) pero se usa
+##     en px del mundo
 ##   - Capa física 0 (layer "world"): agua y props bloquean
 ##   - Custom data "walkable" (bool) usado por IsoPathfinder
-##   - Edificios en 3D: bloques altos sin colisión propia (la pone su suelo)
+##   - Edificios en 3D: bloques altos sin colisión propia (la pone su suelo),
+##     un atlas por altura (WorldTiles.building_source)
 ## Uso:  pnpm game:assets
 
 const OUT := "res://resources/tilesets/world_tileset.tres"
@@ -33,9 +36,7 @@ func _initialize() -> void:
 	ts.set_meta(WorldTiles.META_BUILDING_VARIANTS, building_variants)
 
 	# Suelo
-	var ground := TileSetAtlasSource.new()
-	ground.texture = load("res://assets/tiles/ground.png")
-	ground.texture_region_size = WorldTiles.TILE_SIZE
+	var ground := _atlas("ground.png", WorldTiles.TILE_SIZE)
 	ts.add_source(ground, WorldTiles.SOURCE_GROUND)
 	for kind in WorldTiles.Ground.size():
 		for variant in _variant_count(manifest.ground, kind):
@@ -49,9 +50,7 @@ func _initialize() -> void:
 				data.set_collision_polygon_points(0, 0, _diamond(half.x, half.y))
 
 	# Props (árboles, rocas...): más altos que el tile, con colisión en la base
-	var props := TileSetAtlasSource.new()
-	props.texture = load("res://assets/tiles/props.png")
-	props.texture_region_size = WorldTiles.PROP_REGION
+	var props := _atlas("props.png", WorldTiles.PROP_REGION)
 	ts.add_source(props, WorldTiles.SOURCE_PROPS)
 	for kind in WorldTiles.Prop.size():
 		for variant in _variant_count(manifest.props, kind):
@@ -63,26 +62,39 @@ func _initialize() -> void:
 			data.add_collision_polygon(0)
 			data.set_collision_polygon_points(0, 0, _diamond(14, 7))
 
-	# Edificios: columna = estilo, fila = (pisos - 1) * variantes + variante.
-	if ResourceLoader.exists("res://assets/tiles/buildings.png"):
-		var buildings := TileSetAtlasSource.new()
-		buildings.texture = load("res://assets/tiles/buildings.png")
-		buildings.texture_region_size = WorldTiles.BUILDING_REGION
-		ts.add_source(buildings, WorldTiles.SOURCE_BUILDINGS)
+	# Edificios: un atlas por altura; columna = estilo, fila = variante.
+	for floors in range(1, WorldTiles.BUILDING_MAX_FLOORS + 1):
+		var file := "buildings_%d.png" % floors
+		if not ResourceLoader.exists("res://assets/tiles/" + file):
+			push_warning("Sin assets/tiles/%s: faltan edificios (ejecuta tools/build_art.gd)" % file)
+			continue
+		var buildings := _atlas(file, WorldTiles.building_region(floors))
+		ts.add_source(buildings, WorldTiles.building_source(floors))
 		for style in WorldTiles.BUILDING_STYLES.size():
-			for row in WorldTiles.BUILDING_MAX_FLOORS * building_variants:
-				var coords := Vector2i(style, row)
+			for variant in building_variants:
+				var coords := Vector2i(style, variant)
 				buildings.create_tile(coords)
 				var data := buildings.get_tile_data(coords, 0)
-				data.texture_origin = WorldTiles.BUILDING_TEXTURE_ORIGIN
+				data.texture_origin = WorldTiles.building_texture_origin(floors)
 				data.set_custom_data(WorldTiles.WALKABLE, false)
-	else:
-		push_warning("Sin assets/tiles/buildings.png: los edificios se verán planos (ejecuta tools/build_art.gd)")
 
 	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path(OUT.get_base_dir()))
 	var err := ResourceSaver.save(ts, OUT)
 	print("%s: %s" % [OUT, error_string(err)])
 	quit(0 if err == OK else 1)
+
+
+## Fuente de atlas con una textura x4 de assets/tiles, en px del mundo.
+## Sin el relleno automático de Godot (no sirve con HDTexture): build_art.gd
+## ya deja una separación con el borde repetido.
+func _atlas(file: String, region: Vector2i) -> TileSetAtlasSource:
+	var atlas := TileSetAtlasSource.new()
+	var art_scale := int(_manifest().get("scale", 1))
+	atlas.texture = HDTexture.wrap(load("res://assets/tiles/" + file), art_scale)
+	atlas.texture_region_size = region
+	atlas.separation = WorldTiles.ATLAS_SEPARATION if art_scale > 1 else Vector2i.ZERO
+	atlas.use_texture_padding = false
+	return atlas
 
 
 ## Variantes y pesos de assets/tiles/atlas.json (sin él: 1 variante por tipo).

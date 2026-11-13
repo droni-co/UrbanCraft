@@ -77,7 +77,10 @@ func _rebuild(stats: Array) -> void:
 		var icon := TextureRect.new()
 		icon.texture = _icon(str(s.get("icon", FALLBACK_ICON)))
 		icon.custom_minimum_size = ICON_SIZE
-		icon.stretch_mode = TextureRect.STRETCH_KEEP_CENTERED
+		# El PNG puede ser más grande (x4): se muestra a ICON_SIZE con filtro lineal.
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 		icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		row.add_child(icon)

@@ -261,7 +261,7 @@ func _process(_delta: float) -> void:
 				ground.set_cell(cell, WorldTiles.SOURCE_GROUND, WorldTiles.pick_ground(kind, gx, gy))
 				if buildings and WorldTiles.is_building(kind):
 					var levels := level_bytes[i] if i < level_bytes.size() else 0
-					buildings.set_cell(cell, WorldTiles.SOURCE_BUILDINGS, WorldTiles.pick_building(kind, levels, gx, gy))
+					buildings.set_cell(cell, WorldTiles.building_source(WorldTiles.building_floors(kind, levels)), WorldTiles.pick_building(kind, gx, gy))
 				var prop := prop_bytes[i]
 				if prop != WorldTiles.NO_PROP:
 					props.set_cell(cell, WorldTiles.SOURCE_PROPS, WorldTiles.pick_prop(prop, gx, gy))

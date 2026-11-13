@@ -120,7 +120,7 @@ func _build_cards() -> void:
 		card.expand_icon = true
 		card.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		card.vertical_icon_alignment = VERTICAL_ALIGNMENT_TOP
-		card.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		card.texture_filter = CharacterSkins.filter_for(id)
 		card.text = CharacterSkins.display_name(id)
 		card.tooltip_text = CharacterSkins.display_name(id)
 		card.pressed.connect(_select.bind(id, true))
@@ -144,6 +144,7 @@ func _select(id: String, from_click: bool) -> void:
 			_message.text = ""
 	_selected = id
 	_preview_frame.atlas = CharacterSkins.sheet_texture(id)
+	_preview.texture_filter = CharacterSkins.filter_for(id)
 	_preview_frame.region = Rect2(Vector2(0, 2) * Vector2(CharacterSkins.FRAME_SIZE), CharacterSkins.FRAME_SIZE)
 	_refresh()
 

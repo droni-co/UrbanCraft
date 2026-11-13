@@ -14,6 +14,7 @@
 script = ExtResource("1_world")
 
 [node name="Ground" type="TileMapLayer" parent="."]
+texture_filter = 4
 tile_set = ExtResource("2_tileset")
 
 [node name="MapLabels" type="Node2D" parent="."]
@@ -26,14 +27,17 @@ script = ExtResource("3_cursor")
 y_sort_enabled = true
 
 [node name="Props" type="TileMapLayer" parent="Entities"]
+texture_filter = 4
 y_sort_enabled = true
 tile_set = ExtResource("2_tileset")
 
 [node name="Buildings" type="TileMapLayer" parent="Entities"]
+texture_filter = 4
 y_sort_enabled = true
 tile_set = ExtResource("2_tileset")
 
 [node name="BuildingsFaded" type="TileMapLayer" parent="Entities"]
+texture_filter = 4
 modulate = Color(1, 1, 1, 0.35)
 y_sort_enabled = true
 tile_set = ExtResource("2_tileset")

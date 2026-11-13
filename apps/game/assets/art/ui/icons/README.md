@@ -1,6 +1,6 @@
 # Iconos de la interfaz
 
-Iconos de **12×12** píxeles, en pixel art y con fondo transparente. El juego los muestra a tamaño real, sin filtrado.
+Iconos de **48×48** píxeles con fondo transparente. El juego los muestra a 12×12 lógicos (como todo el arte, a x4: ver `assets/art/README.md`), con filtro lineal. Los iniciales son los de pixel art 12×12 ampliados con Scale4x (`scale4x()` en `tools/generate_starter_art.gd`).
 
 | Archivo | Uso |
 | ------- | --- |
@@ -11,4 +11,4 @@ Iconos de **12×12** píxeles, en pixel art y con fondo transparente. El juego l
 
 **Stats nuevos:** el nombre del icono sale del catálogo del backend (`apps/backend/config/player_stats.ts`, campo `icon`). Para darle icono a un stat nuevo, crea `<icon>.png` aquí. Si no existe, se usa `stat.png`.
 
-Estilo: contorno oscuro de 1 px (no negro puro), 3–4 tonos y luz desde arriba a la izquierda, igual que el resto del arte (`assets/art/README.md`).
+Estilo: contorno oscuro (no negro puro) y luz desde arriba a la izquierda, igual que el resto del arte (`assets/art/README.md`).

@@ -9,6 +9,10 @@ extends RefCounted
 ## dibujo no cae justo cada 48 px), se alinean al cargar: cada fila se mueve
 ## en bloque para que su píxel más bajo quede en la línea de los pies. El PNG
 ## no se modifica.
+##
+## La hoja puede venir a una escala entera (x2, x4… como el resto del arte):
+## se detecta por su ancho, se muestra al mismo tamaño en el mundo y con filtro
+## lineal en lugar de "nearest" (que es para el pixel art a x1).
 
 const DIR := "res://assets/art/characters/"
 const DEFAULT := "player01"
@@ -22,6 +26,7 @@ const ALPHA_THRESHOLD := 0.16
 
 static var _sheets := {}  # id -> Texture2D alineada
 static var _frames := {}  # id -> SpriteFrames
+static var _scales := {}  # id -> escala de la hoja (1 = pixel art)
 
 
 ## Ids de los personajes disponibles, ordenados ("player01", "player02"…).
@@ -90,8 +95,15 @@ static func make_sprite(id: Variant) -> AnimatedSprite2D:
 	sprite.sprite_frames = sprite_frames
 	sprite.centered = false
 	sprite.offset = -Vector2(FEET)
-	sprite.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	sprite.texture_filter = filter_for(resolve(id))
 	return sprite
+
+
+## Filtro para dibujar un personaje: nítido para pixel art, suave para hojas HD.
+static func filter_for(id: String) -> CanvasItem.TextureFilter:
+	if not id.is_empty():
+		sheet_texture(id)
+	return CanvasItem.TEXTURE_FILTER_LINEAR if int(_scales.get(id, 1)) > 1 else CanvasItem.TEXTURE_FILTER_NEAREST
 
 
 ## Un frame de la hoja (para vistas previas): columna 0 = quieto, fila 2 = de frente.
@@ -110,21 +122,31 @@ static func sheet_texture(id: String) -> Texture2D:
 		if image.is_compressed():
 			image.decompress()
 		image.convert(Image.FORMAT_RGBA8)
-		_sheets[id] = ImageTexture.create_from_image(align_rows(image))
+		var k := maxi(1, image.get_width() / (FRAME_SIZE.x * (WALK_FRAMES + 1)))
+		var aligned := align_rows(image, k)
+		if k > 1:
+			aligned.generate_mipmaps()
+		var texture := ImageTexture.create_from_image(aligned)
+		if k > 1:
+			# Se usa con regiones en px del mundo (32x48 por frame).
+			texture.set_size_override(image.get_size() / k)
+		_scales[id] = k
+		_sheets[id] = texture
 	return _sheets[id]
 
 
 ## Mueve cada fila de frames en bloque para que su píxel más bajo quede en la
 ## línea de los pies (y = fila * 48 + 44). Detecta las franjas de dibujo
 ## separadas por líneas transparentes y asigna cada una a la fila de su centro.
-static func align_rows(image: Image) -> Image:
-	var rows := image.get_height() / FRAME_SIZE.y
+static func align_rows(image: Image, k := 1) -> Image:
+	var frame_h := FRAME_SIZE.y * k
+	var rows := image.get_height() / frame_h
 	var spans := _opaque_spans(image)
 	var per_row := []  # por fila: [top, bottom] o []
 	per_row.resize(rows)
 	per_row.fill([])
 	for span: Vector2i in spans:
-		var row := clampi(((span.x + span.y) / 2) / FRAME_SIZE.y, 0, rows - 1)
+		var row := clampi(((span.x + span.y) / 2) / frame_h, 0, rows - 1)
 		var current: Array = per_row[row]
 		per_row[row] = [span.x, span.y] if current.is_empty() \
 			else [mini(current[0], span.x), maxi(current[1], span.y)]
@@ -136,9 +158,9 @@ static func align_rows(image: Image) -> Image:
 			continue
 		var top: int = band[0]
 		var bottom: int = band[1]
-		var shift := row * FRAME_SIZE.y + FEET.y - bottom
+		var shift := row * frame_h + FEET.y * k + (k - 1) - bottom
 		# Sin salirse de su celda (un dibujo más alto que el frame se deja como está).
-		if top + shift < row * FRAME_SIZE.y:
+		if top + shift < row * frame_h:
 			shift = 0
 		out.blit_rect(image, Rect2i(0, top, image.get_width(), bottom - top + 1), Vector2i(0, top + shift))
 	return out
