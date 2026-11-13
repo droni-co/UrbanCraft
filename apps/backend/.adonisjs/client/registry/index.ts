@@ -158,6 +158,12 @@ const routes = {
     tokens: [[0,"api"],[0,"v1"],[0,"map"],[0,"chunks"],[1,"z"],[1,"x"],[1,"y"]],
     types: placeholder as Registry['map.map.chunk']['types'],
   },
+  'time': {
+    methods: ["GET","HEAD"],
+    pattern: '/api/v1/time',
+    tokens: [[0,"api"],[0,"v1"],[0,"time"]],
+    types: placeholder as Registry['time']['types'],
+  },
   'geo.geo.place': {
     methods: ["GET","HEAD"],
     pattern: '/api/v1/geo/place',

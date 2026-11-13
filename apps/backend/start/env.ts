@@ -47,6 +47,8 @@ export default await Env.create(new URL('../', import.meta.url), {
   GOOGLE_CALLBACK_URL: Env.schema.string.optional({ format: 'url', tld: false }),
   // Usuarios de prueba sin Google (solo desarrollo, solo desde esta máquina)
   DEV_LOGIN_ENABLED: Env.schema.boolean.optional(),
+  /** Solo desarrollo: adelanta (o atrasa) la hora de GET /api/v1/time, para probar el ciclo de día y noche. */
+  DEV_CLOCK_OFFSET_HOURS: Env.schema.number.optional(),
 
   // Versión web del juego en /play (por defecto public/play)
   WEB_GAME_DIR: Env.schema.string.optional(),

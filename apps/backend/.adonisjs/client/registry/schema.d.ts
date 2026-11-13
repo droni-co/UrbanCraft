@@ -333,6 +333,19 @@ export interface Registry {
       rawResponse: ExtractRawResponse<Awaited<ReturnType<import('#controllers/map_controller').default['chunk']>>>
     }
   }
+  'time': {
+    methods: ["GET","HEAD"]
+    pattern: '/api/v1/time'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: unknown
+      errorResponse: unknown
+      rawResponse: ExtractRawResponse<unknown>
+    }
+  }
   'geo.geo.place': {
     methods: ["GET","HEAD"]
     pattern: '/api/v1/geo/place'

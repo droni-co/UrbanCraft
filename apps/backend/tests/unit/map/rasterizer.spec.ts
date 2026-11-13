@@ -1,6 +1,13 @@
 import { test } from '@japa/runner'
 import { BUILDING_GROUNDS, Ground, NO_PROP, Prop } from '#map/catalog'
-import { SourceRasterizer, classifyBuilding, tileCenterLatitude } from '#map/rasterizer'
+import {
+  ROOF_AXIS_Y,
+  ROOF_TINT_SHIFT,
+  RoofPart,
+  SourceRasterizer,
+  classifyBuilding,
+  tileCenterLatitude,
+} from '#map/rasterizer'
 import { poiCategory } from '#map/poi_category'
 import {
   CELL_ZOOM,
@@ -358,5 +365,45 @@ test.group('Map rasterizer', () => {
     assert.equal(poiCategory({ amenity: 'place_of_worship' }), 'worship')
     assert.equal(poiCategory({ office: 'lawyer' }), 'service')
     assert.equal(poiCategory({ amenity: 'loquesea' }), 'other')
+  })
+})
+
+test.group('Map rasterizer: techos', () => {
+  const part = (b: number) => b & 3
+  const axisY = (b: number) => (b & ROOF_AXIS_Y) !== 0
+  const tint = (b: number) => b >> ROOF_TINT_SHIFT
+
+  test('casa ancha en x: cumbrera a lo largo de x, faldones a cada lado', ({ assert }) => {
+    const grid = rasterize([
+      { kind: 'area', id: 'w1', tags: { building: 'house' }, rings: [rect(C, 10, 10, 20, 15)] },
+    ])
+    // 5 celdas de ancho en y (filas 10-14): cumbrera en la fila del medio.
+    assert.equal(part(at(grid.roofs, 15, 10)), RoofPart.SLOPE_LOW)
+    assert.equal(part(at(grid.roofs, 15, 11)), RoofPart.SLOPE_LOW)
+    assert.equal(part(at(grid.roofs, 15, 12)), RoofPart.RIDGE)
+    assert.equal(part(at(grid.roofs, 15, 14)), RoofPart.SLOPE_HIGH)
+    assert.isFalse(axisY(at(grid.roofs, 15, 12)))
+    // Mismo tono en todo el edificio; fuera del edificio, 0.
+    assert.equal(tint(at(grid.roofs, 11, 10)), tint(at(grid.roofs, 19, 14)))
+    assert.equal(at(grid.roofs, 30, 30), 0)
+  })
+
+  test('casa alta en y: cumbrera a lo largo de y', ({ assert }) => {
+    const grid = rasterize([
+      { kind: 'area', id: 'w1', tags: { building: 'house' }, rings: [rect(C, 10, 10, 13, 20)] },
+    ])
+    assert.isTrue(axisY(at(grid.roofs, 11, 15)))
+    assert.equal(part(at(grid.roofs, 10, 15)), RoofPart.SLOPE_LOW)
+    assert.equal(part(at(grid.roofs, 11, 15)), RoofPart.RIDGE)
+    assert.equal(part(at(grid.roofs, 12, 15)), RoofPart.SLOPE_HIGH)
+  })
+
+  test('edificios anchos, de oficinas o bodegas: techo plano', ({ assert }) => {
+    const grid = rasterize([
+      { kind: 'area', id: 'w1', tags: { building: 'house' }, rings: [rect(C, 2, 30, 40, 50)] },
+      { kind: 'area', id: 'w2', tags: { building: 'warehouse' }, rings: [rect(C, 45, 2, 50, 6)] },
+    ])
+    assert.equal(part(at(grid.roofs, 20, 40)), RoofPart.FLAT)
+    assert.equal(part(at(grid.roofs, 47, 4)), RoofPart.FLAT)
   })
 })

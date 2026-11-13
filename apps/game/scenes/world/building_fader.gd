@@ -52,11 +52,11 @@ func update(feet: Vector2) -> void:
 			continue
 		_faded.erase(cell)
 		if faded.get_cell_source_id(cell) != -1:
-			solid.set_cell(cell, faded.get_cell_source_id(cell), faded.get_cell_atlas_coords(cell))
+			solid.set_cell(cell, faded.get_cell_source_id(cell), faded.get_cell_atlas_coords(cell), faded.get_cell_alternative_tile(cell))
 			faded.erase_cell(cell)
 	for cell: Vector2i in want:
 		if solid.get_cell_source_id(cell) != -1:
-			faded.set_cell(cell, solid.get_cell_source_id(cell), solid.get_cell_atlas_coords(cell))
+			faded.set_cell(cell, solid.get_cell_source_id(cell), solid.get_cell_atlas_coords(cell), solid.get_cell_alternative_tile(cell))
 			solid.erase_cell(cell)
 		_faded[cell] = true
 
@@ -65,6 +65,6 @@ func update(feet: Vector2) -> void:
 func clear() -> void:
 	for cell: Vector2i in _faded.keys():
 		if faded.get_cell_source_id(cell) != -1:
-			solid.set_cell(cell, faded.get_cell_source_id(cell), faded.get_cell_atlas_coords(cell))
+			solid.set_cell(cell, faded.get_cell_source_id(cell), faded.get_cell_atlas_coords(cell), faded.get_cell_alternative_tile(cell))
 			faded.erase_cell(cell)
 	_faded.clear()

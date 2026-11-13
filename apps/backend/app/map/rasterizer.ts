@@ -37,11 +37,43 @@ export interface ChunkGrid {
   props: Uint8Array
   /** size*size pisos del edificio de cada celda (0 = no es edificio). */
   levels: Uint8Array
+  /** size*size techos: qué parte del tejado de su edificio cae en cada celda (ver roofByte). */
+  roofs: Uint8Array
   pois: Poi[]
   /** Nombres de calles, áreas y números de portal (ver labels.ts). */
   labels: MapLabel[]
   /** Barrio en el que cae el chunk (punto de barrio más cercano), o null. */
   district: string | null
+}
+
+// --- Techos -------------------------------------------------------------------
+
+/**
+ * Byte de techo de una celda de edificio:
+ *   bits 0-1: parte del tejado (RoofPart): plano, faldón bajo, faldón alto o cumbrera;
+ *   bit 3:    la cumbrera corre a lo largo del eje y de la grilla (si no, del eje x);
+ *   bits 4-5: tono del tejado (0-3), igual para todo el edificio.
+ * Los tejados a dos aguas son de casas y edificios de ladrillo no muy anchos: la
+ * cumbrera va por el lado largo del edificio y cada columna (o fila) se parte por
+ * la mitad de su ancho real, así que las casas pegadas tienen cada una su tejado.
+ */
+export const RoofPart = { FLAT: 0, SLOPE_LOW: 1, SLOPE_HIGH: 2, RIDGE: 3 } as const
+export const ROOF_AXIS_Y = 8
+export const ROOF_TINT_SHIFT = 4
+const PITCHED_GROUNDS: ReadonlySet<number> = new Set([Ground.BUILDING, Ground.ROOF_BRICK])
+/** Más ancho que esto (en celdas, ~25 m) el tejado es plano. */
+const MAX_PITCHED_SPAN = 12
+
+export function roofByte(part: number, axisY: boolean, tint: number): number {
+  return (part & 3) | (axisY ? ROOF_AXIS_Y : 0) | ((tint & 3) << ROOF_TINT_SHIFT)
+}
+
+/** Parte del tejado según la posición de la celda en el ancho [lo, hi] del edificio. */
+export function roofPart(center: number, lo: number, hi: number): number {
+  if (hi - lo > MAX_PITCHED_SPAN) return RoofPart.FLAT
+  const d = center - (lo + hi) / 2
+  if (Math.abs(d) < 0.5) return RoofPart.RIDGE
+  return d < 0 ? RoofPart.SLOPE_LOW : RoofPart.SLOPE_HIGH
 }
 
 // --- Reglas de estilo ---------------------------------------------------------
@@ -495,15 +527,19 @@ export class SourceRasterizer {
     const decor = new Uint8Array(size * size).fill(Decor.NONE)
     const props = new Uint8Array(size * size).fill(NO_PROP)
     const levels = new Uint8Array(size * size)
+    const roofs = new Uint8Array(size * size)
 
     for (const op of this.#ops) {
       if (op.maxX < ox || op.minX > ox + size || op.maxY < oy || op.minY > oy + size) continue
-      if (op.fill) this.#fillArea(op, ox, oy, size, ground, decor, levels)
+      if (op.fill) this.#fillArea(op, ox, oy, size, ground, decor, levels, roofs)
       else this.#strokeLine(op, ox, oy, size, ground, decor)
     }
     // Lo que se pintó encima de un edificio (una vía, un puente) ya no es edificio.
     for (let i = 0; i < levels.length; i++) {
-      if (!BUILDING_GROUNDS.has(ground[i])) levels[i] = 0
+      if (!BUILDING_GROUNDS.has(ground[i])) {
+        levels[i] = 0
+        roofs[i] = 0
+      }
     }
 
     // Pasos de cebra mapeados como nodo (lo más común): una mancha sobre el asfalto.
@@ -562,7 +598,7 @@ export class SourceRasterizer {
     const labels = this.#labels.forChunk(ox, oy, size, new Set(pois.map((p) => p.name)))
     const half = size / 2
     const district = this.#labels.districtAt(ox + half, oy + half, this.#districtReach)
-    return { z, x, y, size, ground, props, levels, pois, labels, district }
+    return { z, x, y, size, ground, props, levels, roofs, pois, labels, district }
   }
 
   // --- proyección ---
@@ -704,10 +740,17 @@ export class SourceRasterizer {
     size: number,
     ground: Uint8Array,
     decor: Uint8Array,
-    levels: Uint8Array
+    levels: Uint8Array,
+    roofs: Uint8Array
   ) {
     const seg = op.segments
     const level = op.paint.levels ?? 0
+    const isBuilding = op.paint.levels !== undefined
+    const pitched = isBuilding && PITCHED_GROUNDS.has(op.paint.ground)
+    const tint = Math.floor(stringHash01(op.id + ':roof') * 4)
+    // La cumbrera va por el lado largo; el ancho se mide en la otra dirección.
+    const axisY = op.maxY - op.minY > op.maxX - op.minX
+    const columnSpans = new Map<number, number[]>()
     const rowStart = Math.max(0, Math.floor(op.minY - oy))
     const rowEnd = Math.min(size - 1, Math.ceil(op.maxY - oy))
     const xs: number[] = []
@@ -735,6 +778,22 @@ export class SourceRasterizer {
           ground[i] = op.paint.ground
           decor[i] = op.paint.decor ?? Decor.NONE
           levels[i] = level
+          if (isBuilding) {
+            let part: number = RoofPart.FLAT
+            if (pitched && axisY) {
+              part = roofPart(ox + col + 0.5, xs[k], xs[k + 1])
+            } else if (pitched) {
+              const gx = ox + col + 0.5
+              let ys = columnSpans.get(col)
+              if (!ys) {
+                ys = crossings(seg, gx, true)
+                columnSpans.set(col, ys)
+              }
+              const span = spanAround(ys, cy)
+              if (span) part = roofPart(cy, span[0], span[1])
+            }
+            roofs[i] = roofByte(part, axisY, tint)
+          }
           painted++
         }
       }
@@ -747,6 +806,7 @@ export class SourceRasterizer {
         ground[i] = op.paint.ground
         decor[i] = Decor.NONE
         levels[i] = level
+        roofs[i] = roofByte(pitched ? RoofPart.RIDGE : RoofPart.FLAT, axisY, tint)
       }
     }
   }
@@ -956,6 +1016,33 @@ const POI_PRIORITY: Record<PoiCategory, number> = {
   transport: 4,
   service: 3,
   other: 1,
+}
+
+/**
+ * Cortes de un polígono (segmentos [x1, y1, x2, y2, ...]) con la recta vertical
+ * x = at (`vertical`) u horizontal y = at, ordenados.
+ */
+export function crossings(seg: Float64Array, at: number, vertical: boolean): number[] {
+  const out: number[] = []
+  const a = vertical ? 0 : 1
+  const b = vertical ? 1 : 0
+  for (let i = 0; i < seg.length; i += 4) {
+    const p1 = seg[i + a]
+    const p2 = seg[i + 2 + a]
+    if (p1 <= at !== p2 <= at) {
+      const q1 = seg[i + b]
+      out.push(q1 + ((at - p1) * (seg[i + 2 + b] - q1)) / (p2 - p1))
+    }
+  }
+  return out.sort((x, y) => x - y)
+}
+
+/** El tramo [lo, hi] de los cortes (par-impar) que contiene a `pos`, o null. */
+export function spanAround(cuts: number[], pos: number): [number, number] | null {
+  for (let k = 0; k + 1 < cuts.length; k += 2) {
+    if (cuts[k] <= pos && pos <= cuts[k + 1]) return [cuts[k], cuts[k + 1]]
+  }
+  return null
 }
 
 export function furnitureProp(tags: Tags): number {

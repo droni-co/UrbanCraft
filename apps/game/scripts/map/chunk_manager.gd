@@ -248,6 +248,7 @@ func _process(_delta: float) -> void:
 		var ground_bytes: PackedByteArray = data.ground
 		var prop_bytes: PackedByteArray = data.props
 		var level_bytes: PackedByteArray = data.get("levels", PackedByteArray())
+		var roof_bytes: PackedByteArray = data.get("roofs", PackedByteArray())
 		var row: int = job.row
 		var end_row := mini(row + rows_left, chunk_size)
 
@@ -261,7 +262,10 @@ func _process(_delta: float) -> void:
 				ground.set_cell(cell, WorldTiles.SOURCE_GROUND, WorldTiles.pick_ground(kind, gx, gy))
 				if buildings and WorldTiles.is_building(kind):
 					var levels := level_bytes[i] if i < level_bytes.size() else 0
-					buildings.set_cell(cell, WorldTiles.building_source(WorldTiles.building_floors(kind, levels)), WorldTiles.pick_building(kind, gx, gy))
+					var source := WorldTiles.building_source(WorldTiles.building_floors(kind, levels))
+					var coords := WorldTiles.pick_building(kind, gx, gy)
+					var roof := roof_bytes[i] if i < roof_bytes.size() else 0
+					buildings.set_cell(cell, source, coords, RoofStyles.alternative(buildings.tile_set, source, coords, roof))
 				var prop := prop_bytes[i]
 				if prop != WorldTiles.NO_PROP:
 					props.set_cell(cell, WorldTiles.SOURCE_PROPS, WorldTiles.pick_prop(prop, gx, gy))
@@ -318,6 +322,8 @@ func _decode(payload: Variant) -> Dictionary:
 		"props": prop_bytes,
 		# Pisos por celda (chunks sin este campo: se usan los típicos por estilo).
 		"levels": _decode_levels(p.get("levels")),
+		# Tejado de cada celda (ver RoofStyles); chunks viejos: techos planos.
+		"roofs": _decode_levels(p.get("roofs")),
 		"pois": p.get("pois", []),
 		"labels": p.get("labels", []),
 		"district": str(p.get("district", "")) if p.get("district") != null else "",

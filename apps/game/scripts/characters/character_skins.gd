@@ -4,11 +4,16 @@ extends RefCounted
 ## personaje elegible, con id = nombre del archivo sin extensión ("player03").
 ## Para agregar uno basta con poner su hoja ahí (formato en assets/art/README.md).
 ##
-## Hoja: 5 columnas (quieto + 4 pasos) x 8 filas (direcciones) de 32x48, con los
-## pies en (16, 44) de cada frame. Si las filas están un poco corridas (el
-## dibujo no cae justo cada 48 px), se alinean al cargar: cada fila se mueve
-## en bloque para que su píxel más bajo quede en la línea de los pies. El PNG
-## no se modifica.
+## Dos formatos de hoja, 8 filas (direcciones) de frames de 32x48 con los pies
+## en (16, 44); se distinguen por el ancho:
+##
+## - Animada (512 px lógicos de ancho, 16 columnas): 0-3 quieto respirando,
+##   4-11 caminata, 12-15 saludo. La arma tools/layer_art/char_sheet.py, ya
+##   alineada.
+## - Simple (160 px lógicos, 5 columnas): quieto + 4 pasos. Si las filas están
+##   un poco corridas (el dibujo no cae justo cada 48 px), se alinean al cargar:
+##   cada fila se mueve en bloque para que su píxel más bajo quede en la línea
+##   de los pies. El PNG no se modifica.
 ##
 ## La hoja puede venir a una escala entera (x2, x4… como el resto del arte):
 ## se detecta por su ancho, se muestra al mismo tamaño en el mundo y con filtro
@@ -21,12 +26,20 @@ const FRAME_SIZE := Vector2i(32, 48)
 const FEET := Vector2i(16, 44)
 const WALK_FRAMES := 4
 const WALK_FPS := 8.0
+## Hoja animada: columnas de cada animación y su velocidad.
+const ANIMATED_COLUMNS := 16
+const ANIMATED := {
+	"idle": {"from": 0, "count": 4, "fps": 3.0, "loop": true},
+	"walk": {"from": 4, "count": 8, "fps": 11.0, "loop": true},
+	"wave": {"from": 12, "count": 4, "fps": 6.0, "loop": true},
+}
 ## Opacidad mínima para contar un píxel como dibujo (ignora restos casi transparentes).
 const ALPHA_THRESHOLD := 0.16
 
 static var _sheets := {}  # id -> Texture2D alineada
 static var _frames := {}  # id -> SpriteFrames
 static var _scales := {}  # id -> escala de la hoja (1 = pixel art)
+static var _animated := {}  # id -> true si es una hoja animada (16 columnas)
 
 
 ## Ids de los personajes disponibles, ordenados ("player01", "player02"…).
@@ -64,7 +77,8 @@ static func display_name(id: String) -> String:
 	return id.capitalize()
 
 
-## Animaciones idle_<dir> / walk_<dir> del personaje (compartidas y cacheadas).
+## Animaciones idle_<dir> / walk_<dir> (y wave_<dir> en las hojas animadas)
+## del personaje, compartidas y cacheadas.
 static func frames(id: Variant) -> SpriteFrames:
 	var skin := resolve(id)
 	if skin.is_empty():
@@ -75,6 +89,16 @@ static func frames(id: Variant) -> SpriteFrames:
 		sprite_frames.remove_animation("default")
 		for row in DIRECTIONS.size():
 			var dir := DIRECTIONS[row]
+			if _animated.get(skin, false):
+				for anim: String in ANIMATED:
+					var spec: Dictionary = ANIMATED[anim]
+					var anim_name: String = anim + "_" + dir
+					sprite_frames.add_animation(anim_name)
+					sprite_frames.set_animation_speed(anim_name, spec.fps)
+					sprite_frames.set_animation_loop(anim_name, spec.loop)
+					for col in range(spec.from, spec.from + spec.count):
+						sprite_frames.add_frame(anim_name, frame(sheet, col, row))
+				continue
 			sprite_frames.add_animation("idle_" + dir)
 			sprite_frames.add_frame("idle_" + dir, frame(sheet, 0, row))
 			sprite_frames.add_animation("walk_" + dir)
@@ -83,6 +107,27 @@ static func frames(id: Variant) -> SpriteFrames:
 				sprite_frames.add_frame("walk_" + dir, frame(sheet, col, row))
 		_frames[skin] = sprite_frames
 	return _frames[skin]
+
+
+## Cuánto dura un saludo (wave_<dir>) antes de volver a quieto.
+const WAVE_SECONDS := 1.6
+
+
+## Nombre de la animación a mostrar. El saludo solo existe en las hojas animadas;
+## en las simples queda quieto.
+static func animation_for(sprite: AnimatedSprite2D, moving: bool, waving: bool, dir: String) -> String:
+	if waving and not moving and sprite and sprite.sprite_frames.has_animation("wave_" + dir):
+		return "wave_" + dir
+	return ("walk_" if moving else "idle_") + dir
+
+
+## Respiración procedural para las hojas simples (su "quieto" es un solo
+## cuadro): estira el sprite apenas desde los pies. Las animadas ya respiran.
+static func breathe(sprite: AnimatedSprite2D, moving: bool, time: float) -> void:
+	if sprite == null:
+		return
+	var still := not moving and sprite.sprite_frames.get_frame_count(sprite.animation) <= 1
+	sprite.scale = Vector2(1.0, 1.0 + 0.018 * sin(time * 2.4)) if still else Vector2.ONE
 
 
 ## Sprite animado con los pies en el origen. null si no hay hojas.
@@ -122,8 +167,11 @@ static func sheet_texture(id: String) -> Texture2D:
 		if image.is_compressed():
 			image.decompress()
 		image.convert(Image.FORMAT_RGBA8)
-		var k := maxi(1, image.get_width() / (FRAME_SIZE.x * (WALK_FRAMES + 1)))
-		var aligned := align_rows(image, k)
+		var animated := image.get_width() % (FRAME_SIZE.x * ANIMATED_COLUMNS) == 0
+		var columns := ANIMATED_COLUMNS if animated else WALK_FRAMES + 1
+		var k := maxi(1, image.get_width() / (FRAME_SIZE.x * columns))
+		# La hoja animada ya viene alineada cuadro por cuadro.
+		var aligned := image if animated else align_rows(image, k)
 		if k > 1:
 			aligned.generate_mipmaps()
 		var texture := ImageTexture.create_from_image(aligned)
@@ -131,6 +179,7 @@ static func sheet_texture(id: String) -> Texture2D:
 			# Se usa con regiones en px del mundo (32x48 por frame).
 			texture.set_size_override(image.get_size() / k)
 		_scales[id] = k
+		_animated[id] = animated
 		_sheets[id] = texture
 	return _sheets[id]
 
