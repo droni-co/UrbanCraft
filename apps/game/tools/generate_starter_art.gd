@@ -1,27 +1,40 @@
 extends SceneTree
 ## Genera el arte inicial EDITABLE del juego en assets/art/ (un PNG por tile,
 ## variante y personaje). Es un punto de partida: edítalos o reemplázalos con
-## tu propio arte (Aseprite, LibreSprite, Krita, GIMP...).
+## tu propio arte (Krita, GIMP, Photoshop, Aseprite...).
 ##
 ## NUNCA sobrescribe un archivo que ya existe (tus cambios están a salvo).
 ## Para regenerar todo desde cero:  pnpm game:art:reset   (usa --force)
 ##
 ## Especificaciones (tamaños, anclas, nombres): assets/art/README.md
 ##
+## Estilo ilustrado / suave, a WorldTiles.ART_SCALE (x4) del tamaño del mundo:
+## todo se describe en px LÓGICOS (un tile mide 64x32) y el lienzo (Canvas)
+## pinta al doble de la resolución final y luego reduce, así los bordes salen
+## con antialias. Luz desde arriba a la izquierda.
+##
 ## Las texturas de suelo son "sin costuras": el ruido es periódico sobre la
 ## grilla isométrica (u, v), así un tile encaja con sus vecinos y con las otras
 ## variantes del mismo tipo (comparten la base; solo cambian los detalles).
+## Además se pintan un poco más allá del rombo (BLEED) para que, con filtro
+## lineal, no se vean rendijas entre tiles.
 
 const ART := "res://assets/art"
+const S := WorldTiles.ART_SCALE
 const W := 64
 const H := 32
 const PROP := Vector2i(64, 64)
-## Base del prop (centro del rombo) dentro de su imagen 64x64.
-const PROP_BASE := Vector2i(32, 48)
+## Base del prop (centro del rombo) dentro de su imagen, en px lógicos.
+const PROP_BASE := Vector2(32, 48)
 const FRAME := Vector2i(32, 48)
 const FEET := Vector2i(16, 44)
 const DIRECTIONS: PackedStringArray = ["e", "se", "s", "sw", "w", "nw", "n", "ne"]
 const WALK_FRAMES := 4
+## Cuánto se pinta el suelo fuera del rombo (en px lógicos, hacia afuera).
+const BLEED := 0.8
+const CLEAR := Color(0, 0, 0, 0)
+## Dirección de la luz (x a la derecha, y hacia abajo, z hacia la cámara).
+const LIGHT := Vector3(-0.5, -0.66, 0.56)
 
 var force := false
 var written := 0
@@ -30,14 +43,30 @@ var kept := 0
 
 func _initialize() -> void:
 	force = "--force" in OS.get_cmdline_user_args()
+	var t0 := Time.get_ticks_msec()
 	_ground_tiles()
 	_props()
 	_buildings()
 	_poi_icons()
 	_player_sheet()
-	print("Arte inicial: %d archivos escritos, %d existentes conservados%s" % [
-		written, kept, "" if force else " (usa --force para regenerarlos)"])
+	print("Arte inicial (x%d): %d archivos escritos, %d existentes conservados%s · %.1f s" % [
+		S, written, kept, "" if force else " (usa --force para regenerarlos)", (Time.get_ticks_msec() - t0) / 1000.0])
 	quit()
+
+
+## true si hay que generar el archivo (no existe o --force).
+func _wanted(relative: String) -> bool:
+	if force:
+		return true
+	var path := ProjectSettings.globalize_path(ART + "/" + relative)
+	var dir := path.get_base_dir()
+	var stem := relative.get_file().get_basename().get_slice("@", 0)
+	if DirAccess.dir_exists_absolute(dir):
+		for existing in DirAccess.get_files_at(dir):
+			if existing.get_extension() == "png" and existing.get_basename().get_slice("@", 0) == stem:
+				kept += 1
+				return false
+	return true
 
 
 func _write(relative: String, img: Image) -> void:
@@ -47,22 +76,84 @@ func _write(relative: String, img: Image) -> void:
 	# El peso va en el nombre (grass_1@3.png) y el usuario puede cambiarlo:
 	# se compara por el nombre sin el peso.
 	var stem := relative.get_file().get_basename().get_slice("@", 0)
-	var same: Array[String] = []
 	for existing in DirAccess.get_files_at(dir):
 		if existing.get_extension() == "png" and existing.get_basename().get_slice("@", 0) == stem:
-			same.append(existing)
-	if not same.is_empty() and not force:
-		kept += 1
-		return
-	for existing in same:
-		DirAccess.remove_absolute(dir.path_join(existing))
+			DirAccess.remove_absolute(dir.path_join(existing))
 	img.save_png(path)
 	written += 1
 
 
 # =============================================================================
-# Ruido periódico y utilidades de rombo
+# Lienzo, ruido y luz
 # =============================================================================
+
+## Lienzo en px lógicos. Pinta a ART_SCALE * SS px reales por px lógico y al
+## terminar (finish) reduce a ART_SCALE: los bordes duros quedan suaves.
+class Canvas:
+	const SS := 2
+	var art_scale: int
+	var u: float
+	var img: Image
+	var logical: Vector2i
+
+	func _init(size: Vector2i, scale: int) -> void:
+		art_scale = scale
+		u = float(scale * SS)
+		logical = size
+		img = Image.create_empty(int(size.x * u), int(size.y * u), false, Image.FORMAT_RGBA8)
+
+	## Recorre los píxeles cuyo centro cae en `rect` (px lógicos):
+	## f(p: Vector2) -> Color, con p en px lógicos. Alfa 0 = no pinta.
+	func each(rect: Rect2, f: Callable) -> void:
+		var x0 := maxi(0, floori(rect.position.x * u))
+		var y0 := maxi(0, floori(rect.position.y * u))
+		var x1 := mini(img.get_width(), ceili(rect.end.x * u))
+		var y1 := mini(img.get_height(), ceili(rect.end.y * u))
+		for y in range(y0, y1):
+			var py := (y + 0.5) / u
+			for x in range(x0, x1):
+				var c: Color = f.call(Vector2((x + 0.5) / u, py))
+				if c.a <= 0.0:
+					continue
+				if c.a >= 1.0:
+					img.set_pixel(x, y, c)
+				else:
+					img.set_pixel(x, y, img.get_pixel(x, y).blend(c))
+
+	func ellipse(center: Vector2, radius: Vector2, color: Color) -> void:
+		each(Rect2(center - radius, radius * 2.0), func(p: Vector2) -> Color:
+			return color if ((p - center) / radius).length_squared() <= 1.0 else Color(0, 0, 0, 0))
+
+	## Anillo elíptico de grosor `width` (px lógicos, aprox.).
+	func ring(center: Vector2, radius: Vector2, width: float, color: Color) -> void:
+		var pad := Vector2(width, width)
+		each(Rect2(center - radius - pad, radius * 2.0 + pad * 2.0), func(p: Vector2) -> Color:
+			var d := ((p - center) / radius).length()
+			return color if absf(d - 1.0) * minf(radius.x, radius.y) <= width * 0.5 else Color(0, 0, 0, 0))
+
+	func poly(pts: PackedVector2Array, color: Color) -> void:
+		var r := Rect2(pts[0], Vector2.ZERO)
+		for q in pts:
+			r = r.expand(q)
+		each(r, func(p: Vector2) -> Color:
+			return color if Geometry2D.is_point_in_polygon(p, pts) else Color(0, 0, 0, 0))
+
+	## Trazo redondeado de a a b, de radio r.
+	func line(a: Vector2, b: Vector2, r: float, color: Color) -> void:
+		var rect := Rect2(a, Vector2.ZERO).expand(b).grow(r)
+		each(rect, func(p: Vector2) -> Color:
+			return color if p.distance_to(Geometry2D.get_closest_point_to_segment(p, a, b)) <= r else Color(0, 0, 0, 0))
+
+	func polyline(pts: PackedVector2Array, r: float, color: Color) -> void:
+		for i in pts.size() - 1:
+			line(pts[i], pts[i + 1], r, color)
+
+	func finish() -> Image:
+		var out := img.duplicate() as Image
+		out.fix_alpha_edges()
+		out.resize(logical.x * art_scale, logical.y * art_scale, Image.INTERPOLATE_BILINEAR)
+		return out
+
 
 class PeriodicNoise:
 	var grid: int
@@ -94,31 +185,92 @@ class PeriodicNoise:
 		return values[posmod(y, grid) * grid + posmod(x, grid)]
 
 
-## Medio ancho de la fila y del rombo 2:1 (bordes escalonados que encajan).
-func _half_width(y: int) -> int:
-	return (y + 1) * 2 if y < H / 2 else (H - y) * 2
+## Ruido fractal periódico (varias octavas), de 0 a 1.
+class Fbm:
+	var octaves: Array[PeriodicNoise] = []
+	var weights := PackedFloat32Array()
+
+	func _init(base_grid: int, count: int, noise_seed: int) -> void:
+		var w := 1.0
+		var total := 0.0
+		for i in count:
+			octaves.append(PeriodicNoise.new(base_grid << i, noise_seed + i * 101))
+			weights.append(w)
+			total += w
+			w *= 0.5
+		for i in count:
+			weights[i] /= total
+
+	func at(uv: Vector2) -> float:
+		var n := 0.0
+		for i in octaves.size():
+			n += octaves[i].at(uv.x, uv.y) * weights[i]
+		return n
 
 
-func _in_diamond(x: int, y: int, margin := 0) -> bool:
-	if y < margin or y >= H - margin:
-		return false
-	var hw := _half_width(y) - margin * 2
-	return x >= W / 2 - hw and x < W / 2 + hw
-
-
-## Coordenadas isométricas del píxel: el tile vecino está en u+1 o v+1.
-func _uv(x: int, y: int) -> Vector2:
-	var fx := (x + 0.5) / W
-	var fy := (y + 0.5) / H
+## Coordenadas isométricas de un punto (px lógicos): el tile vecino está en u+1 o v+1.
+func _uv(p: Vector2) -> Vector2:
+	var fx := p.x / W
+	var fy := p.y / H
 	return Vector2(fx + fy, fy - fx)
+
+
+## Punto (px lógicos) de unas coordenadas isométricas (inversa de _uv).
+func _from_uv(u: float, v: float) -> Vector2:
+	return Vector2((u - v) * 0.5 * W, (u + v) * 0.5 * H)
+
+
+## 0 en el centro del rombo, 1 en su borde.
+func _diamond(p: Vector2) -> float:
+	return absf(p.x - W * 0.5) / (W * 0.5) + absf(p.y - H * 0.5) / (H * 0.5)
+
+
+## Distancia (aprox., px lógicos) del borde del rombo hacia adentro -> valor de _diamond.
+func _diamond_margin(margin: float) -> float:
+	return 1.0 - margin / 14.3
+
+
+func _random_point(rng: RandomNumberGenerator, margin: float) -> Vector2:
+	for i in 64:
+		var p := Vector2(rng.randf_range(0, W), rng.randf_range(0, H))
+		if _diamond(p) <= _diamond_margin(margin):
+			return p
+	return Vector2(W, H) * 0.5
+
+
+## Valor fijo (-1..1) por píxel real: grano fino de la superficie.
+func _grain(p: Vector2, salt := 0) -> float:
+	return WorldTiles.cell_hash(int(p.x * 8.0), int(p.y * 8.0), 977 + salt) / 1073741823.5 - 1.0
+
+
+func _sstep(e0: float, e1: float, x: float) -> float:
+	return smoothstep(e0, e1, x)
 
 
 func _shade(c: Color, amount: float) -> Color:
 	return c.lightened(amount) if amount > 0.0 else c.darkened(-amount)
 
 
+## Color iluminado: d = -1 (sombra, más frío) .. 0 (base) .. 1 (luz, más cálido).
+func _lit(base: Color, d: float) -> Color:
+	d = clampf(d, -1.0, 1.0)
+	if d >= 0.0:
+		return base.lerp(base.lightened(0.3).lerp(Color("fff1d0"), 0.14), d)
+	return base.lerp(base.darkened(0.45).lerp(Color("1b2142"), 0.2), -d)
+
+
+## Luz difusa de una normal (-1..1).
+func _diffuse(n: Vector3) -> float:
+	return n.normalized().dot(LIGHT.normalized())
+
+
+## Normal de una esfera: q = punto relativo al centro / radio (|q| <= 1).
+func _sphere_normal(q: Vector2) -> Vector3:
+	return Vector3(q.x, q.y, sqrt(maxf(0.0, 1.0 - q.length_squared())))
+
+
 # =============================================================================
-# Suelo
+# Suelo (64x32 lógicos -> 256x128)
 # =============================================================================
 
 ## Nombre de archivo -> pintor. Las variantes comparten la textura base.
@@ -146,426 +298,555 @@ func _ground_tiles() -> void:
 	for kind: String in specs:
 		var names: Array = specs[kind]
 		for variant in names.size():
-			var img := Image.create_empty(W, H, false, Image.FORMAT_RGBA8)
+			var relative := "tiles/ground/%s.png" % names[variant]
+			if not _wanted(relative):
+				continue
+			var c := Canvas.new(Vector2i(W, H), S)
 			var rng := RandomNumberGenerator.new()
 			rng.seed = hash(kind) + variant * 7919
-			call("_paint_" + kind, img, variant, rng)
-			_write("tiles/ground/%s.png" % names[variant], img)
+			call("_paint_" + kind, c, variant, rng)
+			_write(relative, c.finish())
 
 
-func _fill(img: Image, painter: Callable) -> void:
-	for y in H:
-		for x in W:
-			if _in_diamond(x, y):
-				img.set_pixel(x, y, painter.call(x, y, _uv(x, y)))
+## Pinta el rombo (y BLEED más allá) con painter(p, uv) -> Color.
+func _fill(c: Canvas, painter: Callable) -> void:
+	var limit := 1.0 + BLEED / 14.3
+	c.each(Rect2(0, 0, W, H), func(p: Vector2) -> Color:
+		if _diamond(p) > limit:
+			return CLEAR
+		return painter.call(p, _uv(p)))
 
 
-func _spot(img: Image, x: int, y: int, c: Color) -> void:
-	if _in_diamond(x, y, 1):
-		img.set_pixel(x, y, c)
+## Mezcla de tres tonos según t (0..1).
+func _tones(a: Color, b: Color, c: Color, t: float) -> Color:
+	return a.lerp(b, clampf(t * 2.0, 0.0, 1.0)) if t < 0.5 else b.lerp(c, clampf(t * 2.0 - 1.0, 0.0, 1.0))
 
 
-func _random_point(rng: RandomNumberGenerator, margin: int) -> Vector2i:
-	for i in 64:
-		var p := Vector2i(rng.randi_range(0, W - 1), rng.randi_range(0, H - 1))
-		if _in_diamond(p.x, p.y, margin):
-			return p
-	return Vector2i(W / 2, H / 2)
+## Mata de pasto: hojas finas en abanico.
+func _tuft(c: Canvas, at: Vector2, rng: RandomNumberGenerator, dark: Color, light: Color) -> void:
+	var blades := rng.randi_range(3, 5)
+	for i in blades:
+		var k := (i - (blades - 1) * 0.5)
+		var base := at + Vector2(k * 0.45, 0)
+		var tip := base + Vector2(k * 0.55 + rng.randf_range(-0.3, 0.3), -rng.randf_range(1.4, 2.4))
+		var col := dark if i % 2 == 0 else light
+		c.poly(PackedVector2Array([base + Vector2(-0.28, 0), base + Vector2(0.28, 0), tip]), col)
 
 
-func _paint_grass(img: Image, variant: int, rng: RandomNumberGenerator) -> void:
-	var base := PeriodicNoise.new(4, 11)
-	var fine := PeriodicNoise.new(8, 12)
-	# Contraste bajo en la base (se repite en cada tile); la variedad la dan
-	# los detalles y las variantes.
-	var dark := Color("5a9c44")
-	var mid := Color("62a548")
-	var light := Color("6aad4d")
-	_fill(img, func(x: int, y: int, uv: Vector2) -> Color:
-		var n := base.at(uv.x, uv.y) * 0.65 + fine.at(uv.x, uv.y) * 0.35
-		var c := dark if n < 0.4 else (mid if n < 0.62 else light)
-		var r := rng.randf()
-		if r < 0.05:
-			c = c.darkened(0.12)
-		elif r > 0.965:
-			c = c.lightened(0.12)
-		return c)
-	# Matas de pasto: una hoja clara con sombra a los lados.
-	for i in [7, 12, 7, 5][variant]:
-		var p := _random_point(rng, 3)
-		_spot(img, p.x, p.y - 1, Color("8cc663"))
-		_spot(img, p.x - 1, p.y, Color("447f35"))
-		_spot(img, p.x + 1, p.y, Color("447f35"))
-		_spot(img, p.x, p.y, Color("74b653"))
+func _flower(c: Canvas, at: Vector2, petal: Color) -> void:
+	c.line(at + Vector2(0, 0.3), at + Vector2(0, 1.6), 0.18, Color("3f7a33"))
+	for a in 5:
+		var d := Vector2.from_angle(TAU * a / 5.0 - PI / 2.0) * 0.55
+		c.ellipse(at + Vector2(d.x, d.y * 0.7), Vector2(0.45, 0.36), petal)
+	c.ellipse(at, Vector2(0.3, 0.25), Color("f2c94c"))
+
+
+## Piedrita con volumen.
+func _pebble(c: Canvas, at: Vector2, r: Vector2, base: Color) -> void:
+	c.ellipse(at + Vector2(0.25, r.y * 0.55), r * Vector2(1.0, 0.7), Color(0, 0, 0, 0.22))
+	c.each(Rect2(at - r, r * 2.0), func(p: Vector2) -> Color:
+		var q := (p - at) / r
+		if q.length_squared() > 1.0:
+			return CLEAR
+		return _lit(base, _diffuse(_sphere_normal(q)) * 1.2 - 0.15))
+
+
+func _paint_grass(c: Canvas, variant: int, rng: RandomNumberGenerator) -> void:
+	var tone := Fbm.new(4, 3, 11)
+	var leafy := PeriodicNoise.new(16, 12)
+	_fill(c, func(p: Vector2, uv: Vector2) -> Color:
+		var n := tone.at(uv)
+		var col := _tones(Color("4f9340"), Color("5fa548"), Color("74b857"), _sstep(0.28, 0.72, n))
+		col = _shade(col, (leafy.at(uv.x, uv.y) - 0.5) * 0.12 + _grain(p) * 0.035)
+		return col)
+	for i in [34, 52, 34, 24][variant]:
+		_tuft(c, _random_point(rng, 3.0), rng, Color("467f37"), Color("86c45f"))
 	if variant == 2:  # flores
-		for i in 6:
-			var p := _random_point(rng, 4)
-			_spot(img, p.x, p.y, [Color("f5f0e1"), Color("f2d45c"), Color("e98ab0")][i % 3])
-			_spot(img, p.x, p.y + 1, Color("3f7a33"))
-	if variant == 3:  # trébol más oscuro
-		var c := _random_point(rng, 7)
-		for dy in range(-2, 3):
-			for dx in range(-5, 6):
-				if (dx * dx) / 25.0 + (dy * dy) / 4.0 <= 1.0 and rng.randf() < 0.75:
-					_spot(img, c.x + dx, c.y + dy, Color("4a8a3a") if rng.randf() < 0.7 else Color("6fb04f"))
+		for i in 8:
+			_flower(c, _random_point(rng, 4.0), [Color("f7f2e6"), Color("f2d45c"), Color("ec8fb5")][i % 3])
+	if variant == 3:  # trébol
+		var center := _random_point(rng, 8.0)
+		for i in 40:
+			var d := Vector2(rng.randf_range(-5, 5), rng.randf_range(-2.2, 2.2))
+			if (d / Vector2(5, 2.2)).length() <= 1.0:
+				c.ellipse(center + d, Vector2(0.55, 0.4), Color("3f7d34") if rng.randf() < 0.7 else Color("6fb150"))
 
 
-func _paint_grass_dark(img: Image, variant: int, rng: RandomNumberGenerator) -> void:
-	var base := PeriodicNoise.new(4, 21)
-	_fill(img, func(x: int, y: int, uv: Vector2) -> Color:
-		var n := base.at(uv.x, uv.y)
-		var c := Color("3a6831") if n < 0.42 else (Color("3f7136") if n < 0.66 else Color("44783a"))
-		var r := rng.randf()
-		if r < 0.06:
-			c = Color("6b5232")  # hojarasca
-		elif r < 0.1:
-			c = c.darkened(0.15)
-		return c)
-	for i in [3, 6, 4][variant]:
-		var p := _random_point(rng, 3)
-		_spot(img, p.x, p.y, Color("8a6a3e"))
-		_spot(img, p.x + 1, p.y, Color("5c4428"))
+func _paint_grass_dark(c: Canvas, variant: int, rng: RandomNumberGenerator) -> void:
+	var tone := Fbm.new(4, 3, 21)
+	_fill(c, func(p: Vector2, uv: Vector2) -> Color:
+		var col := _tones(Color("33602c"), Color("3d6f35"), Color("4b8040"), _sstep(0.25, 0.75, tone.at(uv)))
+		return _shade(col, _grain(p) * 0.05))
+	for i in 14:
+		_tuft(c, _random_point(rng, 3.0), rng, Color("2c5527"), Color("5a9248"))
+	for i in [6, 12, 8][variant]:  # hojarasca
+		var at := _random_point(rng, 3.0)
+		var leaf: Color = [Color("8a6a3e"), Color("a5783f"), Color("6b5232")][i % 3]
+		c.ellipse(at, Vector2(0.9, 0.45), leaf)
+		c.line(at - Vector2(0.7, 0), at + Vector2(0.7, 0), 0.08, leaf.darkened(0.3))
 	if variant == 2:  # ramita
-		var p := _random_point(rng, 6)
-		for k in 6:
-			_spot(img, p.x + k, p.y + (k / 3), Color("5a4026"))
+		var at := _random_point(rng, 7.0)
+		c.polyline(PackedVector2Array([at, at + Vector2(3, 0.8), at + Vector2(5.5, 1.2)]), 0.3, Color("5a4026"))
+		c.line(at + Vector2(3, 0.8), at + Vector2(4, -0.6), 0.2, Color("5a4026"))
 
 
-func _paint_dirt(img: Image, variant: int, rng: RandomNumberGenerator) -> void:
-	var base := PeriodicNoise.new(4, 31)
-	_fill(img, func(x: int, y: int, uv: Vector2) -> Color:
-		var n := base.at(uv.x, uv.y)
-		var c := Color("936b44") if n < 0.4 else (Color("9b7249") if n < 0.65 else Color("a37a50"))
-		if rng.randf() < 0.07:
-			c = c.darkened(0.15)
-		return c)
-	for i in [4, 8, 3][variant]:  # piedritas
-		var p := _random_point(rng, 3)
-		_spot(img, p.x, p.y, Color("c9b49a"))
-		_spot(img, p.x + 1, p.y, Color("a8957d"))
-		_spot(img, p.x, p.y + 1, Color("6e5034"))
-	if variant == 2:  # charquito seco
-		var c := _random_point(rng, 7)
-		for dy in range(-2, 3):
-			for dx in range(-5, 6):
-				if (dx * dx) / 25.0 + (dy * dy) / 4.0 <= 1.0:
-					_spot(img, c.x + dx, c.y + dy, Color("7d5a39"))
+func _paint_dirt(c: Canvas, variant: int, rng: RandomNumberGenerator) -> void:
+	var tone := Fbm.new(4, 3, 31)
+	_fill(c, func(p: Vector2, uv: Vector2) -> Color:
+		var col := _tones(Color("86603d"), Color("9b7249"), Color("ad875c"), _sstep(0.25, 0.75, tone.at(uv)))
+		return _shade(col, _grain(p) * 0.06))
+	if variant == 2:  # charco seco
+		var at := _random_point(rng, 8.0)
+		c.each(Rect2(at - Vector2(7, 3.5), Vector2(14, 7)), func(p: Vector2) -> Color:
+			var d := ((p - at) / Vector2(6.5, 3.0)).length()
+			return Color(0.35, 0.22, 0.12, 0.35 * (1.0 - _sstep(0.6, 1.0, d))) if d < 1.0 else CLEAR)
+	for i in [6, 11, 4][variant]:
+		var r := rng.randf_range(0.5, 1.0)
+		_pebble(c, _random_point(rng, 3.0), Vector2(r * 1.3, r), Color("b9a690"))
 
 
-func _paint_sand(img: Image, variant: int, rng: RandomNumberGenerator) -> void:
-	var base := PeriodicNoise.new(4, 41)
-	_fill(img, func(x: int, y: int, uv: Vector2) -> Color:
-		var c := Color("dcc488") if base.at(uv.x, uv.y) < 0.5 else Color("e5cf95")
+func _paint_sand(c: Canvas, variant: int, rng: RandomNumberGenerator) -> void:
+	var tone := Fbm.new(4, 2, 41)
+	_fill(c, func(p: Vector2, uv: Vector2) -> Color:
+		var col := Color("d9c086").lerp(Color("e8d39e"), _sstep(0.3, 0.7, tone.at(uv)))
 		# Ondas periódicas (frecuencia entera: encajan con los vecinos).
-		if sin(TAU * (uv.x * 3.0 + uv.y)) > 0.92:
-			c = Color("ecd9a6")
-		if rng.randf() < 0.06:
-			c = c.darkened(0.08)
-		return c)
+		var wave := sin(TAU * (uv.x * 3.0 + uv.y) + tone.at(uv) * 2.0)
+		col = _shade(col, _sstep(0.55, 0.95, wave) * 0.1 - _sstep(-0.95, -0.6, -wave) * 0.03)
+		return _shade(col, _grain(p) * 0.04))
 	if variant == 1:  # conchitas
-		for i in 3:
-			var p := _random_point(rng, 4)
-			_spot(img, p.x, p.y, Color("fbf3e4"))
-			_spot(img, p.x + 1, p.y, Color("d8b9a0"))
+		for i in 4:
+			var at := _random_point(rng, 4.0)
+			c.ellipse(at, Vector2(0.8, 0.55), Color("fbf3e4"))
+			c.line(at + Vector2(-0.4, 0.1), at + Vector2(0.4, 0.1), 0.08, Color("d8b9a0"))
 
 
-func _paint_water(img: Image, variant: int, rng: RandomNumberGenerator) -> void:
-	var base := PeriodicNoise.new(4, 51)
-	_fill(img, func(x: int, y: int, uv: Vector2) -> Color:
-		var n := base.at(uv.x, uv.y)
-		return Color("336fc2") if n < 0.42 else (Color("3876cc") if n < 0.68 else Color("3e7dd2")))
-	# Reflejos: guiones horizontales claros.
-	for i in [5, 7, 6][variant]:
-		var p := _random_point(rng, 3)
-		var length := rng.randi_range(3, 6)
-		for k in length:
-			_spot(img, p.x + k, p.y, Color("7fb2ec") if k > 0 and k < length - 1 else Color("5d98e0"))
+func _paint_water(c: Canvas, variant: int, rng: RandomNumberGenerator) -> void:
+	var tone := Fbm.new(4, 3, 51)
+	_fill(c, func(p: Vector2, uv: Vector2) -> Color:
+		var n := tone.at(uv)
+		var col := _tones(Color("2c64b4"), Color("3674c8"), Color("4385d8"), _sstep(0.25, 0.75, n))
+		var wave := sin(TAU * (uv.x * 2.0 + uv.y * 3.0) + n * 6.0)
+		col = col.lerp(Color("8cc2f2"), _sstep(0.86, 1.0, wave) * 0.45)
+		return col)
+	# Reflejos: guiones claros.
+	for i in [6, 9, 7][variant]:
+		var at := _random_point(rng, 3.0)
+		var length := rng.randf_range(2.0, 4.5)
+		c.line(at, at + Vector2(length, 0), 0.22, Color(0.82, 0.92, 1.0, 0.7))
 	if variant == 2:
-		var p := _random_point(rng, 4)
-		_spot(img, p.x, p.y, Color("c4dcf7"))
+		for i in 3:
+			var at := _random_point(rng, 4.0)
+			c.ellipse(at, Vector2(0.35, 0.35), Color(1, 1, 1, 0.85))
 
 
-func _paint_stone(img: Image, variant: int, rng: RandomNumberGenerator) -> void:
-	# Adoquines: 4x4 por tile en la grilla (u, v), con junta oscura.
+## Adoquines: 4x4 por tile en la grilla (u, v), redondeados, con junta oscura.
+func _paint_stone(c: Canvas, variant: int, rng: RandomNumberGenerator) -> void:
 	var shades := PackedFloat32Array()
 	var srng := RandomNumberGenerator.new()
 	srng.seed = 61
 	for i in 16:
-		shades.append(srng.randf_range(-0.07, 0.07))
-	_fill(img, func(x: int, y: int, uv: Vector2) -> Color:
+		shades.append(srng.randf_range(-0.08, 0.08))
+	var wear := Fbm.new(4, 2, 62)
+	_fill(c, func(p: Vector2, uv: Vector2) -> Color:
 		var a := uv.x * 4.0
 		var b := uv.y * 4.0
-		var fa := a - floorf(a)
-		var fb := b - floorf(b)
-		if fa < 0.12 or fb < 0.12:
-			return Color("6f6f78")
-		var c := _shade(Color("9c9ca6"), shades[posmod(floori(a), 4) * 4 + posmod(floori(b), 4)])
-		if fa < 0.3 and fb < 0.3:
-			c = c.lightened(0.08)  # borde iluminado
-		if rng.randf() < 0.04:
-			c = c.darkened(0.1)
-		return c)
-	if variant == 1:  # desgaste
+		var q := Vector2(a - floorf(a) - 0.5, b - floorf(b) - 0.5)
+		var corner := (q.abs() - Vector2(0.3, 0.3)).max(Vector2.ZERO).length() - 0.12
+		if corner > 0.0:
+			return _shade(Color("67646a"), _grain(p) * 0.06)
+		var col := _shade(Color("9d9ca5"), shades[posmod(floori(a), 4) * 4 + posmod(floori(b), 4)])
+		# Bisel: el borde que mira a la luz (-u) más claro, el opuesto más oscuro.
+		var edge := _sstep(-0.1, 0.0, corner)
+		var facing := -(q.normalized().x * 0.9 + q.normalized().y * 0.35)
+		col = _shade(col, edge * facing * 0.22 + (wear.at(uv) - 0.5) * 0.1 + _grain(p) * 0.03)
+		return col)
+	if variant == 1:  # desgaste y musgo entre juntas
 		for i in 10:
-			var p := _random_point(rng, 2)
-			_spot(img, p.x, p.y, Color("80808a"))
+			var at := _random_point(rng, 2.0)
+			c.ellipse(at, Vector2(0.6, 0.35), Color(0.36, 0.5, 0.27, 0.6))
 
 
-func _paint_asphalt(img: Image, variant: int, rng: RandomNumberGenerator) -> void:
-	var base := PeriodicNoise.new(8, 71)
-	_fill(img, func(x: int, y: int, uv: Vector2) -> Color:
-		var c := Color("44474f") if base.at(uv.x, uv.y) < 0.5 else Color("4a4d55")
-		var r := rng.randf()
-		if r < 0.05:
-			c = Color("5a5d66")
-		elif r > 0.96:
-			c = Color("383a41")
-		return c)
+func _paint_asphalt(c: Canvas, variant: int, rng: RandomNumberGenerator) -> void:
+	var tone := Fbm.new(8, 2, 71)
+	_fill(c, func(p: Vector2, uv: Vector2) -> Color:
+		var col := Color("41444c").lerp(Color("4b4e57"), _sstep(0.3, 0.7, tone.at(uv)))
+		var g := _grain(p)
+		col = _shade(col, g * 0.06)
+		if g > 0.94:
+			col = col.lightened(0.18)  # piedrita del agregado
+		return col)
 	if variant == 1:  # grieta
-		var p := _random_point(rng, 6)
-		for k in 14:
-			_spot(img, p.x, p.y, Color("2f3137"))
-			p += Vector2i(1 if rng.randf() < 0.8 else 0, rng.randi_range(-1, 1) if k % 2 == 0 else 0)
+		var at := _random_point(rng, 7.0)
+		var pts := PackedVector2Array([at])
+		for k in 7:
+			at += Vector2(rng.randf_range(1.0, 2.0), rng.randf_range(-0.8, 0.8))
+			pts.append(at)
+		c.polyline(pts, 0.32, Color("2c2e33"))
+		c.line(pts[3], pts[3] + Vector2(1.0, 1.4), 0.2, Color("2c2e33"))
 	if variant == 2:  # alcantarilla
-		var c := Vector2i(W / 2, H / 2)
-		for dy in range(-4, 5):
-			for dx in range(-8, 9):
-				var d := (dx * dx) / 64.0 + (dy * dy) / 16.0
-				if d <= 1.0:
-					var col := Color("5f636c") if d > 0.65 else Color("33363c")
-					if d <= 0.65 and posmod(dx + dy * 2, 4) == 0:
-						col = Color("4a4e56")
-					_spot(img, c.x + dx, c.y + dy, col)
+		var center := Vector2(W, H) * 0.5
+		c.ellipse(center + Vector2(0, 0.4), Vector2(8.6, 4.4), Color(0, 0, 0, 0.3))
+		c.ellipse(center, Vector2(8.5, 4.25), Color("666a73"))
+		c.each(Rect2(center - Vector2(7, 3.5), Vector2(14, 7)), func(p: Vector2) -> Color:
+			var q := (p - center) / Vector2(7, 3.5)
+			if q.length() > 1.0:
+				return CLEAR
+			var bars := posmod(int(floorf((p.x - p.y * 2.0) / 1.6)), 2) == 0
+			return Color("2f3237") if bars else Color("4d515a"))
 
 
-func _paint_pavement(img: Image, variant: int, rng: RandomNumberGenerator) -> void:
-	# Baldosas: 2x2 por tile, con junta.
+func _paint_pavement(c: Canvas, variant: int, rng: RandomNumberGenerator) -> void:
+	# Baldosas: 2x2 por tile, con junta y un leve bisel.
 	var shades := PackedFloat32Array([0.0, -0.04, 0.03, -0.02])
-	_fill(img, func(x: int, y: int, uv: Vector2) -> Color:
+	var tone := Fbm.new(4, 2, 72)
+	_fill(c, func(p: Vector2, uv: Vector2) -> Color:
 		var a := uv.x * 2.0
 		var b := uv.y * 2.0
 		var fa := a - floorf(a)
 		var fb := b - floorf(b)
-		if fa < 0.06 or fb < 0.06:
-			return Color("a39b8c")
-		var c := _shade(Color("c9c2b4"), shades[posmod(floori(a), 2) * 2 + posmod(floori(b), 2)])
-		if rng.randf() < 0.05:
-			c = c.darkened(0.06)
-		return c)
+		if fa < 0.03 or fb < 0.03 or fa > 0.985 or fb > 0.985:
+			return Color("9d9586")
+		var col := _shade(Color("cbc4b6"), shades[posmod(floori(a), 2) * 2 + posmod(floori(b), 2)])
+		if fa < 0.07 or fb < 0.07:
+			col = col.lightened(0.07)
+		elif fa > 0.95 or fb > 0.95:
+			col = col.darkened(0.06)
+		return _shade(col, (tone.at(uv) - 0.5) * 0.06 + _grain(p) * 0.03))
 	if variant == 1:  # baldosa rajada
-		var p := _random_point(rng, 6)
-		for k in 7:
-			_spot(img, p.x + k, p.y + (1 if k > 3 else 0), Color("8e8676"))
+		var at := _random_point(rng, 7.0)
+		c.polyline(PackedVector2Array([at, at + Vector2(2.5, 0.4), at + Vector2(4, 1.4), at + Vector2(6.5, 1.6)]), 0.18, Color("857d6e"))
 	if variant == 2:  # rejilla de desagüe
-		for dy in range(-2, 3):
-			for dx in range(-5, 6):
-				_spot(img, W / 2 + dx, H / 2 + dy, Color("3c3e44") if posmod(dx, 2) == 0 else Color("6a6c72"))
+		var center := Vector2(W, H) * 0.5
+		c.poly(PackedVector2Array([center + Vector2(-6, 0), center + Vector2(0, -3), center + Vector2(6, 0), center + Vector2(0, 3)]), Color("6a6c72"))
+		for k in range(-4, 5):
+			var o := Vector2(k * 0.7, k * 0.35)
+			c.line(center + o + Vector2(-2.2, 1.1), center + o + Vector2(2.2, -1.1) * 0.9, 0.16, Color("33353a"))
 
 
-func _paint_building(img: Image, variant: int, rng: RandomNumberGenerator) -> void:
-	# Tejado de tejas: hileras a lo largo de u con juntas desfasadas.
-	_fill(img, func(x: int, y: int, uv: Vector2) -> Color:
+## Tejado de tejas de barro (casas).
+func _paint_building(c: Canvas, variant: int, rng: RandomNumberGenerator) -> void:
+	var hues := PackedFloat32Array()
+	var srng := RandomNumberGenerator.new()
+	srng.seed = 81
+	for i in 64:
+		hues.append(srng.randf_range(-0.07, 0.07))
+	_fill(c, func(p: Vector2, uv: Vector2) -> Color:
 		var row := uv.y * 8.0
 		var fr := row - floorf(row)
-		var col := uv.x * 8.0 + 0.5 * posmod(floori(row), 2)
-		var fc := col - floorf(col)
-		var c := Color("a9513b")
-		if fr < 0.16:
-			c = Color("7e3a2a")
-		elif fc < 0.1:
-			c = Color("8e4331")
-		elif fr > 0.7:
-			c = Color("bb6248")
-		if rng.randf() < 0.04:
-			c = c.darkened(0.08)
-		return c)
-	if variant == 1:  # chimenea / ventilación
-		var p := _random_point(rng, 7)
-		for dy in range(-3, 2):
-			for dx in range(-3, 4):
-				_spot(img, p.x + dx, p.y + dy, Color("8f9096") if dx < 1 else Color("6c6d73"))
-		for dx in range(-3, 4):
-			_spot(img, p.x + dx, p.y - 4, Color("b4b5ba"))
+		var col_f := uv.x * 8.0 + 0.5 * posmod(floori(row), 2)
+		var fc := col_f - floorf(col_f)
+		var col := _shade(Color("ad553e"), hues[posmod(floori(row), 8) * 8 + posmod(floori(col_f), 8)])
+		# Cada teja: sombra de la hilera de arriba, luz en su lomo.
+		col = _shade(col, -0.32 * (1.0 - _sstep(0.0, 0.22, fr)) + 0.14 * _sstep(0.55, 0.9, fr))
+		col = _shade(col, -0.16 * (1.0 - _sstep(0.0, 0.08, fc)) + 0.08 * sin(fc * PI))
+		return _shade(col, _grain(p) * 0.03))
+	if variant == 1:  # chimenea
+		var at := _random_point(rng, 8.0)
+		_iso_box(c, at, 1.8, 1.8, 4.0, Color("b35f45"))
+		c.poly(_iso_top(at + Vector2(0, -4.0), 1.2, 1.2), Color("2b2523"))
 	if variant == 2:  # claraboya
-		var p := _random_point(rng, 7)
-		for dy in range(-2, 3):
-			for dx in range(-5, 6):
-				var edge := absi(dy) == 2 or absi(dx) == 5
-				_spot(img, p.x + dx, p.y + dy, Color("d7d9de") if edge else (Color("8fb4d6") if dx + dy < 0 else Color("6a8fb3")))
+		_skylight(c, _random_point(rng, 9.0), 0.16, 0.1)
 
 
 ## Ladrillo a la vista (azoteas de Bogotá): hiladas a lo largo de u.
-func _paint_roof_brick(img: Image, variant: int, rng: RandomNumberGenerator) -> void:
-	_fill(img, func(x: int, y: int, uv: Vector2) -> Color:
+func _paint_roof_brick(c: Canvas, variant: int, rng: RandomNumberGenerator) -> void:
+	var hues := PackedFloat32Array()
+	var srng := RandomNumberGenerator.new()
+	srng.seed = 91
+	for i in 50:
+		hues.append(srng.randf_range(-0.09, 0.09))
+	_fill(c, func(p: Vector2, uv: Vector2) -> Color:
 		var row := uv.y * 10.0
 		var fr := row - floorf(row)
-		var col := uv.x * 5.0 + 0.5 * posmod(floori(row), 2)
-		var fc := col - floorf(col)
-		var c := Color("b65a3c") if posmod(floori(col) + floori(row), 3) != 0 else Color("a8513a")
-		if fr < 0.18 or fc < 0.05:
-			c = Color("c9a58c")  # junta de mortero
-		if rng.randf() < 0.05:
-			c = c.darkened(0.08)
-		return c)
+		var col_f := uv.x * 5.0 + 0.5 * posmod(floori(row), 2)
+		var fc := col_f - floorf(col_f)
+		if fr < 0.14 or fc < 0.04:
+			return _shade(Color("c7a389"), _grain(p) * 0.05)  # mortero
+		var col := _shade(Color("b2583b"), hues[posmod(floori(row), 10) * 5 + posmod(floori(col_f), 5)])
+		col = _shade(col, 0.08 * (1.0 - _sstep(0.14, 0.3, fr)) - 0.08 * _sstep(0.8, 1.0, fr))
+		return _shade(col, _grain(p) * 0.05))
 	if variant == 1:
-		_water_tank(img, rng)
+		_water_tank(c, rng)
 	if variant == 2:
-		_vent(img, rng)
+		_vent(c, rng)
 
 
 ## Losa de concreto clara, en paneles.
-func _paint_roof_concrete(img: Image, variant: int, rng: RandomNumberGenerator) -> void:
-	var noise := PeriodicNoise.new(6, 33)
-	_fill(img, func(x: int, y: int, uv: Vector2) -> Color:
-		var c := Color("b9b6ae") if noise.at(uv.x, uv.y) < 0.55 else Color("b1aea6")
+func _paint_roof_concrete(c: Canvas, variant: int, rng: RandomNumberGenerator) -> void:
+	var stains := Fbm.new(4, 3, 33)
+	_fill(c, func(p: Vector2, uv: Vector2) -> Color:
+		var col := Color("bab7af").lerp(Color("a9a69e"), _sstep(0.45, 0.8, stains.at(uv)))
 		var fa := uv.x * 2.0 - floorf(uv.x * 2.0)
 		var fb := uv.y * 2.0 - floorf(uv.y * 2.0)
-		if fa < 0.03 or fb < 0.03:
-			c = Color("9d9a92")
-		if rng.randf() < 0.05:
-			c = c.darkened(0.05)
-		return c)
+		if fa < 0.02 or fb < 0.02:
+			col = Color("97948c")
+		return _shade(col, _grain(p) * 0.035))
 	if variant == 1:
-		_water_tank(img, rng)
+		_water_tank(c, rng)
 	if variant == 2:
-		_ac_unit(img, rng)
+		_ac_unit(c, rng)
 
 
 ## Grava oscura / tela asfáltica (oficinas, comercio alto).
-func _paint_roof_dark(img: Image, variant: int, rng: RandomNumberGenerator) -> void:
-	_fill(img, func(x: int, y: int, uv: Vector2) -> Color:
-		var r := rng.randf()
-		var c := Color("5b6170")
-		if r < 0.25:
-			c = Color("535867")
-		elif r > 0.9:
-			c = Color("6a7080")
-		return c)
+func _paint_roof_dark(c: Canvas, variant: int, rng: RandomNumberGenerator) -> void:
+	var tone := Fbm.new(8, 2, 34)
+	_fill(c, func(p: Vector2, uv: Vector2) -> Color:
+		var col := Color("525867").lerp(Color("5f6676"), _sstep(0.3, 0.7, tone.at(uv)))
+		return _shade(col, _grain(p) * 0.1))
 	if variant == 1:  # claraboya de vidrio
-		var p := _random_point(rng, 8)
-		for dy in range(-3, 4):
-			for dx in range(-7, 8):
-				var edge := absi(dy) == 3 or absi(dx) == 7
-				_spot(img, p.x + dx, p.y + dy, Color("c9ccd2") if edge else (Color("9cc3e6") if dx + dy * 2 < 0 else Color("6f97bd")))
+		_skylight(c, _random_point(rng, 10.0), 0.22, 0.14)
 
 
 ## Edificios públicos (iglesias, colegios, hospitales): teja crema.
-func _paint_roof_civic(img: Image, variant: int, rng: RandomNumberGenerator) -> void:
-	_fill(img, func(x: int, y: int, uv: Vector2) -> Color:
+func _paint_roof_civic(c: Canvas, variant: int, rng: RandomNumberGenerator) -> void:
+	_fill(c, func(p: Vector2, uv: Vector2) -> Color:
 		var row := uv.y * 6.0
 		var fr := row - floorf(row)
-		var c := Color("dcc29a")
-		if fr < 0.15:
-			c = Color("b89c74")
-		elif fr > 0.75:
-			c = Color("e8d2ad")
-		if rng.randf() < 0.04:
-			c = c.darkened(0.06)
-		return c)
+		var col := Color("dbc199")
+		col = _shade(col, -0.25 * (1.0 - _sstep(0.0, 0.2, fr)) + 0.1 * _sstep(0.6, 0.95, fr))
+		col = _shade(col, sin(TAU * uv.x * 24.0) * 0.06)  # tejas de canal
+		return _shade(col, _grain(p) * 0.03))
 	if variant == 1:  # remate / campanario visto desde arriba
-		for dy in range(-4, 5):
-			for dx in range(-8, 9):
-				if absi(dx) / 2 + absi(dy) <= 4:
-					_spot(img, W / 2 + dx, H / 2 + dy, Color("a8553d") if dx < 0 else Color("8e4532"))
+		var center := Vector2(W, H) * 0.5
+		c.poly(PackedVector2Array([center + Vector2(-8, 0), center + Vector2(0, -4), center + Vector2(0, 4)]), Color("b0593f"))
+		c.poly(PackedVector2Array([center + Vector2(8, 0), center + Vector2(0, -4), center + Vector2(0, 4)]), Color("8a432f"))
+		c.ellipse(center, Vector2(0.6, 0.6), Color("e3c35a"))
 
 
 ## Lámina metálica ondulada (bodegas, industria).
-func _paint_roof_industrial(img: Image, variant: int, rng: RandomNumberGenerator) -> void:
-	_fill(img, func(x: int, y: int, uv: Vector2) -> Color:
-		var c := Color("8f9ba7") if posmod(floori(uv.x * 16.0), 2) == 0 else Color("7d8994")
-		if rng.randf() < 0.03:
-			c = c.lightened(0.1)
-		return c)
-	if variant == 1:  # óxido
-		for i in 3:
-			var p := _random_point(rng, 6)
-			for k in 10:
-				_spot(img, p.x + rng.randi_range(-4, 4), p.y + rng.randi_range(-2, 2), Color("9a6a48") if k % 2 == 0 else Color("85593c"))
+func _paint_roof_industrial(c: Canvas, variant: int, rng: RandomNumberGenerator) -> void:
+	var rust := Fbm.new(4, 3, 35)
+	_fill(c, func(p: Vector2, uv: Vector2) -> Color:
+		var col := Color("8996a3")
+		col = _shade(col, sin(TAU * uv.x * 16.0) * 0.12)
+		var fb := uv.y * 2.0 - floorf(uv.y * 2.0)
+		if fb < 0.025:
+			col = col.darkened(0.25)  # traslape de láminas
+		if variant == 1:
+			col = col.lerp(Color("98653f"), _sstep(0.58, 0.7, rust.at(uv)) * 0.85)
+		return _shade(col, _grain(p) * 0.03))
 
 
-## Paso de cebra: asfalto con franjas blancas.
-func _paint_crosswalk(img: Image, _variant: int, rng: RandomNumberGenerator) -> void:
-	_fill(img, func(x: int, y: int, uv: Vector2) -> Color:
-		var c := Color("e6e4dc") if posmod(floori(uv.x * 6.0), 2) == 0 else Color("464951")
-		if rng.randf() < 0.06:
-			c = c.darkened(0.08)
-		return c)
+## Paso de cebra: asfalto con franjas blancas gastadas.
+func _paint_crosswalk(c: Canvas, _variant: int, rng: RandomNumberGenerator) -> void:
+	var wear := Fbm.new(8, 2, 36)
+	_fill(c, func(p: Vector2, uv: Vector2) -> Color:
+		var col := _shade(Color("464951"), _grain(p) * 0.06)
+		if posmod(floori(uv.x * 6.0), 2) == 0:
+			var worn := _sstep(0.66, 0.8, wear.at(uv)) * 0.45
+			col = _shade(Color("e8e6de"), _grain(p) * 0.03).lerp(col, worn)
+		return col)
 
 
 ## Vía férrea: balasto con traviesas y rieles.
-func _paint_rail(img: Image, variant: int, rng: RandomNumberGenerator) -> void:
-	_fill(img, func(x: int, y: int, uv: Vector2) -> Color:
-		var r := rng.randf()
-		var c := Color("8a8478") if r < 0.5 else (Color("7c766b") if r < 0.85 else Color("9d978b"))
+func _paint_rail(c: Canvas, variant: int, rng: RandomNumberGenerator) -> void:
+	var gravel := PeriodicNoise.new(32, 37)
+	_fill(c, func(p: Vector2, uv: Vector2) -> Color:
+		var col := _tones(Color("6f695f"), Color("8a8478"), Color("a29c90"), gravel.at(uv.x, uv.y))
+		col = _shade(col, _grain(p) * 0.08)
 		var fu := uv.x * 4.0 - floorf(uv.x * 4.0)
-		if fu < 0.22:
-			c = Color("6b4f36") if r < 0.8 else Color("5c432e")  # traviesa
+		if fu > 0.05 and fu < 0.25:
+			col = _shade(Color("6b4f36"), (fu - 0.15) * -0.8 + _grain(p, 1) * 0.04)  # traviesa
 		var fv := uv.y - floorf(uv.y)
-		if absf(fv - 0.3) < 0.035 or absf(fv - 0.7) < 0.035:
-			c = Color("b9bec6") if fv < 0.5 else Color("a3a8b0")  # rieles
-		return c)
+		for rail: float in [0.3, 0.7]:
+			var d := fv - rail
+			if absf(d) < 0.05:
+				col = Color("c4c9d1").lerp(Color("7f848c"), _sstep(-0.05, 0.05, d))  # riel
+			elif d > 0.05 and d < 0.08:
+				col = col.darkened(0.25)  # sombra del riel
+		return col)
 	if variant == 1:  # maleza entre el balasto
-		for i in 6:
-			var p := _random_point(rng, 3)
-			_spot(img, p.x, p.y, Color("5f8f3e"))
+		for i in 7:
+			_tuft(c, _random_point(rng, 3.0), rng, Color("4f7f33"), Color("7aa84f"))
 
 
 ## Ciclorruta: pavimento rojo.
-func _paint_cycleway(img: Image, variant: int, rng: RandomNumberGenerator) -> void:
-	_fill(img, func(x: int, y: int, uv: Vector2) -> Color:
-		var r := rng.randf()
-		return Color("a24a3e") if r < 0.6 else (Color("963f35") if r < 0.9 else Color("b25a4c")))
+func _paint_cycleway(c: Canvas, variant: int, rng: RandomNumberGenerator) -> void:
+	var tone := Fbm.new(8, 2, 38)
+	_fill(c, func(p: Vector2, uv: Vector2) -> Color:
+		var col := Color("9a443a").lerp(Color("ab5244"), _sstep(0.3, 0.7, tone.at(uv)))
+		return _shade(col, _grain(p) * 0.06))
 	if variant == 1:  # bicicleta pintada
-		for a in 16:
-			var t := TAU * a / 16.0
-			_spot(img, W / 2 - 5 + roundi(cos(t) * 3), H / 2 + roundi(sin(t) * 2), Color.WHITE)
-			_spot(img, W / 2 + 5 + roundi(cos(t) * 3), H / 2 + roundi(sin(t) * 2), Color.WHITE)
-		for dx in range(-5, 6):
-			_spot(img, W / 2 + dx, H / 2 - 2 + absi(dx) / 3, Color.WHITE)
+		var center := Vector2(W, H) * 0.5
+		var white := Color(0.95, 0.95, 0.92, 0.95)
+		c.ring(center + Vector2(-5, 0.5), Vector2(3, 1.8), 0.45, white)
+		c.ring(center + Vector2(5, 0.5), Vector2(3, 1.8), 0.45, white)
+		c.polyline(PackedVector2Array([center + Vector2(-5, 0.5), center + Vector2(-1, -1.5), center + Vector2(3, -1.5), center + Vector2(5, 0.5)]), 0.25, white)
+		c.polyline(PackedVector2Array([center + Vector2(-1, -1.5), center + Vector2(0.5, 0.5), center + Vector2(3, -1.5)]), 0.25, white)
 
 
 ## Tanque de agua (los negros de las azoteas), visto desde arriba.
-func _water_tank(img: Image, rng: RandomNumberGenerator) -> void:
-	var p := _random_point(rng, 9)
-	for dy in range(-4, 5):
-		for dx in range(-7, 8):
-			var d := (dx * dx) / 49.0 + (dy * dy) / 16.0
-			if d <= 1.0:
-				_spot(img, p.x + dx, p.y + dy, Color("2c2f36") if d > 0.55 else (Color("3d424b") if dx + dy < 0 else Color("33373f")))
+func _water_tank(c: Canvas, rng: RandomNumberGenerator) -> void:
+	var at := _random_point(rng, 10.0)
+	_cylinder(c, at, Vector2(4.5, 2.6), 3.0, Color("33373f"))
+	c.ellipse(at + Vector2(0, -3.0), Vector2(2.0, 1.1), Color("454a54"))
+	c.ring(at + Vector2(0, -3.0), Vector2(2.0, 1.1), 0.3, Color("23262c"))
 
 
-func _vent(img: Image, rng: RandomNumberGenerator) -> void:
-	var p := _random_point(rng, 7)
-	for dy in range(-2, 3):
-		for dx in range(-3, 4):
-			_spot(img, p.x + dx, p.y + dy, Color("8f9096") if dx < 1 else Color("6c6d73"))
+func _vent(c: Canvas, rng: RandomNumberGenerator) -> void:
+	var at := _random_point(rng, 8.0)
+	_iso_box(c, at, 2.0, 1.5, 2.5, Color("9a9ba1"))
+	for k in 3:
+		c.line(at + Vector2(-1.6 + k * 0.6, -1.6 + k * 0.3), at + Vector2(-0.4 + k * 0.6, -2.2 + k * 0.3), 0.12, Color("5d5e64"))
 
 
-func _ac_unit(img: Image, rng: RandomNumberGenerator) -> void:
-	var p := _random_point(rng, 8)
-	for dy in range(-3, 4):
-		for dx in range(-5, 6):
-			var c := Color("d4d6da") if dy < 0 else Color("aeb1b7")
-			if (dx * dx) / 9.0 + (dy * dy) / 4.0 <= 1.0:
-				c = Color("5d6168")  # ventilador
-			_spot(img, p.x + dx, p.y + dy, c)
+func _ac_unit(c: Canvas, rng: RandomNumberGenerator) -> void:
+	var at := _random_point(rng, 9.0)
+	_iso_box(c, at, 3.0, 2.0, 2.4, Color("d6d8dc"))
+	var top := at + Vector2(0, -2.4)
+	c.ellipse(top, Vector2(1.6, 0.8), Color("5d6168"))
+	c.ring(top, Vector2(1.6, 0.8), 0.2, Color("3e4147"))
+
+
+## Claraboya de vidrio en el plano del techo (u, v); size en fracciones de tile.
+func _skylight(c: Canvas, at: Vector2, su: float, sv: float) -> void:
+	var uv := _uv(at)
+	var quad := func(du0: float, dv0: float, du1: float, dv1: float) -> PackedVector2Array:
+		return PackedVector2Array([_from_uv(uv.x + du0, uv.y + dv0), _from_uv(uv.x + du1, uv.y + dv0),
+			_from_uv(uv.x + du1, uv.y + dv1), _from_uv(uv.x + du0, uv.y + dv1)])
+	c.poly(quad.call(-su * 0.5 - 0.02, -sv * 0.5 - 0.02, su * 0.5 + 0.02, sv * 0.5 + 0.02), Color("d5d8de"))
+	var glass: PackedVector2Array = quad.call(-su * 0.5, -sv * 0.5, su * 0.5, sv * 0.5)
+	var r := Rect2(glass[0], Vector2.ZERO)
+	for q in glass:
+		r = r.expand(q)
+	c.each(r, func(p: Vector2) -> Color:
+		if not Geometry2D.is_point_in_polygon(p, glass):
+			return CLEAR
+		var t := (p.y - r.position.y) / maxf(r.size.y, 0.001)
+		var col := Color("a6cbe9").lerp(Color("5f86ad"), t)
+		if posmod(p.x - p.y * 1.5, 6.0) < 0.9:
+			col = col.lightened(0.3)
+		return col)
 
 
 # =============================================================================
-# Props (64x64, base en PROP_BASE)
+# Formas con volumen (props, techos)
 # =============================================================================
 
-const OUTLINE := Color("1f2a1c")
+## Esquinas de la cara de arriba de una caja isométrica (base en su centro).
+func _iso_top(o: Vector2, a: float, b: float) -> PackedVector2Array:
+	var du := Vector2(1, 0.5)
+	var dv := Vector2(-1, 0.5)
+	return PackedVector2Array([o - du * a - dv * b, o + du * a - dv * b, o + du * a + dv * b, o - du * a + dv * b])
+
+
+## Caja isométrica: base (centro de su planta), semilados a (eje u) y b (eje v)
+## en px de pantalla, alto h, elevada z. Luz desde arriba a la izquierda.
+func _iso_box(c: Canvas, base: Vector2, a: float, b: float, h: float, top: Color, z := 0.0) -> void:
+	var o := base + Vector2(0, -z)
+	var t := _iso_top(o, a, b)
+	var up := Vector2(0, -h)
+	# Cara izquierda (mira al sur-oeste) y derecha (sur-este), con un leve degradé.
+	_gradient_poly(c, PackedVector2Array([t[3], t[2], t[2] + up, t[3] + up]), _lit(top, -0.35), _lit(top, -0.2))
+	_gradient_poly(c, PackedVector2Array([t[2], t[1], t[1] + up, t[2] + up]), _lit(top, -0.7), _lit(top, -0.55))
+	c.poly(PackedVector2Array([t[0] + up, t[1] + up, t[2] + up, t[3] + up]), _lit(top, 0.15))
+	# Arista frontal iluminada.
+	c.line(t[3] + up, t[2] + up, 0.12, _lit(top, 0.45))
+
+
+## Polígono con degradé vertical (abajo -> arriba).
+func _gradient_poly(c: Canvas, pts: PackedVector2Array, bottom: Color, top: Color) -> void:
+	var r := Rect2(pts[0], Vector2.ZERO)
+	for q in pts:
+		r = r.expand(q)
+	c.each(r, func(p: Vector2) -> Color:
+		if not Geometry2D.is_point_in_polygon(p, pts):
+			return CLEAR
+		return top.lerp(bottom, (p.y - r.position.y) / maxf(r.size.y, 0.001)))
+
+
+## Cilindro vertical de planta elíptica (radio r), alto h, sobre `base`.
+func _cylinder(c: Canvas, base: Vector2, r: Vector2, h: float, color: Color) -> void:
+	c.each(Rect2(base - Vector2(r.x, r.y + h), Vector2(r.x * 2.0, r.y * 2.0 + h)), func(p: Vector2) -> Color:
+		var nx := (p.x - base.x) / r.x
+		if absf(nx) > 1.0:
+			return CLEAR
+		var ry := r.y * sqrt(1.0 - nx * nx)
+		if p.y > base.y + ry or p.y < base.y - h - ry:
+			return CLEAR
+		if p.y < base.y - h + ry and ((p - (base + Vector2(0, -h))) / r).length_squared() <= 1.0:
+			return _lit(color, 0.25)  # tapa
+		return _lit(color, _diffuse(Vector3(nx, 0, sqrt(1.0 - nx * nx))) * 1.1 - 0.2))
+
+
+## Poste cilíndrico vertical en x, de top a bottom, de radio r.
+func _pole(c: Canvas, x: float, top: float, bottom: float, r: float, color: Color) -> void:
+	c.each(Rect2(x - r, top, r * 2.0, bottom - top), func(p: Vector2) -> Color:
+		var nx := (p.x - x) / r
+		if absf(nx) > 1.0:
+			return CLEAR
+		return _lit(color, _diffuse(Vector3(nx, 0, sqrt(1.0 - nx * nx))) * 1.2 - 0.15))
+
+
+## Volumen redondeado (elipse con luz de esfera). La luz se calcula sobre la
+## esfera (light_center, light_radius) si se da: varios bultos se ven como uno.
+func _blob(c: Canvas, center: Vector2, radius: Vector2, base: Color, light_center := Vector2.INF, light_radius := 0.0, bump := 0.6) -> void:
+	var lc := center if light_center == Vector2.INF else light_center
+	var lr := maxf(radius.x, radius.y) if light_radius == 0.0 else light_radius
+	c.each(Rect2(center - radius, radius * 2.0), func(p: Vector2) -> Color:
+		var q := (p - center) / radius
+		if q.length_squared() > 1.0:
+			return CLEAR
+		var g := (p - lc) / lr
+		if g.length_squared() > 1.0:
+			g = g.normalized() * 0.999
+		var n := _sphere_normal(g) + _sphere_normal(q) * bump
+		var d := _diffuse(n) * 1.25 - 0.25
+		d -= _sstep(0.7, 1.0, q.length()) * 0.25  # borde del bulto, un poco más oscuro
+		return _lit(base, d + _grain(p, 3) * 0.04))
+
+
+## Sombra suave en el suelo, centrada en `at`.
+func _shadow(c: Canvas, at: Vector2, r: Vector2, alpha := 0.32) -> void:
+	c.each(Rect2(at - r, r * 2.0), func(p: Vector2) -> Color:
+		var d := ((p - at) / r).length()
+		return Color(0, 0, 0, alpha * (1.0 - _sstep(0.45, 1.0, d))) if d < 1.0 else CLEAR)
+
+
+## Contorno suave alrededor de lo opaco (a resolución final): `width` px reales.
+func _soft_outline(img: Image, color: Color, width := 2) -> Image:
+	var w := img.get_width()
+	var h := img.get_height()
+	var alpha := PackedFloat32Array()
+	alpha.resize(w * h)
+	for y in h:
+		for x in w:
+			alpha[y * w + x] = img.get_pixel(x, y).a
+	# Dilatación separable (máximo en una ventana de 2*width+1).
+	var tmp := PackedFloat32Array()
+	tmp.resize(w * h)
+	for y in h:
+		for x in w:
+			var m := 0.0
+			for k in range(maxi(0, x - width), mini(w, x + width + 1)):
+				m = maxf(m, alpha[y * w + k])
+			tmp[y * w + x] = m
+	var out := Image.create_empty(w, h, false, Image.FORMAT_RGBA8)
+	for y in h:
+		for x in w:
+			var m := 0.0
+			for k in range(maxi(0, y - width), mini(h, y + width + 1)):
+				m = maxf(m, tmp[k * w + x])
+			var under := Color(color, minf(1.0, m * 1.15) * color.a)
+			out.set_pixel(x, y, under.blend(img.get_pixel(x, y)))
+	return out
+
+
+# =============================================================================
+# Props (64x64 lógicos -> 256x256, base en PROP_BASE)
+# =============================================================================
+
+const OUTLINE := Color(0.1, 0.14, 0.09, 0.85)
 
 
 func _props() -> void:
 	var specs := {
-		"tree_0@3": _tree.bind(Color("4f9a3a"), 17, 15, 0),
-		"tree_1@2": _tree.bind(Color("5fae45"), 14, 18, 1),
+		"tree_0@3": _tree.bind(Color("4f9a3a"), 17.0, 15.0, 0),
+		"tree_1@2": _tree.bind(Color("63ad47"), 14.0, 18.0, 1),
 		"pine_0@3": _pine.bind(3, 0),
 		"pine_1@2": _pine.bind(4, 1),
-		"rock_0@3": _rock.bind(13, 9, 0),
-		"rock_1@2": _rock.bind(9, 7, 1),
+		"rock_0@3": _rock.bind(13.0, 9.0, 0),
+		"rock_1@2": _rock.bind(9.0, 7.0, 1),
 		"bush_0@3": _bush.bind(false, 0),
 		"bush_1@1": _bush.bind(true, 1),
 		"bench_0@1": _bench,
@@ -576,266 +857,258 @@ func _props() -> void:
 		"statue_0@1": _statue,
 	}
 	for name: String in specs:
-		var img := Image.create_empty(PROP.x, PROP.y, false, Image.FORMAT_RGBA8)
+		var relative := "props/%s.png" % name
+		if not _wanted(relative):
+			continue
+		var c := Canvas.new(PROP, S)
 		var painter: Callable = specs[name]
-		painter.call(img)
-		_write("props/%s.png" % name, img)
+		var outline: Color = painter.call(c)
+		_write(relative, _soft_outline(c.finish(), outline))
 
 
-func _blend(img: Image, x: int, y: int, c: Color) -> void:
-	if x >= 0 and y >= 0 and x < img.get_width() and y < img.get_height():
-		img.set_pixel(x, y, img.get_pixel(x, y).blend(c))
+func _trunk(c: Canvas, top: float, width: float, bottom := PROP_BASE.y + 0.5) -> void:
+	var x := PROP_BASE.x
+	c.each(Rect2(x - width, top, width * 2.0, bottom - top), func(p: Vector2) -> Color:
+		var t := (p.y - top) / (bottom - top)
+		var hw := width * 0.5 * (0.8 + t * 0.35)  # se ensancha hacia la raíz
+		var nx := (p.x - x) / hw
+		if absf(nx) > 1.0:
+			return CLEAR
+		var bark := sin(p.x * 5.0 + sin(p.y * 1.3) * 2.0) * 0.06
+		return _lit(Color("7a5332"), _diffuse(Vector3(nx, 0, sqrt(1.0 - nx * nx))) * 1.1 - 0.2 + bark))
 
 
-func _shadow(img: Image, rx: int, ry: int) -> void:
-	for y in range(-ry, ry + 1):
-		for x in range(-rx, rx + 1):
-			if float(x * x) / (rx * rx) + float(y * y) / (ry * ry) <= 1.0:
-				_blend(img, PROP_BASE.x + x, PROP_BASE.y + y, Color(0, 0, 0, 0.28))
-
-
-## Contorno de 1 px alrededor de lo opaco (no cuenta la sombra translúcida).
-func _outline(img: Image, color: Color, from := Vector2i.ZERO, to := Vector2i(-1, -1)) -> void:
-	if to.x < 0:
-		to = Vector2i(img.get_width(), img.get_height())
-	var marks: Array[Vector2i] = []
-	for y in range(from.y, to.y):
-		for x in range(from.x, to.x):
-			if img.get_pixel(x, y).a >= 0.6:
-				continue
-			for d in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
-				var n: Vector2i = Vector2i(x, y) + d
-				if n.x >= from.x and n.y >= from.y and n.x < to.x and n.y < to.y and img.get_pixel(n.x, n.y).a >= 0.6:
-					marks.append(Vector2i(x, y))
-					break
-	for p in marks:
-		img.set_pixel(p.x, p.y, color)
-
-
-## Volumen redondeado con luz desde arriba a la izquierda, en 4 tonos.
-func _ball(img: Image, center: Vector2, radius: Vector2, base: Color, rng: RandomNumberGenerator, mask_center := Vector2.INF, mask_radius := 0.0) -> void:
-	var light_center := center if mask_center == Vector2.INF else mask_center
-	var lr := maxf(radius.x, radius.y) if mask_radius == 0.0 else mask_radius
-	for y in range(int(center.y - radius.y), int(center.y + radius.y) + 1):
-		for x in range(int(center.x - radius.x), int(center.x + radius.x) + 1):
-			var nx := (x + 0.5 - center.x) / radius.x
-			var ny := (y + 0.5 - center.y) / radius.y
-			if nx * nx + ny * ny > 1.0:
-				continue
-			var lx := (x + 0.5 - light_center.x) / lr
-			var ly := (y + 0.5 - light_center.y) / lr
-			var light := -(lx * 0.6 + ly * 0.8) + rng.randf_range(-0.18, 0.18)
-			var c := base
-			if light > 0.45:
-				c = base.lightened(0.28)
-			elif light > 0.05:
-				c = base.lightened(0.1)
-			elif light < -0.5:
-				c = base.darkened(0.32)
-			elif light < -0.1:
-				c = base.darkened(0.15)
-			img.set_pixel(x, y, c)
-
-
-func _trunk(img: Image, top: int, width: int) -> void:
-	for y in range(top, PROP_BASE.y + 1):
-		for x in range(PROP_BASE.x - width / 2, PROP_BASE.x - width / 2 + width):
-			var rel := x - (PROP_BASE.x - width / 2)
-			var c := Color("7a5332") if rel < width / 2 else Color("5c3d24")
-			if rel == 0:
-				c = Color("8c6440")
-			img.set_pixel(x, y, c)
-
-
-func _tree(img: Image, color: Color, rx: int, ry: int, variant: int) -> void:
+## Árbol de copa redonda: muchos racimos de hojas que comparten la luz de la copa.
+func _tree(c: Canvas, color: Color, rx: float, ry: float, variant: int) -> Color:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 900 + variant
-	_shadow(img, 15, 5)
-	_trunk(img, 30, 5)
-	var center := Vector2(PROP_BASE.x, 22 - (ry - 15))
-	# Copa: varias esferas que comparten la misma luz (se ve como un volumen).
-	var lobes := [Vector2(0, 0), Vector2(-rx * 0.5, ry * 0.25), Vector2(rx * 0.5, ry * 0.25), Vector2(0, -ry * 0.45)]
-	for lobe: Vector2 in lobes:
-		_ball(img, center + lobe, Vector2(rx * 0.62, ry * 0.62), color, rng, center, float(rx))
-	_outline(img, OUTLINE)
+	_shadow(c, PROP_BASE + Vector2(2, 0), Vector2(16, 5.5))
+	_trunk(c, 26.0, 5.0)
+	var center := Vector2(PROP_BASE.x, 22.0 - (ry - 15.0))
+	var radius := Vector2(rx, ry)
+	_blob(c, center + Vector2(0, 1), radius * 0.9, color.darkened(0.3), center, rx, 0.0)
+	var clusters: Array[Vector2] = []
+	for i in 30:
+		var a := rng.randf() * TAU
+		var d := sqrt(rng.randf()) * 0.78
+		clusters.append(center + Vector2(cos(a), sin(a)) * radius * d)
+	clusters.sort_custom(func(a: Vector2, b: Vector2) -> bool: return a.y < b.y)
+	for p in clusters:
+		var r := rng.randf_range(3.6, 5.4)
+		_blob(c, p, Vector2(r, r * 0.88), color, center, rx * 1.05, 0.55)
+	# Brillos sueltos en la parte iluminada.
+	for i in 14:
+		var p := center + Vector2(rng.randf_range(-0.7, 0.1) * rx, rng.randf_range(-0.85, -0.1) * ry)
+		if ((p - center) / radius).length() < 0.75:
+			c.ellipse(p, Vector2(0.7, 0.5), Color(color.lightened(0.45), 0.75))
+	return OUTLINE
 
 
-func _pine(img: Image, tiers: int, variant: int) -> void:
+func _pine(c: Canvas, tiers: int, variant: int) -> Color:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 950 + variant
-	_shadow(img, 11, 4)
-	_trunk(img, 40, 4)
+	_shadow(c, PROP_BASE + Vector2(2, 0), Vector2(12, 4.5))
+	_trunk(c, 40.0, 4.0)
 	var color := Color("2f6b3f")
-	var top := 4 if tiers == 4 else 8
-	var tier_h := 12 if tiers == 4 else 13
+	var top := 3.0 if tiers == 4 else 7.0
+	var tier_h := 12.5 if tiers == 4 else 13.5
 	for t in tiers:
-		var y0 := top + t * (tier_h - 4)
-		var half := 7 + t * 3
-		for dy in tier_h:
-			var hw := int(round(half * float(dy + 1) / tier_h))
-			for dx in range(-hw, hw + 1):
-				var c := color.lightened(0.18) if dx < -hw / 3 else (color.darkened(0.2) if dx > hw / 3 else color)
-				if dy == tier_h - 1 or rng.randf() < 0.06:
-					c = c.darkened(0.15)
-				img.set_pixel(PROP_BASE.x + dx, y0 + dy, c)
-	_outline(img, Color("17301d"))
+		var y0 := top + t * (tier_h - 4.0)
+		var half := 7.5 + t * 3.0
+		var apex := Vector2(PROP_BASE.x, y0)
+		var teeth := 5 + t
+		c.each(Rect2(apex.x - half - 1, y0, half * 2 + 2, tier_h + 1.5), func(p: Vector2) -> Color:
+			var dy := p.y - y0
+			var k := dy / tier_h
+			var hw := half * k
+			# Borde de abajo dentado (puntas de ramas).
+			var along := (p.x - (apex.x - half)) / (half * 2.0) * teeth
+			var tooth := absf(along - floorf(along) - 0.5) * 2.0
+			if absf(p.x - apex.x) > hw or dy > tier_h - 1.4 + tooth * 1.4 or dy < 0.0:
+				return CLEAR
+			var nx := (p.x - apex.x) / maxf(hw, 0.01)
+			var d := _diffuse(Vector3(nx * 0.9, -0.35, 0.6)) * 1.3 - 0.2
+			d -= _sstep(0.6, 1.0, k) * 0.35  # la falda de cada piso, en sombra
+			return _lit(color, d + _grain(p, 5) * 0.06 + sin(p.x * 3.0 + p.y * 2.0) * 0.04))
+	return Color(0.06, 0.15, 0.09, 0.85)
 
 
-func _rock(img: Image, rx: int, ry: int, variant: int) -> void:
+func _rock(c: Canvas, rx: float, ry: float, variant: int) -> Color:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 970 + variant
-	_shadow(img, rx + 1, 5)
+	_shadow(c, PROP_BASE + Vector2(1.5, 0), Vector2(rx + 2, 5.0))
 	var center := Vector2(PROP_BASE.x + 0.5, PROP_BASE.y - ry + 2)
-	_ball(img, center, Vector2(rx, ry), Color("8d8d95"), rng)
-	_ball(img, center + Vector2(rx * 0.55, ry * 0.3), Vector2(rx * 0.5, ry * 0.6), Color("7e7e87"), rng, center, float(rx))
-	# Grieta
-	for k in ry:
-		img.set_pixel(int(center.x) - 2 + k / 3, int(center.y) - ry / 2 + k, Color("5e5e66"))
-	_outline(img, Color("2b2b30"))
+	_blob(c, center, Vector2(rx, ry), Color("8f8f98"), Vector2.INF, 0.0, 0.0)
+	_blob(c, center + Vector2(rx * 0.55, ry * 0.3), Vector2(rx * 0.5, ry * 0.6), Color("7f7f88"), center, rx, 0.4)
+	# Grieta con borde claro.
+	var crack := PackedVector2Array([center + Vector2(-2, -ry * 0.55), center + Vector2(-0.8, -ry * 0.1), center + Vector2(-1.6, ry * 0.25), center + Vector2(-0.4, ry * 0.6)])
+	c.polyline(crack, 0.3, Color("55555d"))
+	if variant == 0:  # musgo arriba
+		for i in 9:
+			c.ellipse(center + Vector2(rng.randf_range(-rx * 0.6, rx * 0.3), -ry * 0.75 + rng.randf_range(0, 2.5)), Vector2(1.6, 0.8), Color(0.42, 0.6, 0.3, 0.8))
+	return Color(0.12, 0.12, 0.14, 0.85)
 
 
-func _bush(img: Image, flowers: bool, variant: int) -> void:
+func _bush(c: Canvas, flowers: bool, variant: int) -> Color:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 990 + variant
-	_shadow(img, 15, 5)
+	_shadow(c, PROP_BASE + Vector2(1, 0), Vector2(16, 5.5))
 	var color := Color("4c8f3a")
-	var center := Vector2(PROP_BASE.x, 40)
-	for lobe: Vector2 in [Vector2(-7, 2), Vector2(7, 2), Vector2(0, -3)]:
-		_ball(img, center + lobe, Vector2(9, 7.5), color, rng, center, 14.0)
+	var center := Vector2(PROP_BASE.x, 40.0)
+	_blob(c, center + Vector2(0, 1), Vector2(14, 8), color.darkened(0.3), center, 14.0, 0.0)
+	var clusters: Array[Vector2] = []
+	for i in 16:
+		clusters.append(center + Vector2(rng.randf_range(-11, 11), rng.randf_range(-6, 4)))
+	clusters.sort_custom(func(a: Vector2, b: Vector2) -> bool: return a.y < b.y)
+	for p in clusters:
+		var r := rng.randf_range(3.2, 4.6)
+		_blob(c, p, Vector2(r, r * 0.85), color, center, 14.0, 0.55)
 	if flowers:
-		for i in 9:
-			var p := Vector2i(int(center.x) + rng.randi_range(-12, 12), int(center.y) + rng.randi_range(-8, 6))
-			if img.get_pixel(p.x, p.y).a > 0.5:
-				img.set_pixel(p.x, p.y, Color("f7c6d9") if i % 2 == 0 else Color("fff4f0"))
-	_outline(img, OUTLINE)
+		for i in 12:
+			var p := center + Vector2(rng.randf_range(-11, 11), rng.randf_range(-7, 4))
+			var petal := Color("f7c6d9") if i % 2 == 0 else Color("fff4f0")
+			for a in 5:
+				c.ellipse(p + Vector2.from_angle(TAU * a / 5.0) * 0.55, Vector2(0.5, 0.4), petal)
+			c.ellipse(p, Vector2(0.3, 0.3), Color("f2c94c"))
+	return OUTLINE
 
 
-## Polígono relleno (centros de píxel dentro del polígono).
-func _poly(img: Image, pts: PackedVector2Array, c: Color) -> void:
-	var r := Rect2(pts[0], Vector2.ZERO)
-	for p in pts:
-		r = r.expand(p)
-	for y in range(floori(r.position.y), ceili(r.end.y) + 1):
-		for x in range(floori(r.position.x), ceili(r.end.x) + 1):
-			if x >= 0 and y >= 0 and x < img.get_width() and y < img.get_height() \
-					and Geometry2D.is_point_in_polygon(Vector2(x + 0.5, y + 0.5), pts):
-				img.set_pixel(x, y, c)
-
-
-## Caja isométrica: base (centro de su planta), semilados a (eje u) y b (eje v)
-## en píxeles de pantalla, alto h, elevada z. Luz desde arriba a la izquierda.
-func _iso_box(img: Image, base: Vector2, a: float, b: float, h: float, top: Color, z := 0.0) -> void:
-	var du := Vector2(1, 0.5)
-	var dv := Vector2(-1, 0.5)
-	var o := base + Vector2(0, -z)
-	var c0 := o - du * a - dv * b
-	var c1 := o + du * a - dv * b
-	var c2 := o + du * a + dv * b
-	var c3 := o - du * a + dv * b
-	var up := Vector2(0, -h)
-	_poly(img, PackedVector2Array([c3, c2, c2 + up, c3 + up]), top.darkened(0.22))
-	_poly(img, PackedVector2Array([c2, c1, c1 + up, c2 + up]), top.darkened(0.4))
-	_poly(img, PackedVector2Array([c0 + up, c1 + up, c2 + up, c3 + up]), top)
-
-
-func _pole(img: Image, x: int, top: int, bottom: int, c: Color) -> void:
-	for y in range(top, bottom + 1):
-		img.set_pixel(x, y, c.lightened(0.15))
-		img.set_pixel(x + 1, y, c.darkened(0.15))
-
-
-func _bench(img: Image) -> void:
-	var base := Vector2(PROP_BASE)
-	_shadow(img, 14, 5)
-	var wood := Color("a3713f")
+func _bench(c: Canvas) -> Color:
+	var base := PROP_BASE
+	_shadow(c, base + Vector2(1, 0.5), Vector2(15, 5.5))
+	var wood := Color("a8743f")
 	var iron := Color("3a3d44")
 	for side: float in [-1.0, 1.0]:
-		_iso_box(img, base + Vector2(1, 0.5) * 8.0 * side, 1.0, 2.5, 6.0, iron)
-	_iso_box(img, base, 10.0, 3.0, 2.0, wood, 6.0)
-	_iso_box(img, base + Vector2(-1, 0.5) * -3.0, 10.0, 0.8, 6.0, wood.darkened(0.08), 8.0)
-	_outline(img, Color("2a1f17"))
+		_iso_box(c, base + Vector2(1, 0.5) * 8.0 * side, 0.8, 2.6, 6.0, iron)
+	for k in 3:  # tablas del asiento
+		_iso_box(c, base + Vector2(-1, 0.5) * (k - 1) * 1.8, 10.5, 0.75, 1.2, wood.lightened(0.04 * k), 6.0)
+	for k in 2:  # espaldar
+		_iso_box(c, base + Vector2(-1, 0.5) * -3.2, 10.5, 0.5, 1.6, wood.darkened(0.06), 9.0 + k * 2.6)
+	_iso_box(c, base + Vector2(-1, 0.5) * -3.2 + Vector2(1, 0.5) * 8.0, 0.5, 0.5, 6.0, iron, 6.0)
+	_iso_box(c, base + Vector2(-1, 0.5) * -3.2 - Vector2(1, 0.5) * 8.0, 0.5, 0.5, 6.0, iron, 6.0)
+	return Color(0.16, 0.12, 0.09, 0.85)
 
 
-func _street_lamp(img: Image) -> void:
-	_shadow(img, 5, 2)
+## Halo de luz cálida.
+func _glow(c: Canvas, at: Vector2, r: Vector2, color: Color) -> void:
+	c.each(Rect2(at - r, r * 2.0), func(p: Vector2) -> Color:
+		var d := ((p - at) / r).length()
+		return Color(color, color.a * pow(1.0 - d, 2.0)) if d < 1.0 else CLEAR)
+
+
+func _street_lamp(c: Canvas) -> Color:
+	_shadow(c, PROP_BASE + Vector2(1, 0), Vector2(5, 2))
 	var grey := Color("68707d")
-	_box(img, 29, 45, 6, 4, grey.darkened(0.2))
-	_pole(img, 31, 8, 46, grey)
-	for x in range(32, 39):
-		img.set_pixel(x, 8, grey)
-	_box(img, 36, 9, 6, 3, Color("2f3540"))
-	_box(img, 37, 12, 4, 1, Color("ffe7a3"))
-	for y in range(13, 17):  # halo de luz
-		for x in range(34, 45):
-			_blend(img, x, y, Color(1.0, 0.92, 0.6, 0.12))
-	_outline(img, Color("23272e"), Vector2i.ZERO, Vector2i(64, 13))
+	_iso_box(c, PROP_BASE, 2.2, 2.2, 3.0, grey.darkened(0.15))
+	_pole(c, PROP_BASE.x, 8.0, PROP_BASE.y - 2.0, 0.9, grey)
+	c.polyline(PackedVector2Array([Vector2(PROP_BASE.x, 9.5), Vector2(PROP_BASE.x + 1.5, 7.6), Vector2(PROP_BASE.x + 5, 7.4), Vector2(PROP_BASE.x + 7, 8.6)]), 0.55, grey)
+	# Farol: pantalla oscura y vidrio encendido.
+	var head := Vector2(PROP_BASE.x + 7, 9.0)
+	c.poly(PackedVector2Array([head + Vector2(-3, 0), head + Vector2(3, 0), head + Vector2(2, 2.2), head + Vector2(-2, 2.2)]), Color("2f3540"))
+	c.ellipse(head + Vector2(0, 2.4), Vector2(1.9, 0.7), Color("fff0b8"))
+	_glow(c, head + Vector2(0, 4), Vector2(7, 5), Color(1.0, 0.92, 0.6, 0.35))
+	return Color(0.12, 0.13, 0.16, 0.85)
 
 
-func _traffic_light(img: Image) -> void:
-	_shadow(img, 5, 2)
-	_pole(img, 31, 16, 47, Color("5d6470"))
-	_box(img, 28, 3, 8, 19, Color("2b2f36"))
-	var colors := [Color("e5483d"), Color("f2c14e").darkened(0.35), Color("4fc46b")]
+func _traffic_light(c: Canvas) -> Color:
+	_shadow(c, PROP_BASE + Vector2(1, 0), Vector2(5, 2))
+	_iso_box(c, PROP_BASE, 1.8, 1.8, 2.0, Color("4a505b"))
+	_pole(c, PROP_BASE.x, 18.0, PROP_BASE.y - 1.0, 0.85, Color("5d6470"))
+	# Caja con esquinas redondeadas (columna de luces).
+	var box := Rect2(PROP_BASE.x - 4, 2.5, 8, 19)
+	c.each(box, func(p: Vector2) -> Color:
+		var q := (p - box.get_center()).abs() - box.size * 0.5 + Vector2(1.2, 1.2)
+		if q.max(Vector2.ZERO).length() > 1.2:
+			return CLEAR
+		var nx := (p.x - box.get_center().x) / (box.size.x * 0.5)
+		return _lit(Color("2b2f36"), -nx * 0.35))
+	var colors := [Color("e5483d").darkened(0.45), Color("f2c14e").darkened(0.45), Color("54d77a")]
 	for i in 3:
-		var cy := 6 + i * 6
-		_box(img, 29, cy - 3, 6, 1, Color("1d2025"))  # visera
-		for dy in range(-2, 2):
-			for dx in range(-2, 2):
-				if dx * dx + dy * dy <= 4:
-					img.set_pixel(32 + dx, cy + dy, colors[i])
-	_outline(img, Color("15171b"))
+		var at := Vector2(PROP_BASE.x, 6.5 + i * 6.0)
+		c.ellipse(at + Vector2(0, -0.3), Vector2(2.4, 2.4), Color("15171b"))  # visera
+		c.ellipse(at, Vector2(2.0, 2.0), colors[i])
+		c.ellipse(at + Vector2(-0.6, -0.6), Vector2(0.6, 0.5), Color(1, 1, 1, 0.5))
+	_glow(c, Vector2(PROP_BASE.x, 18.5), Vector2(6, 6), Color(0.4, 1.0, 0.55, 0.35))
+	return Color(0.06, 0.07, 0.08, 0.85)
 
 
-func _bus_stop(img: Image) -> void:
-	var base := Vector2(PROP_BASE) + Vector2(-2, 0)
-	_shadow(img, 18, 6)
+func _bus_stop(c: Canvas) -> Color:
+	var base := PROP_BASE + Vector2(-2, 0)
+	_shadow(c, base + Vector2(1, 0.5), Vector2(19, 6.5))
 	var frame := Color("4a5260")
-	for px: int in [-11, 11]:  # postes
-		_pole(img, int(base.x) + px, int(base.y) - 29, int(base.y) - 1, frame)
-	# Panel trasero de vidrio
-	_poly(img, PackedVector2Array([base + Vector2(-11, -6), base + Vector2(11, -6), base + Vector2(11, -26), base + Vector2(-11, -26)]), Color(0.62, 0.78, 0.9, 0.55))
-	_iso_box(img, base + Vector2(0, -2), 9.0, 1.5, 1.5, Color("9aa3ad"), 5.0)  # banca
-	_iso_box(img, base + Vector2(0, -1), 13.0, 5.0, 2.0, Color("3f6fb5"), 27.0)  # techo
-	_pole(img, int(base.x) + 16, int(base.y) - 30, int(base.y) + 2, Color("8a929c"))  # señal
-	_box(img, int(base.x) + 13, int(base.y) - 36, 9, 7, Color("2f6fd6"))
-	_box(img, int(base.x) + 15, int(base.y) - 34, 5, 3, Color.WHITE)
-	_outline(img, Color("1f2530"))
+	for px: float in [-11.0, 11.0]:  # postes
+		_pole(c, base.x + px, base.y - 29.0, base.y - 0.5, 0.7, frame)
+	# Panel trasero de vidrio con reflejo.
+	var glass := Rect2(base + Vector2(-11, -26), Vector2(22, 20))
+	c.each(glass, func(p: Vector2) -> Color:
+		var col := Color(0.62, 0.78, 0.9, 0.5)
+		if posmod(p.x - p.y * 0.8, 9.0) < 1.6:
+			col = Color(0.9, 0.96, 1.0, 0.6)
+		return col)
+	c.line(glass.position + Vector2(0, glass.size.y), glass.end, 0.3, frame)
+	_iso_box(c, base + Vector2(0, -2), 9.0, 1.6, 1.4, Color("9aa3ad"), 5.0)  # banca
+	_iso_box(c, base + Vector2(0, -1), 13.5, 5.0, 2.0, Color("3f6fb5"), 27.0)  # techo
+	_pole(c, base.x + 17.5, base.y - 30.0, base.y + 2.0, 0.5, Color("8a929c"))  # señal
+	var sign_rect := Rect2(base + Vector2(13, -37), Vector2(9, 7))
+	c.each(sign_rect, func(p: Vector2) -> Color:
+		return _lit(Color("2f6fd6"), 0.2 - (p.y - sign_rect.position.y) / sign_rect.size.y * 0.4))
+	# Bus (icono blanco)
+	var bus := Rect2(sign_rect.position + Vector2(2, 1.6), Vector2(5, 3))
+	c.poly(PackedVector2Array([bus.position, bus.position + Vector2(bus.size.x, 0), bus.end, bus.position + Vector2(0, bus.size.y)]), Color.WHITE)
+	c.line(bus.position + Vector2(0.6, 1.0), bus.position + Vector2(4.4, 1.0), 0.35, Color("2f6fd6"))
+	c.ellipse(bus.position + Vector2(1.2, 3.1), Vector2(0.5, 0.5), Color.WHITE)
+	c.ellipse(bus.position + Vector2(3.8, 3.1), Vector2(0.5, 0.5), Color.WHITE)
+	return Color(0.1, 0.12, 0.16, 0.85)
 
 
-func _fountain(img: Image) -> void:
-	var c := Vector2i(PROP_BASE) + Vector2i(0, -3)
-	_shadow(img, 19, 7)
+func _fountain(c: Canvas) -> Color:
+	var center := PROP_BASE + Vector2(0, -3)
+	_shadow(c, center + Vector2(1, 4), Vector2(21, 8))
 	var stone := Color("b7b1a5")
-	for k in range(5, -1, -1):  # borde con volumen
-		for y in range(-10, 11):
-			for x in range(-19, 20):
-				if (x * x) / 361.0 + (y * y) / 90.0 <= 1.0:
-					img.set_pixel(c.x + x, c.y + y - k, stone.darkened(0.25) if k < 5 else stone)
-	for y in range(-8, 9):
-		for x in range(-16, 17):
-			if (x * x) / 256.0 + (y * y) / 64.0 <= 1.0:
-				img.set_pixel(c.x + x, c.y + y - 5, Color("4f8fd6") if posmod(x + y, 5) != 0 else Color("78aee6"))
-	_box(img, c.x - 2, c.y - 18, 4, 13, stone.darkened(0.1))
-	for i in 9:  # chorros
-		_blend(img, c.x - 4 + i, c.y - 20 + absi(i - 4), Color(0.85, 0.93, 1.0, 0.85))
-	_outline(img, Color("3c3a36"))
+	var r := Vector2(19, 9.5)
+	# Pared del estanque (cilindro bajo) y borde de arriba.
+	_cylinder(c, center + Vector2(0, 1), r, 5.0, stone)
+	c.ring(center + Vector2(0, -4), r - Vector2(1, 0.5), 1.6, stone.lightened(0.15))
+	# Agua con ondas concéntricas.
+	var water_r := r - Vector2(2.6, 1.4)
+	c.each(Rect2(center + Vector2(0, -4) - water_r, water_r * 2.0), func(p: Vector2) -> Color:
+		var q := (p - (center + Vector2(0, -4))) / water_r
+		var d := q.length()
+		if d > 1.0:
+			return CLEAR
+		var col := Color("3f7fcc").lerp(Color("5f9be0"), 0.5 - q.y * 0.5)
+		col = col.lerp(Color("bfe0fa"), _sstep(0.82, 1.0, sin(d * 22.0)) * 0.5)
+		return col.darkened(_sstep(0.85, 1.0, d) * 0.25))
+	# Columna central y taza.
+	_pole(c, center.x, center.y - 18.0, center.y - 4.0, 1.6, stone.darkened(0.05))
+	_cylinder(c, center + Vector2(0, -14), Vector2(4.5, 2.0), 1.2, stone)
+	# Chorros: arcos de agua y gotas.
+	for side: float in [-1.0, 1.0]:
+		var pts := PackedVector2Array()
+		for i in 9:
+			var t := i / 8.0
+			pts.append(center + Vector2(side * t * 9.0, -19.0 + t * t * 14.0 - sin(t * PI) * 3.0))
+		c.polyline(pts, 0.4, Color(0.86, 0.94, 1.0, 0.8))
+	c.ellipse(center + Vector2(0, -19.5), Vector2(1.0, 1.4), Color(0.9, 0.96, 1.0, 0.9))
+	return Color(0.2, 0.19, 0.17, 0.85)
 
 
-func _statue(img: Image) -> void:
-	var base := Vector2(PROP_BASE)
-	_shadow(img, 12, 4)
-	_iso_box(img, base, 6.0, 6.0, 12.0, Color("aaa498"))
-	var bronze := Color("6f6043")
-	var x0 := int(base.x)
-	var top := int(base.y) - 18
-	_box(img, x0 - 3, top - 14, 6, 14, bronze)
-	_box(img, x0 - 3, top - 14, 2, 14, bronze.lightened(0.15))
-	_box(img, x0 + 3, top - 12, 2, 7, bronze.darkened(0.2))  # brazo
-	for dy in range(-3, 3):
-		for dx in range(-3, 3):
-			if dx * dx + dy * dy <= 7:
-				img.set_pixel(x0 + dx, top - 18 + dy, bronze.lightened(0.1) if dx < 0 else bronze)
-	_outline(img, Color("2b2720"))
+func _statue(c: Canvas) -> Color:
+	var base := PROP_BASE
+	_shadow(c, base + Vector2(1.5, 0.5), Vector2(13, 4.5))
+	_iso_box(c, base, 6.5, 6.5, 10.0, Color("aaa498"))
+	_iso_box(c, base + Vector2(0, -10), 5.5, 5.5, 2.0, Color("bdb7aa"))  # cornisa
+	var bronze := Color("7a6847")
+	var feet := base + Vector2(0, -13)
+	# Figura de pie, mano levantada (luz de esfera común para que se vea redonda).
+	var lc := feet + Vector2(0, -9)
+	_blob(c, feet + Vector2(-1.4, -3), Vector2(1.3, 3.4), bronze, lc, 9.0, 0.5)  # piernas
+	_blob(c, feet + Vector2(1.4, -3), Vector2(1.3, 3.4), bronze, lc, 9.0, 0.5)
+	_blob(c, feet + Vector2(0, -9), Vector2(3.2, 4.2), bronze, lc, 9.0, 0.5)  # torso
+	c.line(feet + Vector2(-2.6, -11), feet + Vector2(-3.4, -6), 0.9, bronze.darkened(0.2))  # brazo
+	c.line(feet + Vector2(2.6, -11.5), feet + Vector2(4.5, -16.5), 0.9, bronze.darkened(0.05))  # brazo en alto
+	_blob(c, feet + Vector2(0, -15.2), Vector2(2.2, 2.3), bronze, feet + Vector2(0, -15.2), 2.3, 0.0)  # cabeza
+	return Color(0.12, 0.11, 0.08, 0.85)
 
 
 # =============================================================================
@@ -862,192 +1135,234 @@ func _buildings() -> void:
 		for part: String in ["ground", "upper"]:
 			var names: Array = FACADES[style][part]
 			for variant in names.size():
-				var img := Image.create_empty(WorldTiles.BUILDING_FACADE_SIZE.x, WorldTiles.BUILDING_FACADE_SIZE.y, false, Image.FORMAT_RGBA8)
+				var relative := "buildings/%s_%s_%s.png" % [style, part, names[variant]]
+				if not _wanted(relative):
+					continue
+				var c := Canvas.new(WorldTiles.BUILDING_FACADE_SIZE, S)
 				var rng := RandomNumberGenerator.new()
 				rng.seed = hash(style + part) + variant * 7919
 				var painter: Callable = Callable(self, "_facade_" + style).bind(part == "ground", variant, rng)
-				_facade(img, painter, part == "ground")
-				_write("buildings/%s_%s_%s.png" % [style, part, names[variant]], img)
+				_facade(c, painter, part == "ground")
+				_write(relative, c.finish())
 
 
-## Recorre los píxeles de las dos paredes visibles de un piso. painter(face, s, t):
-## face 0 = pared izquierda (iluminada), 1 = derecha (en sombra); s = 0..31 a lo
-## largo de la pared; t = 0..FLOOR_PX-1 desde arriba. Así las ventanas quedan
-## inclinadas con la pared. La planta baja oscurece un poco su zócalo.
-func _facade(img: Image, painter: Callable, ground_floor: bool) -> void:
-	for x in WorldTiles.BUILDING_FACADE_SIZE.x:
-		var face := 0 if x < FACE_W else 1
-		var s := x if face == 0 else x - FACE_W
-		var top := x / 2 if face == 0 else (WorldTiles.BUILDING_FACADE_SIZE.x - 1 - x) / 2
-		for t in FLOOR_PX:
-			var c: Color = painter.call(face, s, t)
-			if c.a <= 0.0:
-				continue
-			if ground_floor and t >= FLOOR_PX - 2:
-				c = c.darkened(0.35)  # zócalo
-			if face == 1:
-				c = c.darkened(0.24)
-			img.set_pixel(x, top + t, c)
+## Pinta las dos paredes visibles de un piso. painter(face, s, t) -> Color:
+## face 0 = pared izquierda (iluminada), 1 = derecha (en sombra); s = 0..32 a lo
+## largo de la pared; t = 0..FLOOR_PX desde arriba (px lógicos, con decimales).
+## Así las ventanas quedan inclinadas con la pared. La planta baja oscurece su
+## zócalo; abajo de cada piso hay un poco de oclusión.
+func _facade(c: Canvas, painter: Callable, ground_floor: bool) -> void:
+	var size := WorldTiles.BUILDING_FACADE_SIZE
+	c.each(Rect2(Vector2.ZERO, size), func(p: Vector2) -> Color:
+		var face := 0 if p.x < FACE_W else 1
+		var s := p.x if face == 0 else p.x - FACE_W
+		var top := p.x * 0.5 if face == 0 else (size.x - p.x) * 0.5
+		var t := p.y - top
+		if t < 0.0 or t >= FLOOR_PX:
+			return CLEAR
+		var col: Color = painter.call(face, s, t)
+		if col.a <= 0.0:
+			return CLEAR
+		if ground_floor and t >= FLOOR_PX - 1.6:
+			col = col.darkened(0.35)  # zócalo
+		col = col.darkened(_sstep(FLOOR_PX - 5.0, FLOOR_PX, t) * 0.06)
+		if face == 1:
+			col = col.darkened(0.26).lerp(Color("2a3150"), 0.06)
+		elif s > FACE_W - 0.5:
+			col = col.lightened(0.12)  # arista de la esquina
+		return col)
 
 
-## Ventana: marco, vidrio con reflejo (o luz cálida) y alféizar. "" si (s, t) no cae en ella.
-func _window(s: int, t: int, s0: int, t0: int, w: int, h: int, frame: Color, lit := false) -> Variant:
-	if s < s0 or s >= s0 + w or t < t0 or t > t0 + h:
+## Ventana: marco, vidrio con degradé y reflejo (o luz cálida) y alféizar.
+## null si (s, t) no cae en ella.
+func _window(s: float, t: float, s0: float, t0: float, w: float, h: float, frame: Color, lit := false, mullion := true) -> Variant:
+	if s < s0 or s >= s0 + w or t < t0 or t >= t0 + h + 0.8:
 		return null
-	if t == t0 + h:
-		return frame.darkened(0.12)  # alféizar
-	if s == s0 or s == s0 + w - 1 or t == t0 or t == t0 + h - 1 or t == t0 + h / 2:
-		return frame
+	if t >= t0 + h:
+		return frame.darkened(0.08 + (t - t0 - h) * 0.2)  # alféizar
+	var fw := 0.6
+	if s < s0 + fw or s >= s0 + w - fw or t < t0 + fw or t >= t0 + h - fw or absf(t - (t0 + h * 0.42)) < fw * 0.5 \
+			or (mullion and absf(s - (s0 + w * 0.5)) < fw * 0.4):
+		return frame if s >= s0 + fw * 0.5 else frame.darkened(0.15)
+	var g := (t - t0) / h
 	if lit:
-		return Color("f3d68e") if (s + t) % 7 != 0 else Color("e8c374")
-	# Reflejo: franja clara en diagonal.
-	return Color("a9c8e4") if posmod(s - t, 9) < 2 else (Color("7fa3c7") if t < t0 + h / 2 else Color("6a8db3"))
+		return Color("f6dc96").lerp(Color("e3b866"), g)
+	var glass := Color("98bde0").lerp(Color("4a6e96"), g)
+	if posmod(s - t * 0.9, 10.0) < 1.8:
+		glass = glass.lightened(0.28)  # reflejo
+	if t < t0 + fw + 1.0:
+		glass = glass.darkened(0.2)  # sombra del dintel
+	return glass
 
 
-func _door(s: int, t: int, s0: int, w: int, wood: Color) -> Variant:
-	if s < s0 or s >= s0 + w or t < 6:
+func _door(s: float, t: float, s0: float, w: float, wood: Color) -> Variant:
+	if s < s0 or s >= s0 + w or t < 6.0:
 		return null
-	if s == s0 or s == s0 + w - 1 or t == 6:
-		return wood.darkened(0.3)
-	if s == s0 + w - 3 and t == 15:
-		return Color("e0c060")  # manija
-	return wood if (s - s0) % 3 != 0 else wood.darkened(0.1)
+	if s < s0 + 0.7 or s >= s0 + w - 0.7 or t < 6.7:
+		return wood.darkened(0.35)
+	if absf(s - (s0 + w - 2.4)) < 0.5 and absf(t - 15.5) < 0.5:
+		return Color("e8c860")  # manija
+	var panel := posmod(s - s0, w * 0.5) < 0.5 or absf(t - 15.0) < 0.3
+	return _shade(wood, -0.12 if panel else sin(s * 4.0) * 0.03)
 
 
 ## Casas (techo de teja): pañete claro, ventanas con postigos, puerta de madera.
-func _facade_building(face: int, s: int, t: int, ground_floor: bool, variant: int, rng: RandomNumberGenerator) -> Color:
-	var wall := Color("eadbbd") if rng.randf() > 0.06 else Color("dfcfae")
-	if t <= 1:
-		wall = Color("cdb994")  # cornisa / entrepiso
+func _facade_building(face: int, s: float, t: float, ground_floor: bool, variant: int, _rng: RandomNumberGenerator) -> Color:
+	var wall := _shade(Color("ecdcbc"), _grain(Vector2(s, t), face) * 0.035)
+	if t <= 1.5:
+		wall = Color("cdb994").darkened(0.15 * (1.0 - t / 1.5))  # cornisa
 	if ground_floor and variant == 1 and face == 0:
-		var d: Variant = _door(s, t, 11, 10, Color("7a5234"))
+		var d: Variant = _door(s, t, 11.0, 10.0, Color("7a5234"))
 		if d != null:
 			return d
 	var shutter := Color("4f7a5a") if variant != 2 else Color("8a5a3a")
-	if (s == 8 or s == 9 or s == 22 or s == 23) and t >= 7 and t <= 19:
-		return shutter if t % 2 == 0 else shutter.darkened(0.12)
-	var win: Variant = _window(s, t, 10, 7, 12, 13, Color("f4efe4"), not ground_floor and variant == 2)
+	for x0: float in [7.6, 21.8]:
+		if s >= x0 and s < x0 + 2.4 and t >= 7.0 and t < 20.0:
+			return _shade(shutter, -0.12 if posmod(t, 1.2) < 0.4 else 0.04)
+	var win: Variant = _window(s, t, 10.0, 7.0, 12.0, 13.0, Color("f4efe4"), not ground_floor and variant == 2)
 	if win != null:
 		return win
-	if not ground_floor and variant == 1 and t >= 20 and t <= 22 and s >= 9 and s <= 22:
-		return Color("4e8f3c") if (s + t) % 3 else Color("e86a8a")  # matera con flores
+	if not ground_floor and variant == 1 and t >= 20.5 and t < 23.0 and s >= 9.0 and s < 23.0:
+		# Matera con flores.
+		if t < 21.6:
+			return Color("e86a8a") if posmod(s * 1.7, 2.0) < 0.9 else Color("4e8f3c")
+		return Color("b45f3c").darkened((t - 21.6) * 0.2)
+	if t > 1.5 and t < 2.4:
+		return wall.darkened(0.12)  # sombra de la cornisa
 	return wall
 
 
 ## Ladrillo a la vista (lo más común en Bogotá).
-func _facade_roof_brick(face: int, s: int, t: int, ground_floor: bool, variant: int, rng: RandomNumberGenerator) -> Color:
-	var row := t / 3
-	var brick := (s + (row % 2) * 3) / 6
-	var wall := Color("b65a3c") if (brick + row) % 3 != 0 else Color("a8513a")
-	if t % 3 == 2 or (s + (row % 2) * 3) % 6 == 0:
+func _facade_roof_brick(face: int, s: float, t: float, ground_floor: bool, variant: int, _rng: RandomNumberGenerator) -> Color:
+	var row := floori(t / 2.2)
+	var off := 2.8 * (row % 2)
+	var brick := floori((s + off) / 5.6)
+	var wall := Color("b65a3c").lerp(Color("9e4a33"), float(WorldTiles.cell_hash(brick, row, 5 + face) % 100) / 160.0)
+	var ft := posmod(t, 2.2)
+	var fs := posmod(s + off, 5.6)
+	if ft > 1.85 or fs < 0.35:
 		wall = Color("c9a58c")  # mortero
-	if rng.randf() < 0.04:
-		wall = wall.darkened(0.08)
-	if t <= 1:
-		wall = Color("d6c3ae")  # remate de concreto
+	else:
+		wall = _shade(wall, 0.06 * (1.0 - ft / 1.85) + _grain(Vector2(s, t), face) * 0.04)
+	if t <= 1.6:
+		wall = Color("d6c3ae").darkened(0.12 * (1.0 - t / 1.6))  # remate de concreto
 	if ground_floor:
 		if variant == 1 and face == 0:
-			var d: Variant = _door(s, t, 10, 11, Color("5d4030"))
+			var d: Variant = _door(s, t, 10.0, 11.0, Color("5d4030"))
 			if d != null:
 				return d
-		if variant == 2 and s >= 3 and s <= 28 and t >= 5:
+		if variant == 2 and s >= 3.0 and s < 29.0 and t >= 5.0:
 			# Local con persiana metálica.
-			if s == 3 or s == 28 or t == 5:
+			if s < 3.8 or s >= 28.2 or t < 5.8:
 				return Color("6f747a")
-			return Color("a7adb3") if t % 2 == 0 else Color("8f959b")
-	var win: Variant = _window(s, t, 9, 6, 14, 14, Color("ece7dc"), not ground_floor and variant == 2)
+			return _shade(Color("a7adb3"), -0.1 if posmod(t, 1.3) < 0.35 else 0.03)
+	var win: Variant = _window(s, t, 9.0, 6.0, 14.0, 14.0, Color("ece7dc"), not ground_floor and variant == 2)
 	if win != null:
 		return win
-	if not ground_floor and variant == 1 and t >= 18 and t <= 23 and s >= 6 and s <= 25:
+	if not ground_floor and variant == 1 and t >= 18.0 and t < 23.5 and s >= 6.0 and s < 26.0:
 		# Balcón con baranda.
-		if t == 18 or s == 6 or s == 25 or s % 3 == 0:
+		if t < 18.6 or s < 6.6 or s >= 25.4 or posmod(s, 2.2) < 0.45:
 			return Color("3a3a3e")
-		return Color(0, 0, 0, 0)
+		return CLEAR
 	return wall
 
 
 ## Concreto claro, ventanas corridas (oficinas y apartamentos).
-func _facade_roof_concrete(face: int, s: int, t: int, ground_floor: bool, variant: int, rng: RandomNumberGenerator) -> Color:
-	var wall := Color("cfccc4") if rng.randf() > 0.05 else Color("c4c1b9")
-	if t <= 2:
-		wall = Color("aeaaa1")  # placa
+func _facade_roof_concrete(face: int, s: float, t: float, ground_floor: bool, variant: int, _rng: RandomNumberGenerator) -> Color:
+	var wall := _shade(Color("cfccc4"), _grain(Vector2(s, t), face) * 0.03)
+	if t <= 2.5:
+		wall = Color("aeaaa1").lightened(0.1 * (1.0 - t / 2.5))  # placa
 	if ground_floor:
 		var awning: Color = [Color("d9534f"), Color("2f7fc1"), Color("3c9a5f")][variant % 3]
-		if variant >= 1 and t >= 4 and t <= 6 and s >= 2 and s <= 29:
-			return awning if s % 4 < 2 else awning.lightened(0.35)  # toldo
-		if s >= 3 and s <= 28 and t >= 7:
+		if variant >= 1 and t >= 3.5 and t < 6.5 and s >= 2.0 and s < 30.0:
+			return _shade(awning if posmod(s, 4.0) < 2.0 else awning.lightened(0.35), -(t - 3.5) * 0.06)  # toldo
+		if s >= 3.0 and s < 29.0 and t >= 7.0:
 			# Vitrina de local (o portería).
-			if s == 3 or s == 28 or t == 7 or s == 15:
+			if s < 3.8 or s >= 28.2 or t < 7.8 or absf(s - 16.0) < 0.4:
 				return Color("55595f")
-			return Color("9cc0dc") if posmod(s - t, 11) < 2 else Color("6f93b5")
+			var g := Color("a2c4de").lerp(Color("5f84a8"), (t - 7.0) / 19.0)
+			return g.lightened(0.25) if posmod(s - t, 11.0) < 2.0 else g
 		return wall
-	var win: Variant = _window(s, t, 3, 7, 26, 12, Color("8a8d92"), variant == 2)
+	var win: Variant = _window(s, t, 3.0, 7.0, 26.0, 12.0, Color("8a8d92"), variant == 2, false)
 	if win != null:
 		return win
-	if variant == 1 and t >= 7 and t <= 19 and (s == 12 or s == 20):
+	if variant == 1 and t >= 7.0 and t < 19.0 and (absf(s - 12.0) < 0.5 or absf(s - 20.0) < 0.5):
 		return Color("8a8d92")
 	return wall
 
 
 ## Muro cortina de vidrio (edificios altos).
-func _facade_roof_dark(face: int, s: int, t: int, ground_floor: bool, variant: int, rng: RandomNumberGenerator) -> Color:
-	if t <= 3:
-		return Color("3a404c")  # franja de losa
-	if s % 8 == 0:
+func _facade_roof_dark(face: int, s: float, t: float, ground_floor: bool, variant: int, _rng: RandomNumberGenerator) -> Color:
+	if t <= 3.0:
+		return Color("3a404c").lightened(0.1 * (1.0 - t / 3.0))  # franja de losa
+	if posmod(s, 8.0) < 0.7:
 		return Color("2f3540")  # parteluz
-	if ground_floor and variant == 1 and face == 0 and s >= 9 and s <= 22 and t >= 8:
-		return Color("2f3540") if s == 9 or s == 22 or s == 16 else Color("d9e6f2")  # entrada iluminada
-	var lit := not ground_floor and variant == 1 and (s / 8) % 2 == 1
+	if ground_floor and variant == 1 and face == 0 and s >= 9.0 and s < 23.0 and t >= 8.0:
+		if s < 9.7 or s >= 22.3 or absf(s - 16.0) < 0.35:
+			return Color("2f3540")
+		return Color("e1ecf6").lerp(Color("c4d6e6"), (t - 8.0) / 18.0)  # entrada iluminada
+	var lit := not ground_floor and variant == 1 and int(s / 8.0) % 2 == 1
 	if lit:
-		return Color("f0d58c")
-	var reflect := posmod(s - t * 2, 23) < 4
-	var base := Color("5f7f9f") if t < FLOOR_PX / 2 else Color("4d6b8a")
+		return Color("f3da94").lerp(Color("e2b968"), (t - 3.0) / 23.0)
+	var g := (t - 3.0) / 23.0
+	var base := Color("6a8aab").lerp(Color("435f80"), g)
 	if ground_floor:
 		base = base.darkened(0.15)
-	return base.lightened(0.25) if reflect else (base if rng.randf() > 0.04 else base.lightened(0.06))
+	# Reflejo del cielo en diagonal.
+	var reflect := _sstep(0.0, 1.5, posmod(s - t * 2.0, 23.0)) * (1.0 - _sstep(3.0, 5.0, posmod(s - t * 2.0, 23.0)))
+	return base.lerp(Color("c9def0"), reflect * 0.45)
 
 
 ## Edificios públicos: piedra clara, pilastras y ventanas en arco.
-func _facade_roof_civic(face: int, s: int, t: int, ground_floor: bool, variant: int, _rng: RandomNumberGenerator) -> Color:
-	var wall := Color("e6d9bb")
-	if t % 6 == 5 or (t / 6 + s / 8) % 2 == 0 and s % 8 == 0:
+func _facade_roof_civic(face: int, s: float, t: float, ground_floor: bool, variant: int, _rng: RandomNumberGenerator) -> Color:
+	var wall := _shade(Color("e6d9bb"), _grain(Vector2(s, t), face) * 0.025)
+	var block_row := floori(t / 6.0)
+	if posmod(t, 6.0) > 5.5 or (posmod(s + 4.0 * (block_row % 2), 8.0) < 0.45):
 		wall = Color("cdbf9f")  # juntas de los bloques
-	if s <= 1 or s >= 30:
-		wall = Color("f2e8cf")  # pilastras
-	if t <= 1:
-		wall = Color("cdbf9f")
+	if s <= 2.0 or s >= 30.0:
+		wall = Color("f2e8cf").darkened(0.06 if s >= 30.0 else 0.0)  # pilastras
+	if t <= 1.6:
+		wall = Color("cdbf9f").lightened(0.1 * (1.0 - t / 1.6))
 	# Arco: rectángulo con remate semicircular.
-	var s0 := 11
-	var w := 10
-	var top := 5 if ground_floor and variant == 0 else 7
-	var cx := s0 + (w - 1) / 2.0
-	var in_rect := s >= s0 and s < s0 + w and t >= top + 4 and t < FLOOR_PX - (1 if ground_floor else 4)
-	var in_arch := t >= top and t < top + 5 and Vector2(s - cx, (t - (top + 4)) * 1.1).length() <= w / 2.0
+	var s0 := 11.0
+	var w := 10.0
+	var top := 5.0 if ground_floor and variant == 0 else 7.0
+	var cx := s0 + w * 0.5
+	var bottom := FLOOR_PX - (1.0 if ground_floor else 4.0)
+	var arch_d := Vector2(s - cx, (t - (top + 5.0)) * 1.1).length()
+	var in_rect := s >= s0 and s < s0 + w and t >= top + 5.0 and t < bottom
+	var in_arch := t >= top and t < top + 5.0 and arch_d <= w * 0.5
 	if in_rect or in_arch:
-		var edge := s == s0 or s == s0 + w - 1 or (in_arch and Vector2(s - cx, (t - (top + 4)) * 1.1).length() > w / 2.0 - 1.2)
+		var edge := s < s0 + 0.8 or s >= s0 + w - 0.8 or (in_arch and arch_d > w * 0.5 - 0.8)
 		if edge:
 			return Color("b8a882")
 		if ground_floor and variant == 0:
-			return Color("6b4a32") if (s - s0) % 3 != 0 else Color("5a3d29")  # portón de madera
-		return Color("7fa3c7") if t < top + 6 else Color("6a8db3")
+			return _shade(Color("6b4a32"), -0.1 if posmod(s - s0, 3.3) < 0.4 else sin(t * 3.0) * 0.03)  # portón
+		var g := Color("9cbedd").lerp(Color("55789f"), (t - top) / (bottom - top))
+		return g.lightened(0.25) if posmod(s - t, 9.0) < 1.4 else g
+	if not in_rect and absf(t - (bottom + 0.4)) < 0.4 and s >= s0 - 0.6 and s < s0 + w + 0.6:
+		return Color("cdbf9f")  # repisa
 	return wall
 
 
 ## Bodegas: lámina ondulada (como su techo), portón enrollable en la planta baja.
-func _facade_roof_industrial(face: int, s: int, t: int, ground_floor: bool, variant: int, rng: RandomNumberGenerator) -> Color:
-	var wall := Color("8f9ba7") if s % 4 < 2 else Color("7d8994")
-	if rng.randf() < 0.03:
-		wall = wall.lightened(0.08)
-	if ground_floor and variant == 0 and face == 0 and s >= 4 and s <= 27 and t >= 5:
-		if s == 4 or s == 27 or t == 5:
+func _facade_roof_industrial(face: int, s: float, t: float, ground_floor: bool, variant: int, _rng: RandomNumberGenerator) -> Color:
+	var wall := _shade(Color("8996a3"), sin(s * TAU / 4.0) * 0.1 + _grain(Vector2(s, t), face) * 0.02)
+	if ground_floor and variant == 0 and face == 0 and s >= 4.0 and s < 28.0 and t >= 5.0:
+		if s < 4.8 or s >= 27.2 or t < 5.8:
 			return Color("5e6872")
-		return Color("c2c6ca") if t % 3 != 0 else Color("a5aaaf")
-	if not ground_floor and variant == 1 and t >= 4 and t <= 8 and s >= 4 and s <= 27:
-		return Color("5e6872") if t == 4 or t == 8 or s % 6 == 4 else Color("9cc0dc")
+		return _shade(Color("c2c6ca"), -0.12 if posmod(t, 1.4) < 0.3 else 0.02)
+	if not ground_floor and variant == 1 and t >= 4.0 and t < 9.0 and s >= 4.0 and s < 28.0:
+		if t < 4.6 or t >= 8.4 or posmod(s - 4.0, 6.0) < 0.5:
+			return Color("5e6872")
+		return Color("a8c8e2").lerp(Color("6f93b5"), (t - 4.0) / 5.0)
 	return wall
+
 
 # =============================================================================
 # Iconos de categoría de los puntos de interés (assets/art/ui/poi/<cat>.png)
+# 7x7 lógicos -> 28x28, blancos (el juego los tiñe). Se amplían con Scale2x
+# dos veces: las diagonales quedan redondeadas, no en escalera.
 # =============================================================================
 
 const POI_ICONS := {
@@ -1068,6 +1383,9 @@ const POI_ICONS := {
 
 func _poi_icons() -> void:
 	for cat: String in POI_ICONS:
+		var relative := "ui/poi/%s.png" % cat
+		if not _wanted(relative):
+			continue
 		var rows: Array = POI_ICONS[cat]
 		var img := Image.create_empty(7, 7, false, Image.FORMAT_RGBA8)
 		for y in rows.size():
@@ -1075,11 +1393,53 @@ func _poi_icons() -> void:
 			for x in row.length():
 				if row[x] == "X":
 					img.set_pixel(x, y, Color.WHITE)
-		_write("ui/poi/%s.png" % cat, img)
+		_write(relative, scale4x(img))
+
+
+## Amplía pixel art x4 (Scale2x dos veces): mantiene los bordes nítidos y
+## suaviza las diagonales. Sirve también para los iconos de la interfaz.
+static func scale4x(img: Image) -> Image:
+	return _scale2x(_scale2x(img))
+
+
+static func _scale2x(src: Image) -> Image:
+	var w := src.get_width()
+	var h := src.get_height()
+	var out := Image.create_empty(w * 2, h * 2, false, Image.FORMAT_RGBA8)
+	var at := func(x: int, y: int) -> Color:
+		return src.get_pixel(clampi(x, 0, w - 1), clampi(y, 0, h - 1))
+	for y in h:
+		for x in w:
+			var p: Color = at.call(x, y)
+			var a: Color = at.call(x, y - 1)
+			var b: Color = at.call(x + 1, y)
+			var c: Color = at.call(x - 1, y)
+			var d: Color = at.call(x, y + 1)
+			out.set_pixel(x * 2, y * 2, a if c == a and c != d and a != b else p)
+			out.set_pixel(x * 2 + 1, y * 2, b if a == b and a != c and b != d else p)
+			out.set_pixel(x * 2, y * 2 + 1, c if d == c and d != b and c != a else p)
+			out.set_pixel(x * 2 + 1, y * 2 + 1, d if b == d and b != a and d != c else p)
+	return out
+
+
+## Contorno de 1 px alrededor de lo opaco (pixel art de los personajes).
+func _pixel_outline(img: Image, color: Color) -> void:
+	var marks: Array[Vector2i] = []
+	for y in img.get_height():
+		for x in img.get_width():
+			if img.get_pixel(x, y).a >= 0.6:
+				continue
+			for d in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
+				var n: Vector2i = Vector2i(x, y) + d
+				if n.x >= 0 and n.y >= 0 and n.x < img.get_width() and n.y < img.get_height() and img.get_pixel(n.x, n.y).a >= 0.6:
+					marks.append(Vector2i(x, y))
+					break
+	for p in marks:
+		img.set_pixel(p.x, p.y, color)
 
 
 # =============================================================================
-# Jugador: hoja de sprites 8 direcciones x (1 quieto + 4 caminando)
+# Jugador: hoja de sprites 8 direcciones x (1 quieto + 4 caminando), pixel art a x1
 # =============================================================================
 
 const SKIN := Color("f1c27d")
@@ -1107,7 +1467,7 @@ func _player_sheet() -> void:
 			_character(frame, drawn, col)
 			if mirror:
 				frame.flip_x()
-			_outline(frame, CHAR_OUTLINE)
+			_pixel_outline(frame, CHAR_OUTLINE)
 			img.blit_rect(frame, Rect2i(Vector2i.ZERO, FRAME), Vector2i(col * FRAME.x, row * FRAME.y))
 	# Solo si no hay ningún personaje: nunca toca tus skins (ni con --force)
 	# ni agrega uno de relleno al selector.

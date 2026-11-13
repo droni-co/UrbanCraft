@@ -1,6 +1,14 @@
 # Arte del juego (editable)
 
-Esta carpeta contiene el arte **fuente** de UrbanCraft: un PNG por tile, variante y personaje. Puedes editarlos con cualquier editor de pixel art (Aseprite, LibreSprite, Pixelorama, Krita, GIMP…) o reemplazarlos por los tuyos.
+Esta carpeta contiene el arte **fuente** de UrbanCraft: un PNG por tile, variante y personaje. Puedes editarlos con cualquier editor (Krita, GIMP, Photoshop, Aseprite…) o reemplazarlos por los tuyos.
+
+## Escala x4
+
+El mundo mide en **px lógicos** (un tile es 64×32), pero el arte del mundo se dibuja **4 veces más grande** (`WorldTiles.ART_SCALE`): un tile de suelo es un PNG de **256×128**. El juego lo muestra al mismo tamaño en el mundo con filtro lineal y mipmaps, así que en pantallas grandes se ve todo el detalle. Ninguna coordenada del juego cambia.
+
+- Cómo funciona: los atlas usan `HDTexture` (`scripts/world/hd_texture.gd`), una textura que dice medir un cuarto del PNG y al dibujar pide la región escalada.
+- En esta guía los tamaños van como **PNG (lógico)**, por ejemplo 256×128 (64×32). Las posiciones (anclas, bordes) se dan en px lógicos: multiplícalas por 4 para ubicarlas en el PNG.
+- Los atlas se importan como WebP con pérdida y con mipmaps (`build_art.gd` deja esos parámetros en los `.import`). Los PNG de `tiles/`, `props/` y `buildings/` no se exportan con el juego, solo los atlas.
 
 Después de editar, regenera los atlas y el TileSet:
 
@@ -11,7 +19,7 @@ pnpm game:assets
 Ese comando:
 
 1. Crea los archivos que falten con el arte inicial. **Nunca sobrescribe los tuyos.**
-2. Empaqueta todo en `assets/tiles/ground.png` y `assets/tiles/props.png`, y escribe `assets/tiles/atlas.json`.
+2. Empaqueta todo en `assets/tiles/ground.png`, `assets/tiles/props.png` y `assets/tiles/buildings_<pisos>.png` (uno por altura, de 1 a 6), y escribe `assets/tiles/atlas.json`.
 3. Reconstruye `resources/tilesets/world_tileset.tres`.
 
 > No edites `assets/tiles/*.png` a mano: se regeneran desde aquí.
@@ -22,12 +30,12 @@ Para volver al arte inicial (borra tus cambios): `pnpm game:art:reset`.
 
 ```
 art/
-├── tiles/ground/   suelo, 64×32
-├── props/          árboles, rocas, arbustos, mobiliario urbano, 64×64
-├── buildings/      fachadas de un piso para los edificios en 3D, 64×42
-├── characters/     hojas de sprites de personajes
-├── ui/icons/       iconos de la interfaz, 12×12 (stats del HUD; ver ui/icons/README.md)
-└── ui/poi/         icono de cada categoría de lugar, 7×7 blanco (va dentro del pin)
+├── tiles/ground/   suelo, 256×128 (64×32)
+├── props/          árboles, rocas, arbustos, mobiliario urbano, 256×256 (64×64)
+├── buildings/      fachadas de un piso para los edificios en 3D, 256×168 (64×42)
+├── characters/     hojas de sprites de personajes (pixel art a x1, o a x2/x4)
+├── ui/icons/       iconos de la interfaz, 48×48 (12×12) (stats del HUD; ver ui/icons/README.md)
+└── ui/poi/         icono de cada categoría de lugar, 28×28 (7×7) blanco (va dentro del pin)
 ```
 
 ## Nombres y variantes
@@ -48,24 +56,25 @@ art/
 
 Agregar un **tipo nuevo** (por ejemplo `snow`) no se hace solo con un archivo. Hay que añadirlo al final del enum en `scripts/world/world_tiles.gd` y en `apps/backend/app/map/catalog.ts`, y enseñarle al rasterizador del backend cuándo usarlo.
 
-## Suelo: `tiles/ground/` (64×32)
+## Suelo: `tiles/ground/` (256×128)
 
-- Un rombo isométrico 2:1 sobre fondo transparente. Cada fila `y` del rombo ocupa los píxeles `x` entre `32 − m` y `32 + m − 1`, con `m = 2·(y+1)` en la mitad superior y `m = 2·(32−y)` en la inferior. Lo más simple es partir de un tile existente.
+- Un rombo isométrico 2:1 sobre fondo transparente, con los vértices en el centro de cada borde del PNG. Lo más simple es partir de un tile existente.
+- **Pinta 3–4 px más allá del borde del rombo** (sin transparencia). Con filtro lineal, un borde exacto deja rendijas finas entre tiles; ese margen queda tapado por el vecino.
 - **Sin costuras:** el tile se repite en una grilla, así que lo que sale por un borde tiene que continuar en el borde opuesto.
   - Evita líneas en el contorno: dibujan la grilla.
-  - Deja los detalles grandes (alcantarillas, flores) al menos 2–3 px dentro del rombo.
+  - Deja los detalles grandes (alcantarillas, flores) al menos 10 px dentro del rombo.
   - Las variantes de un mismo tipo deberían compartir la textura base y cambiar solo los detalles, para que encajen entre sí.
 - `building` y `roof_*` son techos vistos desde arriba. Las celdas de un mismo edificio eligen variantes distintas, así que las variantes de un techo deberían ser del mismo color, con detalles sueltos como tanques de agua, ductos o tragaluces. Qué techo lleva cada edificio lo decide el backend (`classifyBuilding` en `rasterizer.ts`): `roof_brick` para casas, `roof_concrete` para comercio y oficinas, `roof_dark` para edificios altos, `roof_civic` para iglesias, colegios y hospitales, y `roof_industrial` para bodegas.
 - `crosswalk` se pinta sobre el asfalto: las franjas tienen que seguir la dirección de la grilla.
 - El minimapa usa un color por tipo, definido en `scenes/ui/minimap.gd` (`GROUND_COLORS`). Si cambias mucho un color, actualízalo ahí.
 
-## Props: `props/` (64×64)
+## Props: `props/` (256×256)
 
-- La base del objeto (donde toca el suelo) va en el píxel **(32, 48)**: es el centro del rombo de su celda. Lo que sobresale hacia arriba tapa lo que está detrás, porque se ordena por profundidad.
-- Incluye la sombra en el suelo (elipse negra semitransparente).
+- La base del objeto (donde toca el suelo) va en el píxel **(128, 192)** del PNG ((32, 48) lógico): es el centro del rombo de su celda. Lo que sobresale hacia arriba tapa lo que está detrás, porque se ordena por profundidad.
+- Incluye la sombra en el suelo (elipse negra semitransparente, con borde difuso).
 - Los props bloquean el paso. La colisión es un rombo pequeño en la base y no depende de la imagen.
 
-## Edificios en 3D: `buildings/` (64×42)
+## Edificios en 3D: `buildings/` (256×168)
 
 Cada celda de edificio se dibuja como un bloque isométrico: las dos paredes del frente y el techo encima. `build_art.gd` arma los bloques apilando fachadas de un piso según la altura del edificio (1 a 6 pisos; el backend la saca de `building:levels` o `height` de OSM, o usa una típica del tipo) y les pone encima el tile de techo de su estilo (`tiles/ground/roof_*.png` o `building_*.png`).
 
@@ -75,21 +84,21 @@ Cada celda de edificio se dibuja como un bloque isométrico: las dos paredes del
 
 - `<estilo>`: el suelo del techo: `building` (casas), `roof_brick`, `roof_concrete`, `roof_dark` (vidrio), `roof_civic`, `roof_industrial`.
 - `ground` es la planta baja (puertas, locales, portones) y `upper` un piso alto. Hace falta al menos uno de cada uno por estilo.
-- Cada imagen tiene las dos paredes de un piso: la izquierda (x 0–31, iluminada) y la derecha (x 32–63, en sombra). El borde de arriba es una "V" (de (0, 0) a (32, 16) y a (64, 0)) y el de abajo la misma "V" 26 px más abajo. Fuera de esas dos franjas inclinadas, transparente. Lo más fácil es partir de una existente.
+- Cada imagen tiene las dos paredes de un piso: la izquierda (x 0–127 del PNG, iluminada) y la derecha (x 128–255, en sombra). El borde de arriba es una "V" (de (0, 0) a (128, 64) y a (256, 0)) y el de abajo la misma "V" 104 px más abajo (26 lógicos). Fuera de esas dos franjas inclinadas, transparente. Lo más fácil es partir de una existente.
 - Las ventanas siguen la inclinación de la pared (en la izquierda bajan 1 px cada 2 hacia la derecha, en la derecha suben).
-- Cada celda elige una de 8 combinaciones (planta baja, pisos y variante de techo) con un hash de su posición: si un edificio se ve muy repetido, agrega variantes o cambia los pesos.
+- Cada celda elige una de 4 combinaciones (planta baja, pisos y variante de techo) con un hash de su posición: si un edificio se ve muy repetido, agrega variantes de fachada o cambia los pesos. Son 4 (`BUILDING_VARIANTS` en `build_art.gd`) para que los atlas de edificios no pesen demasiado a x4.
 - La altura de un piso (26 px) y el máximo de pisos están en `WorldTiles` (`BUILDING_FLOOR_PX`, `BUILDING_MAX_FLOORS`). Si los cambias, cambia también el alto de las fachadas.
 
-## Iconos de lugares: `ui/poi/<categoría>.png` (7×7)
+## Iconos de lugares: `ui/poi/<categoría>.png` (28×28)
 
-- Blancos sobre fondo transparente; el pin les pone el color de la categoría (`scripts/map/poi_catalog.gd`).
+- Se muestran a 7×7 lógicos. Blancos sobre fondo transparente; el pin les pone el color de la categoría (`scripts/map/poi_catalog.gd`).
 - Categorías: `food`, `shop`, `health`, `education`, `worship`, `money`, `transport`, `culture`, `lodging`, `sport`, `service`, `other` (las calcula el backend en `app/map/poi_category.ts`).
 
 ## Personajes: `characters/*.png`
 
 Cada PNG de `characters/` es un **personaje (skin)** que el jugador puede elegir en **Menú → Personaje**: `player01.png` … `player05.png`. Para agregar uno basta con poner otra hoja ahí: aparece sola en el selector como "Personaje N" (`player06.png`) o con su nombre (`ninja_rojo.png` → "Ninja Rojo"). `player01` es el personaje por defecto. El personaje elegido se guarda en la cuenta y los demás jugadores lo ven.
 
-Cada hoja mide **160×384**, con 5 columnas × 8 filas de frames de **32×48**:
+Cada hoja mide **160×384**, con 5 columnas × 8 filas de frames de **32×48**. También puede ir a una escala entera (**320×768** a x2, **640×1536** a x4…): el juego la detecta por el ancho, la muestra al mismo tamaño y con filtro lineal (a x1 usa *nearest*, para pixel art). Las medidas de abajo son lógicas.
 
 | Columna | Contenido |
 | ------- | --------- |
@@ -114,8 +123,8 @@ Cada hoja mide **160×384**, con 5 columnas × 8 filas de frames de **32×48**:
 
 ## Estilo
 
-Pixel art de 16 bits:
-- Luz desde arriba a la izquierda.
-- Contorno de 1 px oscuro (no negro puro) en props y personajes.
-- 3–4 tonos por material.
-- El juego se ve a la escala de la resolución base 640×360, con filtrado *nearest*. No uses antialiasing ni bordes semitransparentes, salvo en las sombras.
+Ilustrado y suave (el arte inicial lo genera `tools/generate_starter_art.gd`):
+- Luz desde arriba a la izquierda; sombras un poco más frías y luces un poco más cálidas.
+- Volúmenes con degradés suaves en vez de 3–4 tonos planos.
+- Contorno oscuro y suave (2–3 px del PNG, no negro puro) en los props.
+- Bordes con antialias. El mundo se dibuja con filtro lineal y mipmaps; la interfaz y los personajes a x1, con *nearest*.

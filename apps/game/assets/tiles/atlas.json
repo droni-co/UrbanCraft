@@ -1,5 +1,5 @@
 {
-  "buildings": 8,
+  "buildings": 4,
   "ground": [
     [
       6.0,
@@ -114,5 +114,6 @@
     [
       1.0
     ]
-  ]
+  ],
+  "scale": 4
 }

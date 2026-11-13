@@ -83,7 +83,7 @@ Comandos útiles: `pnpm map:pregenerate --lat=40.42 --lon=-3.6887 --radius=2000 
 
 ## Juego (apps/game)
 
-Juego **2D isométrico** (tiles 64×32, estilo pixel art) pensado para jugarse igual de cómodo en PC y móvil.
+Juego **2D isométrico** (tiles 64×32 con arte a x4, estilo ilustrado) pensado para jugarse igual de cómodo en PC y móvil.
 
 ### Controles
 
@@ -148,7 +148,7 @@ Bajo el botón ☰ hay un panel compacto con los stats principales:
 Al pasar el ratón por encima se ve el detalle (`Hambre 87/100`, `Nivel 3 (50/520 xp)`…). Los cambios muestran un `+50` flotante. Se puede ocultar con `GameSettings.stats_hud_visible`.
 
 - **El servidor es la fuente de verdad:** el cliente solo lee los stats. Los cambios llegan por acciones del servidor (comer, misiones…), así nadie puede ponerse dinero desde el juego.
-- **Agregar un stat** es una entrada en `apps/backend/config/player_stats.ts` (tipo `meter`, `level` o `counter`, límites, valor inicial, desgaste, orden, icono y color), sin migraciones. El panel lo dibuja solo. Para su icono, crea `apps/game/assets/art/ui/icons/<icon>.png` (12×12).
+- **Agregar un stat** es una entrada en `apps/backend/config/player_stats.ts` (tipo `meter`, `level` o `counter`, límites, valor inicial, desgaste, orden, icono y color), sin migraciones. El panel lo dibuja solo. Para su icono, crea `apps/game/assets/art/ui/icons/<icon>.png` (48×48, se ve a 12×12).
 - **Depuración:** en builds de depuración, con `DEV_LOGIN_ENABLED`, el menú tiene una sección **Depuración** para sumar y restar stats.
 
 ### Multijugador

@@ -537,7 +537,7 @@ func _on_player_interacted(facing: Vector2) -> void:
 	if props.get_cell_source_id(cell) != -1:
 		hud.show_message(PROP_DESCRIPTIONS.get(props.get_cell_atlas_coords(cell).x, "Algo interesante."))
 		return
-	var ground_kind := ground.get_cell_atlas_coords(cell).x
+	var ground_kind := WorldTiles.ground_kind(ground.get_cell_atlas_coords(cell))
 	hud.show_message(GROUND_DESCRIPTIONS.get(ground_kind, "No hay nada aquí."))
 
 
@@ -558,7 +558,7 @@ func _feed_demo_minimap(center: Vector2i) -> void:
 	bytes.fill(255)
 	for y in used.size.y:
 		for x in used.size.x:
-			bytes[y * side + x] = ground.get_cell_atlas_coords(used.position + Vector2i(x, y)).x
+			bytes[y * side + x] = WorldTiles.ground_kind(ground.get_cell_atlas_coords(used.position + Vector2i(x, y)))
 	_minimap_center_local = center
 	hud.minimap.set_view(center, 0.0, side / 2.0)
 	hud.minimap.add_chunk(used.position, side, bytes)

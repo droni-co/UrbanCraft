@@ -22,7 +22,7 @@ func setup(poi: Dictionary) -> void:
 	poi_detail = str(poi.get("detail", ""))
 	_icon = PoiCatalog.icon(poi_category)
 	_color = PoiCatalog.color(poi_category)
-	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 
 
 ## "Panadería La Espiga · Panadería"
@@ -47,4 +47,5 @@ func _draw() -> void:
 	draw_circle(head, 6.5, _color)
 	draw_arc(head, 6.5, 0.0, TAU, 24, Color(1, 1, 1, 0.9), 1.0, true)
 	if _icon:
-		draw_texture(_icon, head - Vector2(3.5, 3.5))
+		# 7x7 px del mundo (el PNG es x4: 28x28).
+		draw_texture_rect(_icon, Rect2(head - Vector2(3.5, 3.5), Vector2(7, 7)), false)

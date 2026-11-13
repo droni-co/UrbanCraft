@@ -2,7 +2,7 @@ class_name BuildingFader
 extends Node
 ## Transparenta los edificios que tapan al jugador.
 ##
-## Los edificios son bloques altos (WorldTiles.SOURCE_BUILDINGS) en la capa
+## Los edificios son bloques altos (WorldTiles.building_source) en la capa
 ## Buildings, ordenados por profundidad con el jugador: si camina por detrás de
 ## uno, el bloque se dibuja encima y lo taparía. Cada frame se buscan los
 ## bloques que están delante del jugador y cuyo dibujo se cruza con el suyo, y
@@ -42,7 +42,7 @@ func update(feet: Vector2) -> void:
 			var center := solid.map_to_local(cell)
 			if center.y <= feet.y:
 				continue  # detrás del jugador: lo dibuja antes, no lo tapa
-			var wall := WorldTiles.building_wall_height(layer.get_cell_atlas_coords(cell))
+			var wall := WorldTiles.building_wall_height(layer.get_cell_source_id(cell))
 			var block := Rect2(center.x - tile.x / 2.0, center.y - tile.y / 2.0 - wall, tile.x, tile.y + wall)
 			if block.intersects(player_rect):
 				want[cell] = true
@@ -52,11 +52,11 @@ func update(feet: Vector2) -> void:
 			continue
 		_faded.erase(cell)
 		if faded.get_cell_source_id(cell) != -1:
-			solid.set_cell(cell, WorldTiles.SOURCE_BUILDINGS, faded.get_cell_atlas_coords(cell))
+			solid.set_cell(cell, faded.get_cell_source_id(cell), faded.get_cell_atlas_coords(cell))
 			faded.erase_cell(cell)
 	for cell: Vector2i in want:
 		if solid.get_cell_source_id(cell) != -1:
-			faded.set_cell(cell, WorldTiles.SOURCE_BUILDINGS, solid.get_cell_atlas_coords(cell))
+			faded.set_cell(cell, solid.get_cell_source_id(cell), solid.get_cell_atlas_coords(cell))
 			solid.erase_cell(cell)
 		_faded[cell] = true
 
@@ -65,6 +65,6 @@ func update(feet: Vector2) -> void:
 func clear() -> void:
 	for cell: Vector2i in _faded.keys():
 		if faded.get_cell_source_id(cell) != -1:
-			solid.set_cell(cell, WorldTiles.SOURCE_BUILDINGS, faded.get_cell_atlas_coords(cell))
+			solid.set_cell(cell, faded.get_cell_source_id(cell), faded.get_cell_atlas_coords(cell))
 			faded.erase_cell(cell)
 	_faded.clear()

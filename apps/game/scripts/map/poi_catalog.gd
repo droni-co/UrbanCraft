@@ -4,7 +4,7 @@ extends RefCounted
 ## por categoría y nombre en español del tipo de lugar.
 ##
 ## La categoría la calcula el backend (apps/backend/app/map/poi_category.ts).
-## Iconos editables: assets/art/ui/poi/<categoría>.png (7x7, blanco).
+## Iconos editables: assets/art/ui/poi/<categoría>.png (28x28 = 7x7 del mundo a x4, blanco).
 
 const ICON_DIR := "res://assets/art/ui/poi/"
 
