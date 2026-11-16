@@ -88,7 +88,7 @@ adb install -r apps/game/export/android/UrbanCraft.apk
 - **Paquete:** `co.droni.urbancraft`. Es el id permanente de la app (Google Play no deja cambiarlo después).
 - **version/code:** súbelo en 1 en cada versión que publiques (Android no instala encima un código igual o menor). `version/name` es el texto visible (`0.1.0`).
 - **Solo arm64-v8a:** cubre los teléfonos actuales. Para teléfonos de 32 bits muy viejos, activa `armeabi-v7a` (el APK pesa más).
-- **Ubicación:** el GPS nativo aún no está implementado (ver `LocationService`): en Android la posición sale de la IP, como en PC. Cuando se agregue el plugin habrá que pedir el permiso `ACCESS_FINE_LOCATION`.
+- **Ubicación:** en Android se usa el GPS del teléfono (permisos `ACCESS_FINE_LOCATION` y `ACCESS_COARSE_LOCATION`, pedidos al arrancar). Si el jugador niega el permiso, la ubicación del teléfono está apagada o no hay dato en 20 s, se usa la IP.
 - **Login con Google:** abre el navegador del teléfono y el juego espera la respuesta; no necesita configuración extra.
 - **Solo horizontal:** `display/window/handheld/orientation=4` (*sensor landscape*) bloquea la app en horizontal: gira entre las dos posiciones horizontales, nunca a vertical. `GameSettings` lo vuelve a fijar al arrancar en móvil.
 - **Google Play** exige **AAB**, no APK. Para eso: instala la plantilla de Gradle (`godot --headless --path apps/game --install-android-build-template --export-release Android ...` o Proyecto → Instalar plantilla de compilación de Android), y en el preset `gradle_build/use_gradle_build=true` y `gradle_build/export_format=1`. Para repartir el APK directamente (o en pruebas internas) no hace falta.

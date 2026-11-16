@@ -4,7 +4,7 @@ extends Node
 ## Al arrancar se resuelve una sola vez (`locate()`), probando en orden:
 ##   1. Argumentos:  godot --path apps/game -- --lat=40.42 --lon=-3.6887   (exacta)
 ##   2. GPS del navegador (export web, navigator.geolocation)            (exacta)
-##   3. GPS nativo de Android/iOS (TODO: requiere un plugin)               (exacta)
+##   3. GPS nativo de Android (LocationManager vía JavaClassWrapper)       (exacta)
 ##   4. IP pública, vía backend GET /api/v1/geo/ip              (aproximada, ~ciudad)
 ##   5. Última ubicación conocida (user://location.cfg)
 ##   6. Ajustes de proyecto urbancraft/map/default_latitude/longitude
@@ -28,6 +28,15 @@ const SETTING_LAT := "urbancraft/map/default_latitude"
 const SETTING_LON := "urbancraft/map/default_longitude"
 const LAST_LOCATION_PATH := "user://location.cfg"
 const BROWSER_TIMEOUT_SECONDS := 15.0
+## Android: tiempo máximo esperando el primer dato del GPS, y precisión con la
+## que ya no vale la pena seguir esperando una mejor.
+const GPS_TIMEOUT_SECONDS := 20.0
+const GPS_GOOD_ACCURACY_M := 40.0
+## Una última ubicación conocida del sistema sirve si tiene menos de esto.
+const GPS_LAST_KNOWN_MAX_AGE_S := 120.0
+const PERMISSION_TIMEOUT_SECONDS := 60.0
+const FINE_LOCATION := "android.permission.ACCESS_FINE_LOCATION"
+const COARSE_LOCATION := "android.permission.ACCESS_COARSE_LOCATION"
 
 const SOURCE_NAMES := {
 	"args": "argumentos",
@@ -54,6 +63,9 @@ var _home := {}
 
 var _locating := false
 var _js_callbacks: Array = []  # mantiene vivas las callbacks de JavaScript
+## Android: mejor dato recibido del GPS mientras se espera ({lat, lon, accuracy}).
+var _gps_best := {}
+var _gps_listener: JavaObject = null
 
 
 func _ready() -> void:
@@ -72,7 +84,7 @@ func source_name() -> String:
 
 
 func has_gps() -> bool:
-	return false  # TODO: plugin de geolocalización para Android/iOS (ver docs)
+	return OS.has_feature("android")
 
 
 ## Resuelve la ubicación (una sola vez; llamadas concurrentes esperan la misma).
@@ -87,6 +99,8 @@ func locate() -> void:
 	var found := _from_args()
 	if not found and OS.has_feature("web"):
 		found = await _from_browser()
+	if not found and OS.has_feature("android"):
+		found = await _from_android_gps()
 	if not found:
 		found = await _from_ip()
 	if not found:
@@ -172,6 +186,104 @@ func _from_browser() -> bool:
 		await get_tree().process_frame
 	_js_callbacks.clear()
 	return state.ok
+
+
+## GPS de Android: pide el permiso de ubicación y escucha el LocationManager
+## (proveedores gps y network) hasta tener un dato preciso o agotar el tiempo.
+func _from_android_gps() -> bool:
+	if not await _request_location_permission():
+		push_warning("[Location] Permiso de ubicación denegado; se usa la IP.")
+		return false
+	var runtime = Engine.get_singleton("AndroidRuntime") if Engine.has_singleton("AndroidRuntime") else null
+	if runtime == null:
+		return false
+	var context = runtime.getApplicationContext()
+	var manager = context.getSystemService("location") if context != null else null
+	if manager == null:
+		return false
+
+	var providers: Array[String] = []
+	for provider in ["gps", "network"]:
+		if manager.isProviderEnabled(provider):
+			providers.append(provider)
+	if providers.is_empty():
+		push_warning("[Location] La ubicación del teléfono está apagada; se usa la IP.")
+		return false
+
+	_gps_best = {}
+	# Dato reciente que el sistema ya tenga: sirve de inmediato si es preciso.
+	var now_ms := Time.get_unix_time_from_system() * 1000.0
+	for provider in providers:
+		var last = manager.getLastKnownLocation(provider)
+		if last != null and now_ms - float(last.getTime()) <= GPS_LAST_KNOWN_MAX_AGE_S * 1000.0:
+			_on_gps_fix(float(last.getLatitude()), float(last.getLongitude()), float(last.getAccuracy()))
+
+	if _gps_best.is_empty() or _gps_best.accuracy > GPS_GOOD_ACCURACY_M:
+		var looper = JavaClassWrapper.wrap("android.os.Looper").getMainLooper()
+		_gps_listener = JavaClassWrapper.create_proxy(self, PackedStringArray(["android.location.LocationListener"]))
+		for provider in providers:
+			manager.requestLocationUpdates(provider, 1000, 0.0, _gps_listener, looper)
+		var deadline := Time.get_ticks_msec() + int(GPS_TIMEOUT_SECONDS * 1000)
+		while Time.get_ticks_msec() < deadline:
+			if not _gps_best.is_empty() and _gps_best.accuracy <= GPS_GOOD_ACCURACY_M:
+				break
+			await get_tree().process_frame
+		manager.removeUpdates(_gps_listener)
+		_gps_listener = null
+
+	if _gps_best.is_empty():
+		return false
+	_apply(_gps_best.lat, _gps_best.lon, "gps", _gps_best.accuracy)
+	return true
+
+
+## LocationListener (lo llama Android desde su hilo principal).
+func onLocationChanged(location) -> void:
+	if location == null:
+		return
+	_on_gps_fix.call_deferred(float(location.getLatitude()), float(location.getLongitude()),
+		float(location.getAccuracy()))
+
+
+func onProviderEnabled(_provider) -> void:
+	pass
+
+
+func onProviderDisabled(_provider) -> void:
+	pass
+
+
+func onStatusChanged(_provider, _status, _extras) -> void:
+	pass
+
+
+func _on_gps_fix(lat: float, lon: float, accuracy: float) -> void:
+	if accuracy <= 0.0:
+		accuracy = 9999.0
+	if _gps_best.is_empty() or accuracy < _gps_best.accuracy:
+		_gps_best = {"lat": lat, "lon": lon, "accuracy": accuracy}
+
+
+## Pide el permiso de ubicación (el sistema muestra el diálogo la primera vez).
+func _request_location_permission() -> bool:
+	if _has_location_permission():
+		return true
+	var state := {"done": false}
+	var on_result := func(_permission: String, _granted: bool) -> void:
+		state.done = true
+	get_tree().on_request_permissions_result.connect(on_result)
+	if OS.request_permission(FINE_LOCATION):
+		state.done = true
+	var deadline := Time.get_ticks_msec() + int(PERMISSION_TIMEOUT_SECONDS * 1000)
+	while not state.done and Time.get_ticks_msec() < deadline:
+		await get_tree().process_frame
+	get_tree().on_request_permissions_result.disconnect(on_result)
+	return _has_location_permission()
+
+
+func _has_location_permission() -> bool:
+	var granted := OS.get_granted_permissions()
+	return FINE_LOCATION in granted or COARSE_LOCATION in granted
 
 
 ## Ubicación aproximada por IP: la resuelve el backend (proveedor intercambiable).
