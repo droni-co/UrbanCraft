@@ -44,7 +44,7 @@ func _ready() -> void:
 	_button(game_grid, "+100 influencia aquí", func() -> void: Game.dev("influence", {"points": 100}))
 	for key: String in ["martillo", "tabla", "clavos", "tela", "pintura", "palo", "masa", "carne", "carbon", "chatarra", "piedra"]:
 		_button(game_grid, "+10 %s" % key, func() -> void: Game.dev("give", {"item": key, "qty": 10}))
-	for key: String in ["mesa", "parrilla", "bandera", "puesto", "caja", "matera", "banca", "letrero", "farol"]:
+	for key: String in ["mesa", "parrilla", "bandera", "puesto", "caja", "matera", "banca", "letrero", "farol", "seto", "estandarte", "fuente", "trono"]:
 		_button(game_grid, "+1 %s" % key, func() -> void: Game.dev("give", {"item": key, "qty": 1}))
 	_button(game_grid, "Empezar de cero (borra todo)", func() -> void: Game.dev("reset"))
 

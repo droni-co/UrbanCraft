@@ -21,7 +21,7 @@ El servidor es la única fuente de verdad. Cada acción se valida contra el mapa
 | Acción | Dónde | Qué da |
 | ------ | ----- | ------ |
 | Visitar un lugar nuevo | Interactuar junto a un pin | Experiencia e influencia en el sector |
-| Rebuscar | Interactuar frente a árboles, arbustos, rocas, bancas, postes, paraderos, fuentes | Materiales y a veces monedas. Cada celda se recupera (20–120 min) |
+| Rebuscar | Interactuar cerca (hasta unas 2 celdas, no hace falta estar justo enfrente) de árboles, arbustos, rocas, bancas, postes, paraderos, fuentes. Sobre el objeto sale el resultado: «¡Encontraste algo!», «No salió nada» o cuánto falta | Materiales y a veces monedas. Cada celda se recupera (20–120 min) |
 | Comprar y vender | En cada lugar | Cada lugar ofrece parte del surtido de su perfil, con precio propio (hash de su id). Vender paga más donde lo necesitan |
 | Trabajar un turno | Pestaña Trabajo | Dinero al momento; da hambre. Espera de 10 min por lugar |
 | Servicios | Bibliotecas, cultura, deporte | Experiencia a cambio de dinero o hambre |
@@ -44,6 +44,7 @@ Lo que un jugador coloca lo ven y lo usan los demás (`world_objects.ts`):
 | Mesa de trabajo, parrilla | Estaciones de fabricación para todos. Usarlas da influencia al dueño |
 | Bandera | Necesaria para dominar un sector (una por jugador y sector). Multiplica ×1,25 la influencia que se gana ahí |
 | Banca, farol, mesa de fiesta | Decoración (el farol se enciende de noche) |
+| Decoración de lujo | Solo se compra y cuesta una fortuna (metas de ahorro). Da más influencia en el sector que un objeto normal. Ferretería: cerca ($800), muro ($1.200), farola ($2.000), columna ($2.200), reloj ($4.500), molino ($7.500). Almacén: seto ($900), palma ($1.500), arco de flores ($2.800), fuente ($3.500), estandarte ($5.000, muestra el nombre del dueño). Cultura: estatua ($6.000), kiosco ($9.500), obelisco ($15.000). Banco: árbol dorado ($12.000), trono dorado ($25.000). Precios base: cada lugar los varía y no todos tienen todo |
 
 Reglas para que el mapa no se llene de basura:
 

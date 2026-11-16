@@ -11,6 +11,8 @@ extends CharacterBody2D
 
 signal interacted(facing: Vector2)
 signal path_ended
+## Shift encendió o apagó el correr (teclado).
+signal run_toggled(on: bool)
 
 const DIRECTIONS := CharacterSkins.DIRECTIONS
 const ARRIVE_DISTANCE := 3.0
@@ -26,6 +28,8 @@ var facing := Vector2.DOWN
 var is_moving := false
 ## Con el hambre en cero no se puede correr (lo decide el mundo).
 var can_run := true
+## Correr encendido con Shift (se queda así hasta volver a pulsarlo).
+var run_locked := false
 
 var _path: Array[Vector2] = []
 var _sprite: AnimatedSprite2D
@@ -93,7 +97,18 @@ func facing_index() -> int:
 
 
 func is_running() -> bool:
-	return is_moving and can_run and Input.is_action_pressed("run")
+	return is_moving and _wants_run()
+
+
+## Correr: Shift lo deja encendido; el botón B del gamepad o el táctil, mientras esté activo.
+func _wants_run() -> bool:
+	return can_run and (run_locked or Input.is_action_pressed("run"))
+
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event.is_action_pressed("run_toggle") and not event.is_echo() and not _is_typing():
+		run_locked = not run_locked
+		run_toggled.emit(run_locked)
 
 
 func animation_name() -> String:
@@ -130,7 +145,7 @@ func _physics_process(delta: float) -> void:
 		direction = _next_path_direction()
 		strength = 1.0
 
-	var speed := run_speed if can_run and Input.is_action_pressed("run") and not typing else walk_speed
+	var speed := run_speed if _wants_run() else walk_speed
 	velocity = direction * speed * strength
 	move_and_slide()
 
