@@ -20,6 +20,9 @@ signal events_received(events: Array)
 signal object_changed(op: String, data: Dictionary)
 ## Cambió la información del sector donde está el jugador.
 signal territory_changed
+## Terminó una acción contra el servidor (`path` sin el prefijo, p. ej.
+## "/gather"; `body` lo que se envió). La usa GameAudio para sonar.
+signal action_finished(path: String, body: Variant, ok: bool)
 
 const PREFIX := "/api/v1/game"
 
@@ -307,8 +310,12 @@ func _call(method: HTTPClient.Method, path: String, body: Variant = null) -> Dic
 		var message := str(data.get("message", ""))
 		if message.is_empty():
 			message = "Sin conexión con el servidor." if res.status == 0 else "No se pudo hacer eso (%s)." % res.error
+		if method == HTTPClient.METHOD_POST:
+			action_finished.emit(path, body, false)
 		return {"ok": false, "message": message, "data": data, "code": str(data.get("error", ""))}
 	_apply(data)
+	if method == HTTPClient.METHOD_POST:
+		action_finished.emit(path, body, true)
 	# Casi toda acción mueve la influencia del sector: se pone al día (sin amontonar peticiones).
 	if method == HTTPClient.METHOD_POST and not path.begins_with("/story/seen"):
 		_queue_territory_refresh()

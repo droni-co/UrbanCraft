@@ -93,6 +93,7 @@ func _ready() -> void:
 	scroll.add_child(_content)
 
 	resized.connect(_fit)
+	UiArt.keep_fitted(_panel, _fit)
 	get_viewport().size_changed.connect(_fit)
 	_fit()
 
@@ -150,6 +151,8 @@ func open(section_title := "") -> void:
 	for i in _sections.size():
 		if _sections[i].title == section_title:
 			_show_section(i)
+	if not visible:
+		GameAudio.play("scroll")
 	visible = true
 	get_tree().paused = true
 	_fit()
@@ -201,9 +204,8 @@ func _fit() -> void:
 		return
 	var screen := get_viewport_rect().size
 	var panel_size := Vector2(minf(PANEL_MAX.x, screen.x - 16), minf(PANEL_MAX.y, screen.y - 16))
-	_panel.size = panel_size
-	_panel.position = ((screen - panel_size) / 2.0).floor()
 	var narrow := screen.x < NARROW_WIDTH
 	_layout.vertical = narrow
 	_nav.vertical = not narrow
 	_nav.custom_minimum_size.x = 0 if narrow else 112
+	UiArt.fit_panel(_panel, screen, panel_size, 8.0)

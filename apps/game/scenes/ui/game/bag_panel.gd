@@ -90,6 +90,8 @@ func open_bag(tab := 0) -> void:
 	_tab = tab
 	_status.visible = false
 	_refresh()
+	if not is_open():
+		GameAudio.play("cloth")
 	open()
 	Game.refresh_jobs()  # de paso, el morral al día (por si cambió por el multijugador)
 

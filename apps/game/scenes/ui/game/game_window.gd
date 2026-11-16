@@ -69,6 +69,7 @@ func _ready() -> void:
 	column.add_child(body)
 
 	resized.connect(_fit)
+	UiArt.keep_fitted(_panel, _fit)
 	_build()
 
 
@@ -119,8 +120,7 @@ func _fit() -> void:
 		return
 	var screen := get_viewport_rect().size
 	var fitted := Vector2(minf(panel_size.x, screen.x - 12), minf(panel_size.y, screen.y - 12))
-	_panel.size = fitted
-	_panel.position = ((screen - fitted) / 2.0).floor()
+	UiArt.fit_panel(_panel, screen, fitted)
 
 
 # --- Piezas que usan varias ventanas ---------------------------------------------

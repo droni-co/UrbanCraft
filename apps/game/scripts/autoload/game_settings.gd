@@ -14,10 +14,14 @@ signal labels_settings_changed
 signal stats_settings_changed
 ## Cambió si los demás jugadores te ven (multijugador).
 signal online_settings_changed
+## Cambió el volumen de la música o de los efectos.
+signal audio_settings_changed
 
 enum ScreenCorner { TOP_LEFT, TOP_RIGHT, BOTTOM_LEFT, BOTTOM_RIGHT }
 
 const SETTING_FORCE_TOUCH := "urbancraft/debug/force_touch_controls"
+## Preferencias que se guardan en el dispositivo (por ahora, el sonido).
+const SAVE_PATH := "user://settings.cfg"
 
 var touch_controls_enabled := false:
 	set(value):
@@ -127,6 +131,25 @@ var stats_hud_visible := true:
 		stats_settings_changed.emit()
 
 
+# --- Sonido (se guarda en el dispositivo) ------------------------------------------
+
+## Volumen de la música (0..1).
+var music_volume := 0.7:
+	set(value):
+		music_volume = clampf(value, 0.0, 1.0)
+		audio_settings_changed.emit()
+		_save()
+
+## Volumen de los efectos y el ambiente (0..1).
+var sfx_volume := 0.85:
+	set(value):
+		sfx_volume = clampf(value, 0.0, 1.0)
+		audio_settings_changed.emit()
+		_save()
+
+var _loading := false
+
+
 # --- Multijugador -----------------------------------------------------------------
 
 ## false = modo fantasma: sigues viendo a los demás, pero ellos no te ven.
@@ -144,6 +167,7 @@ var voice_open_mic := false:
 
 
 func _ready() -> void:
+	_load()
 	var forced: bool = "--touch" in OS.get_cmdline_user_args() \
 		or ProjectSettings.get_setting(SETTING_FORCE_TOUCH, false)
 	var is_mobile := OS.has_feature("mobile") or OS.has_feature("web_android") or OS.has_feature("web_ios")
@@ -157,3 +181,23 @@ func _ready() -> void:
 	# En PC, con controles táctiles forzados, el ratón simula toques.
 	if forced and not is_mobile:
 		Input.emulate_touch_from_mouse = true
+
+
+func _load() -> void:
+	var cfg := ConfigFile.new()
+	if cfg.load(SAVE_PATH) != OK:
+		return
+	_loading = true
+	music_volume = float(cfg.get_value("audio", "music", music_volume))
+	sfx_volume = float(cfg.get_value("audio", "sfx", sfx_volume))
+	_loading = false
+
+
+func _save() -> void:
+	if _loading:
+		return
+	var cfg := ConfigFile.new()
+	cfg.load(SAVE_PATH)  # conserva lo demás que haya
+	cfg.set_value("audio", "music", music_volume)
+	cfg.set_value("audio", "sfx", sfx_volume)
+	cfg.save(SAVE_PATH)

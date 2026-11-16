@@ -46,10 +46,13 @@ var _drift: Tween
 
 func _ready() -> void:
 	Online.stop()  # fuera del mundo no se aparece para los demás
+	GameAudio.play_day_music()  # la pantalla de inicio siempre con un tema de día
 	UiArt.smooth(self)
 	theme = MenuTheme.build()
 	_build()
 	resized.connect(_fit)
+	# La tarjeta cambia de alto al iniciar sesión, con errores, etc.
+	UiArt.keep_fitted(_card, _fit)
 	_fit()
 
 	play_button.pressed.connect(_play)
@@ -291,9 +294,9 @@ func _fit() -> void:
 	_card.reset_size()
 	var card_size := _card.get_combined_minimum_size()
 	if narrow:
-		_card.position = Vector2((screen.x - card_size.x) / 2.0, screen.y - card_size.y - 26.0)
+		_card.position = Vector2((screen.x - card_size.x) / 2.0, maxf(6.0, screen.y - card_size.y - 26.0))
 	else:
-		_card.position = Vector2(screen.x - card_size.x - 14.0, screen.y - card_size.y - 22.0)
+		_card.position = Vector2(screen.x - card_size.x - 14.0, maxf(6.0, screen.y - card_size.y - 22.0))
 
 	_motes.position = Vector2(screen.x / 2.0, screen.y * 0.75)
 	_motes.emission_rect_extents = Vector2(screen.x / 2.0, screen.y * 0.3)
