@@ -68,7 +68,6 @@ Prioridad: `--api-url` → `--local` → `URBANCRAFT_API_URL` → ajuste `urbanc
 | GET    | `/api/v1/map/config`      | Grilla, versión y catálogo de tiles del mapa |
 | GET    | `/api/v1/map/chunks/:z/:x/:y` | Chunk del mapa real (200 listo · 202 generando) |
 | GET    | `/api/v1/geo/place?lat=&lon=` | Ciudad y país de la zona (Nominatim, cacheado por zona) |
-| GET    | `/api/v1/geo/ip`          | Ubicación aproximada por IP (respaldo sin GPS) |
 | GET    | `/api/v1/friends`         | Amigos y solicitudes; buscar, enviar, aceptar, ubicación ([docs](docs/amigos.md)) |
 | GET    | `/play`                   | Versión web del juego ([docs](docs/exportar.md#4-web-urbancraftdronivipplay)) |
 | WS     | `/ws`                     | Multijugador en tiempo real y chat ([docs](docs/multijugador.md), [chat](docs/chat.md)) |
@@ -104,14 +103,15 @@ El mapa es el **mundo real** (OpenStreetMap) alrededor de tu ubicación, cargado
 
 ### Ubicación del jugador
 
-Al arrancar, `LocationService` busca tu posición en este orden:
+La ubicación sale **solo del GPS**: el del navegador en la web y el del dispositivo en Android. No se estima por IP (fallaba por varios km). Al arrancar, `LocationService` busca tu posición en este orden:
 
 1. Argumentos `--lat/--lon` (para probar una ubicación concreta).
-2. GPS del navegador (export web; el navegador pide permiso).
-3. GPS nativo de Android/iOS (pendiente: requiere un plugin).
-4. IP pública, consultada por el backend. **Es aproximada (nivel ciudad, puede fallar por varios km)**: es lo que se usa en PC, que no tiene GPS.
-5. Última ubicación conocida (`user://location.cfg`).
-6. Ubicación por defecto de los ajustes del proyecto (Madrid).
+2. GPS del navegador (export web; el navegador pide permiso). Escucha hasta tener un dato de ~40 m de precisión.
+3. GPS nativo de Android.
+4. Última ubicación que dio el GPS en ese dispositivo (`user://location.cfg`).
+5. Solo en PC, que no tiene GPS: ubicación por defecto de los ajustes del proyecto (Madrid).
+
+En web y Android, si el GPS no responde y no hay una ubicación GPS guardada, el juego no entra al mapa: la pantalla de carga dice qué falta (permiso, ubicación apagada, sin señal) y reintenta cada pocos segundos.
 
 La barra superior muestra la ciudad y el país de la zona (por ejemplo "Madrid, España"), y el mensaje de bienvenida dice de dónde salió la ubicación. La información de depuración (chunk y FPS) solo aparece si `GameSettings.debug_info_visible` está activo (por defecto, en builds de depuración).
 
@@ -163,7 +163,7 @@ En **Menú → Amigos** puedes buscar a otro jugador por su apodo exacto, enviar
 
 ### Minimapa y brújula
 
-Minimapa isométrico (misma orientación que la cámara) arriba a la izquierda. Sigue al jugador y muestra unos 400 m a su alrededor, con los puntos de interés, tu posición y el borde de tu zona de juego (5 km) cuando te acercas a él. La brújula discreta indica el norte, que en esta vista queda arriba a la derecha.
+Minimapa isométrico (misma orientación que la cámara) arriba a la izquierda. Sigue al jugador y muestra unos 400 m a su alrededor, con los puntos de interés, tu posición y el borde de tu zona de juego (2 km) cuando te acercas a él. La brújula discreta indica el norte, que en esta vista queda arriba a la derecha.
 
 Las preferencias viven en `GameSettings` y se aplican en vivo (pensadas para una futura pantalla de opciones):
 

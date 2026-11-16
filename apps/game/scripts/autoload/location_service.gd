@@ -1,16 +1,19 @@
 extends Node
 ## Ubicación real del jugador. Autoload "LocationService".
 ##
-## Al arrancar se resuelve una sola vez (`locate()`), probando en orden:
-##   1. Argumentos:  godot --path apps/game -- --lat=40.42 --lon=-3.6887   (exacta)
-##   2. GPS del navegador (export web, navigator.geolocation)            (exacta)
-##   3. GPS nativo de Android (LocationManager vía JavaClassWrapper)       (exacta)
-##   4. IP pública, vía backend GET /api/v1/geo/ip              (aproximada, ~ciudad)
-##   5. Última ubicación conocida (user://location.cfg)
-##   6. Ajustes de proyecto urbancraft/map/default_latitude/longitude
+## La ubicación sale SOLO del GPS: el del navegador en la web y el del
+## dispositivo en Android. No se estima por IP (fallaba por varios km).
+## `locate()` prueba en orden:
+##   1. Argumentos:  godot --path apps/game -- --lat=40.42 --lon=-3.6887   (pruebas)
+##   2. GPS del navegador (export web, navigator.geolocation)
+##   3. GPS nativo de Android (LocationManager vía JavaClassWrapper)
+##   4. Última ubicación que dio el GPS (user://location.cfg)
+##   5. Solo en PC (no tiene GPS): urbancraft/map/default_latitude/longitude
 ##
-## En PC no hay GPS: la posición sale de la IP y puede fallar por varios km.
-## Para probar una ubicación concreta usa los argumentos --lat/--lon.
+## En web y Android, si el GPS no responde y tampoco hay una ubicación GPS
+## guardada, `needs_gps()` devuelve true: el mundo no arranca y se le pide al
+## jugador que active la ubicación (ver World._wait_for_gps).
+## En PC, para probar una ubicación concreta usa los argumentos --lat/--lon.
 ##
 ## Modo híbrido: esta ubicación es el "ancla". El jugador se mueve libremente
 ## dentro de un radio (playRadiusMeters del servidor) alrededor de ella.
@@ -27,11 +30,14 @@ signal located(source: String)
 const SETTING_LAT := "urbancraft/map/default_latitude"
 const SETTING_LON := "urbancraft/map/default_longitude"
 const LAST_LOCATION_PATH := "user://location.cfg"
-const BROWSER_TIMEOUT_SECONDS := 15.0
-## Android: tiempo máximo esperando el primer dato del GPS, y precisión con la
-## que ya no vale la pena seguir esperando una mejor.
+## Tiempo máximo esperando el primer dato del GPS, y precisión con la que ya
+## no vale la pena seguir esperando una mejor.
+const BROWSER_TIMEOUT_SECONDS := 20.0
 const GPS_TIMEOUT_SECONDS := 20.0
 const GPS_GOOD_ACCURACY_M := 40.0
+## Navegador: con un primer dato poco preciso (redes wifi, antenas) se espera
+## esto como mucho a que llegue el del satélite. Un PC nunca lo tendrá.
+const BROWSER_REFINE_SECONDS := 6.0
 ## Una última ubicación conocida del sistema sirve si tiene menos de esto.
 const GPS_LAST_KNOWN_MAX_AGE_S := 120.0
 const PERMISSION_TIMEOUT_SECONDS := 60.0
@@ -42,28 +48,27 @@ const SOURCE_NAMES := {
 	"args": "argumentos",
 	"browser": "GPS del navegador",
 	"gps": "GPS",
-	"ip": "aproximada por IP",
-	"last": "última ubicación conocida",
+	"last": "última ubicación del GPS",
 	"default": "ubicación por defecto",
 	"teleport": "teletransporte",
 }
 
 var latitude := 0.0
 var longitude := 0.0
-## "args", "browser", "gps", "ip", "last" o "default".
+## "args", "browser", "gps", "last", "default" o "teleport".
 var source := "default"
 ## Precisión estimada en metros (-1 = desconocida).
 var accuracy_m := -1.0
-## Ciudad/país informados por la fuente (solo IP), para mostrar mientras tanto.
-var hint_label := ""
 var is_located := false
+## Por qué falló el GPS la última vez, listo para mostrar ("" = no falló).
+var gps_error := ""
 
 ## Ubicación real guardada mientras el jugador está teletransportado.
 var _home := {}
 
 var _locating := false
 var _js_callbacks: Array = []  # mantiene vivas las callbacks de JavaScript
-## Android: mejor dato recibido del GPS mientras se espera ({lat, lon, accuracy}).
+## Mejor dato recibido del GPS mientras se espera ({lat, lon, accuracy}).
 var _gps_best := {}
 var _gps_listener: JavaObject = null
 
@@ -83,18 +88,27 @@ func source_name() -> String:
 	return SOURCE_NAMES.get(source, source)
 
 
+## true si esta plataforma se ubica con GPS (web y Android). En PC no hay.
 func has_gps() -> bool:
-	return OS.has_feature("android")
+	return OS.has_feature("web") or OS.has_feature("android")
+
+
+## true si hace falta el GPS para jugar y todavía no se tiene ninguna ubicación
+## suya (ni la actual ni una guardada): no se puede poner al jugador en el mapa.
+func needs_gps() -> bool:
+	return has_gps() and source == "default"
 
 
 ## Resuelve la ubicación (una sola vez; llamadas concurrentes esperan la misma).
-func locate() -> void:
-	if is_located:
-		return
+## `retry` vuelve a preguntarle al GPS aunque ya se hubiera resuelto.
+func locate(retry := false) -> void:
 	if _locating:
 		await located
 		return
+	if is_located and not retry:
+		return
 	_locating = true
+	gps_error = ""
 
 	var found := _from_args()
 	if not found and OS.has_feature("web"):
@@ -102,12 +116,11 @@ func locate() -> void:
 	if not found and OS.has_feature("android"):
 		found = await _from_android_gps()
 	if not found:
-		found = await _from_ip()
-	if not found:
 		found = _from_last_known()
-	# Si nada funcionó, quedan las coordenadas por defecto (source = "default").
+	# Si nada funcionó, quedan las coordenadas por defecto (source = "default"),
+	# que solo valen para jugar en PC (ver needs_gps()).
 
-	if source in ["browser", "gps", "ip"]:
+	if source in ["browser", "gps"]:
 		_save_last_known()
 	_locating = false
 	is_located = true
@@ -131,9 +144,8 @@ func set_location(lat: float, lon: float, from_source := "gps", accuracy := -1.0
 func teleport(lat: float, lon: float) -> void:
 	if not is_teleported():
 		_home = {"latitude": latitude, "longitude": longitude, "source": source,
-			"accuracy_m": accuracy_m, "hint_label": hint_label}
+			"accuracy_m": accuracy_m}
 	_apply(lat, lon, "teleport", 0.0)
-	hint_label = ""
 	location_changed.emit(latitude, longitude)
 
 
@@ -142,7 +154,6 @@ func return_home() -> void:
 	if not is_teleported():
 		return
 	_apply(_home.latitude, _home.longitude, _home.source, _home.accuracy_m)
-	hint_label = _home.hint_label
 	_home = {}
 	location_changed.emit(latitude, longitude)
 
@@ -161,38 +172,58 @@ func _from_args() -> bool:
 	return true
 
 
-## navigator.geolocation (el navegador pide permiso al jugador).
+## navigator.geolocation (el navegador pide permiso al jugador). Se escucha
+## la posición (watchPosition) hasta tener un dato preciso: el primero suele
+## venir de las redes cercanas y el del satélite llega unos segundos después.
 func _from_browser() -> bool:
 	var navigator = JavaScriptBridge.get_interface("navigator")
 	if navigator == null or navigator.geolocation == null:
+		gps_error = "Este navegador no permite usar la ubicación."
 		return false
-	var state := {"done": false, "ok": false}
+	_gps_best = {}
+	var state := {"denied": false}
 	var on_success := JavaScriptBridge.create_callback(func(args: Array) -> void:
 		var coords = args[0].coords
-		_apply(float(coords.latitude), float(coords.longitude), "browser", float(coords.accuracy))
-		state.ok = true
-		state.done = true)
-	var on_error := JavaScriptBridge.create_callback(func(_args: Array) -> void:
-		state.done = true)
+		_on_gps_fix(float(coords.latitude), float(coords.longitude), float(coords.accuracy)))
+	var on_error := JavaScriptBridge.create_callback(func(args: Array) -> void:
+		# 1 = permiso denegado. Lo demás (sin señal, tiempo agotado) puede
+		# arreglarse solo mientras se sigue escuchando.
+		if args.size() > 0 and args[0] != null and int(args[0].code) == 1:
+			state.denied = true)
 	_js_callbacks = [on_success, on_error]
 	var options = JavaScriptBridge.create_object("Object")
 	options.enableHighAccuracy = true
 	options.timeout = int(BROWSER_TIMEOUT_SECONDS * 1000)
-	options.maximumAge = 60000
-	navigator.geolocation.getCurrentPosition(on_success, on_error, options)
+	options.maximumAge = 0
+	var watch = navigator.geolocation.watchPosition(on_success, on_error, options)
 
-	var deadline := Time.get_ticks_msec() + int((BROWSER_TIMEOUT_SECONDS + 2.0) * 1000)
-	while not state.done and Time.get_ticks_msec() < deadline:
+	var deadline := Time.get_ticks_msec() + int(BROWSER_TIMEOUT_SECONDS * 1000)
+	var refine_deadline := -1
+	while not state.denied and Time.get_ticks_msec() < deadline:
+		if not _gps_best.is_empty():
+			if _gps_best.accuracy <= GPS_GOOD_ACCURACY_M:
+				break
+			if refine_deadline < 0:
+				refine_deadline = Time.get_ticks_msec() + int(BROWSER_REFINE_SECONDS * 1000)
+			elif Time.get_ticks_msec() >= refine_deadline:
+				break
 		await get_tree().process_frame
+	navigator.geolocation.clearWatch(watch)
 	_js_callbacks.clear()
-	return state.ok
+
+	if _gps_best.is_empty():
+		gps_error = "Permite el acceso a la ubicación en tu navegador." if state.denied \
+			else "No llegó señal del GPS. Activa la ubicación de tu dispositivo."
+		return false
+	_apply(_gps_best.lat, _gps_best.lon, "browser", _gps_best.accuracy)
+	return true
 
 
 ## GPS de Android: pide el permiso de ubicación y escucha el LocationManager
 ## (proveedores gps y network) hasta tener un dato preciso o agotar el tiempo.
 func _from_android_gps() -> bool:
 	if not await _request_location_permission():
-		push_warning("[Location] Permiso de ubicación denegado; se usa la IP.")
+		gps_error = "Dale permiso de ubicación a UrbanCraft en los ajustes del teléfono."
 		return false
 	var runtime = Engine.get_singleton("AndroidRuntime") if Engine.has_singleton("AndroidRuntime") else null
 	if runtime == null:
@@ -207,7 +238,7 @@ func _from_android_gps() -> bool:
 		if manager.isProviderEnabled(provider):
 			providers.append(provider)
 	if providers.is_empty():
-		push_warning("[Location] La ubicación del teléfono está apagada; se usa la IP.")
+		gps_error = "La ubicación del teléfono está apagada. Actívala para jugar."
 		return false
 
 	_gps_best = {}
@@ -232,6 +263,7 @@ func _from_android_gps() -> bool:
 		_gps_listener = null
 
 	if _gps_best.is_empty():
+		gps_error = "No llegó señal del GPS. Prueba en un lugar más despejado."
 		return false
 	_apply(_gps_best.lat, _gps_best.lon, "gps", _gps_best.accuracy)
 	return true
@@ -286,26 +318,13 @@ func _has_location_permission() -> bool:
 	return FINE_LOCATION in granted or COARSE_LOCATION in granted
 
 
-## Ubicación aproximada por IP: la resuelve el backend (proveedor intercambiable).
-func _from_ip() -> bool:
-	var res: Dictionary = await Api.request_json(HTTPClient.METHOD_GET, "/api/v1/geo/ip")
-	if not res.ok or typeof(res.data) != TYPE_DICTIONARY:
-		return false
-	var d: Dictionary = res.data
-	if not (d.has("latitude") and d.has("longitude")):
-		return false
-	_apply(float(d.latitude), float(d.longitude), "ip", float(d.get("accuracyKm", 10)) * 1000.0)
-	var parts := []
-	for key in ["city", "country"]:
-		if d.get(key) is String and not str(d[key]).is_empty():
-			parts.append(d[key])
-	hint_label = ", ".join(parts)
-	return true
-
-
+## Última ubicación que dio el GPS en este dispositivo. Las guardadas por
+## versiones anteriores a partir de la IP no cuentan.
 func _from_last_known() -> bool:
 	var cfg := ConfigFile.new()
 	if cfg.load(LAST_LOCATION_PATH) != OK or not cfg.has_section_key("location", "latitude"):
+		return false
+	if not str(cfg.get_value("location", "source", "")) in ["browser", "gps"]:
 		return false
 	_apply(float(cfg.get_value("location", "latitude")), float(cfg.get_value("location", "longitude")),
 		"last", float(cfg.get_value("location", "accuracy_m", -1.0)))

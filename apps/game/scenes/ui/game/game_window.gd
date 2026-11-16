@@ -171,7 +171,7 @@ static func small_button(parent: Node, text: String, action: Callable, variation
 
 ## Lista con desplazamiento que ocupa el espacio que sobra.
 static func scroll_list(parent: Node, separation := 3) -> VBoxContainer:
-	var scroll := ScrollContainer.new()
+	var scroll := TouchScrollContainer.new()
 	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED

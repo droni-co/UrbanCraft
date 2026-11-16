@@ -76,6 +76,11 @@ var compass_visible := true:
 		minimap_settings_changed.emit()
 
 
+## Gráficos livianos (se activa solo en teléfonos y tabletas): sin los efectos
+## de pantalla completa más caros (halo de las ventanas de noche, bordes suaves
+## de las sombras) y con menos luces a la vez.
+var low_graphics := false
+
 ## Información de depuración (chunk, FPS) en la barra superior.
 var debug_info_visible := OS.is_debug_build()
 
@@ -146,6 +151,7 @@ func _ready() -> void:
 	if OS.has_feature("mobile"):
 		DisplayServer.screen_set_orientation(DisplayServer.SCREEN_SENSOR_LANDSCAPE)
 
+	low_graphics = is_mobile
 	touch_controls_enabled = forced or is_mobile or DisplayServer.is_touchscreen_available()
 
 	# En PC, con controles táctiles forzados, el ratón simula toques.

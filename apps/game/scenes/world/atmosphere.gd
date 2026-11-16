@@ -47,6 +47,8 @@ uniform float night = 0.0;
 uniform vec4 lights[24];  // MAX_LIGHTS
 uniform int light_count = 0;
 uniform vec3 light_color : source_color = vec3(1.0, 0.78, 0.45);
+// Halo de las ventanas encendidas: 8 lecturas más de la pantalla por píxel.
+uniform bool halo = true;
 
 float emissive(vec3 c) {
 	// Amarillo cálido muy claro: ventanas encendidas y bombillas.
@@ -78,14 +80,16 @@ void fragment() {
 	// Las ventanas encendidas no se apagan con la noche y dejan un halo.
 	if (night > 0.0) {
 		float e = emissive(c);
-		vec2 px = 1.0 / vec2(textureSize(screen_texture, 0));
-		float halo = 0.0;
-		for (int k = 0; k < 8; k++) {
-			float a = float(k) * 0.785398;
-			halo += emissive(texture(screen_texture, SCREEN_UV + vec2(cos(a), sin(a)) * px * 5.0).rgb);
-		}
 		lit = mix(lit, c * 1.05, e * night);
-		lit += light_color * halo / 8.0 * 0.35 * night;
+		if (halo) {
+			vec2 px = 1.0 / vec2(textureSize(screen_texture, 0));
+			float glow = 0.0;
+			for (int k = 0; k < 8; k++) {
+				float a = float(k) * 0.785398;
+				glow += emissive(texture(screen_texture, SCREEN_UV + vec2(cos(a), sin(a)) * px * 5.0).rgb);
+			}
+			lit += light_color * glow / 8.0 * 0.35 * night;
+		}
 	}
 	c = lit;
 
@@ -123,6 +127,7 @@ func _ready() -> void:
 	_material.shader = Shader.new()
 	_material.shader.code = SHADER
 	_material.set_shader_parameter("clouds", texture)
+	_material.set_shader_parameter("halo", not GameSettings.low_graphics)
 
 	_rect = ColorRect.new()
 	_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -136,6 +141,11 @@ func _ready() -> void:
 func set_daylight(ambient: Color, night: float) -> void:
 	_material.set_shader_parameter("ambient", Vector3(ambient.r, ambient.g, ambient.b))
 	_material.set_shader_parameter("night", night)
+
+
+## Cuántas luces puntuales se dibujan a la vez (cada una cuesta por píxel).
+static func max_lights() -> int:
+	return 10 if GameSettings.low_graphics else MAX_LIGHTS
 
 
 ## Luces puntuales: [Vector4(x, y, radio, intensidad)] en coordenadas del mundo.

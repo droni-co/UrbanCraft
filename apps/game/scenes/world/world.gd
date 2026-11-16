@@ -10,6 +10,10 @@ extends Node2D
 enum Mode { LOADING, REAL, DEMO }
 
 const MAIN_SCENE := "res://scenes/main/main.tscn"
+## Cada cuánto se rearma el texto de la barra superior (lugar, jugadores, FPS).
+const INFO_SECONDS := 0.25
+## Espera entre intentos de ubicar al jugador cuando el GPS no responde.
+const GPS_RETRY_SECONDS := 4.0
 
 @export var demo_map_size := Vector2i(64, 64)
 @export var demo_seed := 1337
@@ -87,6 +91,8 @@ var _objects: WorldObjectsLayer
 var _guide: TargetGuide
 var _sector := Vector2i(-99999, -99999)
 var _interacting := false
+## Segundos desde que se actualizó el texto de la barra superior.
+var _info_elapsed := INFO_SECONDS
 var _intro_shown := false
 
 
@@ -106,6 +112,7 @@ func _ready() -> void:
 	# Ventanas que se encienden de noche en los bloques sin datos de techo
 	# (el shader necesita saber cuántas variantes tiene el atlas).
 	WorldTiles.load_variants(ground.tile_set)
+	RoofStyles.prepare(buildings.tile_set)
 	buildings.material = RoofStyles.layer_material()
 	buildings_faded.material = RoofStyles.layer_material()
 	day_night.setup(atmosphere, player)
@@ -152,8 +159,28 @@ func _ready() -> void:
 	if not LocationService.is_located:
 		hud.set_loading("Buscando tu ubicación…", 0.07)
 		await LocationService.locate()
+	if not await _wait_for_gps():
+		return
 	_start_real(res.data)
 	_fetch_place()
+
+
+## En web y Android solo se juega con la ubicación del GPS. Si no hay ninguna
+## (ni la actual ni una guardada), se le pide al jugador que la active y se
+## reintenta hasta tenerla. false si la escena se cerró mientras tanto.
+func _wait_for_gps() -> bool:
+	while LocationService.needs_gps():
+		var reason := LocationService.gps_error
+		if reason.is_empty():
+			reason = "No se pudo obtener tu ubicación."
+		hud.set_loading("%s Se necesita el GPS para jugar; reintentando…" % reason, 0.07)
+		await get_tree().create_timer(GPS_RETRY_SECONDS).timeout
+		if not is_inside_tree():
+			return false
+		await LocationService.locate(true)
+		if not is_inside_tree():
+			return false
+	return true
 
 
 # --- Modos --------------------------------------------------------------------
@@ -405,7 +432,7 @@ func _physics_process(delta: float) -> void:
 		player.stop()
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	player_cell = world_to_cell(player.global_position)
 	player.can_run = not Game.is_hungry()
 	building_fader.update(buildings.to_local(player.global_position))
@@ -418,6 +445,10 @@ func _process(_delta: float) -> void:
 			hud.set_location(map_labels.location_name(grid_position))
 			_district = _chunk_districts.get(chunks.chunk_of_global(chunks.local_to_global(player_cell)), "")
 		_send_online_state(grid_position)
+	_info_elapsed += delta
+	if _info_elapsed < INFO_SECONDS:
+		return
+	_info_elapsed = 0.0
 	var parts: Array[String] = []
 	if mode == Mode.REAL:
 		var place := _place_label if not _place_label.is_empty() else "Ubicando…"
@@ -495,7 +526,8 @@ func _on_chunk_loaded(chunk: Vector2i, data: Dictionary) -> void:
 	_add_pois(chunk, data.get("pois", []))
 	var base := chunks.global_to_local(Geo.chunk_origin(chunk, chunks.chunk_size))
 	map_labels.add_chunk(chunk, base, data.get("labels", []), data.get("pois", []))
-	building_shadows.add_chunk(chunk, base, chunks.chunk_size, [buildings, buildings_faded], props)
+	building_shadows.add_chunk(chunk, base, chunks.chunk_size, data, buildings)
+	building_fader.invalidate()
 	day_night.add_chunk(chunk, base, chunks.chunk_size, data.props, props)
 	_chunk_districts[chunk] = data.get("district", "")
 	_location_cell = Vector2i(-99999, -99999)  # recalcular el nombre del lugar
@@ -546,10 +578,8 @@ func _add_pois(chunk: Vector2i, pois: Array) -> void:
 	_poi_markers[chunk] = markers
 
 
-## Ciudad y país de la zona de juego. Mientras tanto usa lo que dio la fuente
-## de ubicación (la IP ya trae ciudad); reintenta si el servicio no responde.
+## Ciudad y país de la zona de juego; reintenta si el servicio no responde.
 func _fetch_place() -> void:
-	_place_label = LocationService.hint_label
 	for attempt in 3:
 		var path := "/api/v1/geo/place?lat=%.5f&lon=%.5f" % [LocationService.latitude, LocationService.longitude]
 		var res := await Api.request_json(HTTPClient.METHOD_GET, path)
@@ -565,10 +595,8 @@ func _welcome_message() -> String:
 	var radius := _format_distance(float(map_config.playRadiusMeters))
 	var where := _place_label if not _place_label.is_empty() else "%.4f, %.4f" % [LocationService.latitude, LocationService.longitude]
 	match LocationService.source:
-		"ip":
-			return "Tu zona: %s (aproximada por IP) · %s para explorar" % [where, radius]
 		"last":
-			return "Tu zona: %s (última ubicación conocida) · %s para explorar" % [where, radius]
+			return "Sin señal de GPS: usando tu última ubicación, %s · %s para explorar" % [where, radius]
 		"default":
 			return "No se pudo obtener tu ubicación: usando %s" % where
 		"teleport":

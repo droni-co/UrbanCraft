@@ -17,6 +17,8 @@ extends RefCounted
 const PART_MASK := 3
 const AXIS_Y := 8
 const TINT_SHIFT := 4
+## Bits que usa el byte de techo (parte, eje y tono).
+const VALID_BITS := PART_MASK | AXIS_Y | (3 << TINT_SHIFT)
 ## Columnas del atlas de edificios con tejado a dos aguas (WorldTiles.BUILDING_STYLES).
 const PITCHED_COLUMNS := 2
 
@@ -120,6 +122,25 @@ static func set_night(value: float) -> void:
 	_night = value
 	for material: ShaderMaterial in _materials.values():
 		material.set_shader_parameter("night", value)
+
+
+## Crea de una vez todas las alternativas de techo del TileSet. Hay que
+## llamarlo ANTES de poner tiles: crear una alternativa cambia el TileSet y eso
+## obliga a todos los TileMapLayer a reconstruir todas sus celdas (un tirón de
+## cientos de ms en móvil por cada tejado nuevo si se crean al caminar).
+static func prepare(tile_set: TileSet) -> void:
+	if tile_set == null:
+		return
+	for floors in range(1, WorldTiles.BUILDING_MAX_FLOORS + 1):
+		var source_id := WorldTiles.building_source(floors)
+		var source := tile_set.get_source(source_id) as TileSetAtlasSource
+		if source == null:
+			continue
+		for i in source.get_tiles_count():
+			var coords := source.get_tile_id(i)
+			for roof in range(1, 64):
+				if roof & ~VALID_BITS == 0:
+					alternative(tile_set, source_id, coords, roof)
 
 
 ## Alternativa del tile `coords` de la fuente `source` para un byte de techo
