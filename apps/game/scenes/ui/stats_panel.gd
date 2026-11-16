@@ -32,6 +32,7 @@ var _low_tween: Tween
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP  # un toque aquí no mueve al jugador
 	add_theme_stylebox_override("panel", _panel_style())
+	UiArt.smooth(self)
 	var column := VBoxContainer.new()
 	column.name = "Rows"
 	column.add_theme_constant_override("separation", 2)
@@ -80,7 +81,6 @@ func _rebuild(stats: Array) -> void:
 		# El PNG puede ser más grande (x4): se muestra a ICON_SIZE con filtro lineal.
 		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		icon.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
 		icon.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		row.add_child(icon)
@@ -220,7 +220,9 @@ func _bar(bar_size: Vector2, color: Color) -> ProgressBar:
 	bar.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var background := StyleBoxFlat.new()
-	background.bg_color = Color(0, 0, 0, 0.45)
+	background.bg_color = Color(0, 0, 0, 0.5)
+	background.border_color = Color(1, 1, 1, 0.08)
+	background.set_border_width_all(1)
 	background.set_corner_radius_all(2)
 	bar.add_theme_stylebox_override("background", background)
 	_set_bar(bar, 0.0, color)
@@ -237,12 +239,7 @@ func _set_bar(bar: ProgressBar, fraction: float, color: Color) -> void:
 
 
 func _panel_style() -> StyleBoxFlat:
-	var style := StyleBoxFlat.new()
-	style.bg_color = Color(0.05, 0.07, 0.1, 0.5)
-	style.set_corner_radius_all(6)
+	var style := UiArt.chip(7, 0.72)
 	style.content_margin_left = 4
-	style.content_margin_right = 5
-	style.content_margin_top = 3
-	style.content_margin_bottom = 3
-	style.anti_aliasing = true
+	style.content_margin_right = 6
 	return style

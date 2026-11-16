@@ -46,6 +46,8 @@ func _ready() -> void:
 	touch_controls.visible = GameSettings.touch_controls_enabled
 	GameSettings.touch_controls_changed.connect(func(enabled: bool) -> void: touch_controls.visible = enabled)
 	message_label.modulate.a = 0.0
+	message_label.add_theme_font_override("font", UiArt.FONT_BOLD)
+	message_label.add_theme_color_override("font_outline_color", Color(0.06, 0.08, 0.14, 0.9))
 	set_online(false)
 	set_attribution("")
 	location_label = _make_location_label()
@@ -85,31 +87,26 @@ func _build_menu() -> void:
 	Voice.notice.connect(func(text: String) -> void: show_message(text, 3.0))
 
 	teleport = TeleportSection.new()
-	menu.add_section("Teletransporte", teleport)
+	menu.add_section("Teletransporte", teleport, "teleport")
 	character = CharacterSection.new()
-	menu.add_section("Personaje", character)
+	menu.add_section("Personaje", character, "character")
 	online = OnlineSection.new()
-	menu.add_section("Multijugador", online)
+	menu.add_section("Multijugador", online, "multiplayer")
 	friends = FriendsSection.new()
-	menu.add_section("Amigos", friends)
+	menu.add_section("Amigos", friends, "friends")
 	Friends.changed.connect(_update_friends_badge)
 	Friends.notified.connect(_on_friends_notified)
 	account = AccountSection.new()
-	menu.add_section("Cuenta", account)
+	menu.add_section("Cuenta", account, "account")
 	if OS.is_debug_build():
 		_add_debug_section.call_deferred()
-	# Para agregar más opciones: menu.add_section("Título", MiSeccion.new())
+	# Para agregar más opciones: menu.add_section("Título", MiSeccion.new(), "icono")
+	# (el icono es assets/art/ui/icons/<icono>.png).
 
-	menu_button = Button.new()
+	menu_button = UiArt.hud_button("menu", MENU_BUTTON_SIZE)
 	menu_button.name = "MenuButton"
 	menu_button.theme = MenuTheme.build()
-	menu_button.icon = MenuTheme.menu_icon()
-	menu_button.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	menu_button.tooltip_text = "Menú (Esc)"
-	menu_button.focus_mode = Control.FOCUS_NONE
-	menu_button.add_theme_stylebox_override("normal", _menu_button_style(0.45))
-	menu_button.add_theme_stylebox_override("hover", _menu_button_style(0.65))
-	menu_button.add_theme_stylebox_override("pressed", _menu_button_style(0.8))
 	menu_button.pressed.connect(menu.open)
 	menu_button.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 	add_child(menu_button)
@@ -122,6 +119,8 @@ func _build_menu() -> void:
 	add_child(stats_panel)
 	move_child(stats_panel, menu.get_index())
 	stats_panel.resized.connect(_layout_voice_list)
+	# La pantalla de carga tapa todo el HUD menos el menú.
+	move_child(loading_screen, menu.get_index())
 	PlayerStats.level_up.connect(func(_key: String, level: int) -> void:
 		show_message("¡Subiste al nivel %d!" % level, 3.0))
 
@@ -152,15 +151,7 @@ func _on_friends_notified(event: String, nickname: String) -> void:
 func _add_debug_section() -> void:
 	await Auth.fetch_methods()
 	if Auth.methods.dev and is_instance_valid(menu):
-		menu.add_section("Depuración", DebugSection.new())
-
-
-func _menu_button_style(alpha: float) -> StyleBoxFlat:
-	var s := StyleBoxFlat.new()
-	s.bg_color = Color(0, 0, 0, alpha)
-	s.set_corner_radius_all(int(MENU_BUTTON_SIZE / 2.0))
-	s.anti_aliasing = true
-	return s
+		menu.add_section("Depuración", DebugSection.new(), "debug")
 
 
 func set_info(text: String) -> void:
@@ -221,8 +212,9 @@ func _make_location_label() -> Label:
 	var label := Label.new()
 	label.name = "LocationLabel"
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	label.add_theme_font_override("font", UiArt.FONT_BOLD)
 	label.add_theme_font_size_override("font_size", 8)
-	label.add_theme_color_override("font_color", Color(1, 1, 1, 0.85))
+	label.add_theme_color_override("font_color", Color(1, 1, 1, 0.9))
 	label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
 	label.add_theme_constant_override("outline_size", 3)
 	label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS

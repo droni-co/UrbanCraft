@@ -31,10 +31,11 @@ func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	theme = MenuTheme.build()
+	UiArt.smooth(self)
 	visible = false
 
 	_backdrop = ColorRect.new()
-	_backdrop.color = Color(0, 0, 0, 0.55)
+	_backdrop.color = Color(0.02, 0.04, 0.08, 0.6)
 	_backdrop.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	_backdrop.gui_input.connect(func(event: InputEvent) -> void:
 		if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
@@ -51,7 +52,10 @@ func _ready() -> void:
 
 	# Cabecera: título y cerrar
 	var header := HBoxContainer.new()
+	header.add_theme_constant_override("separation", 6)
 	column.add_child(header)
+	var badge := UiArt.icon_rect("menu", 18)
+	header.add_child(badge)
 	var title := Label.new()
 	title.text = "Menú"
 	title.theme_type_variation = &"MenuTitle"
@@ -110,9 +114,14 @@ func _unhandled_input(event: InputEvent) -> void:
 
 # --- API --------------------------------------------------------------------------
 
-func add_section(title: String, control: Control) -> void:
+## `icon_name`: icono de assets/art/ui/icons (opcional).
+func add_section(title: String, control: Control, icon_name := "") -> void:
 	var button := Button.new()
 	button.text = title
+	if not icon_name.is_empty():
+		button.icon = UiArt.icon(icon_name)
+		button.expand_icon = true
+		button.add_theme_constant_override("icon_max_width", 16)
 	button.toggle_mode = true
 	button.button_group = _nav_group
 	button.theme_type_variation = &"NavButton"

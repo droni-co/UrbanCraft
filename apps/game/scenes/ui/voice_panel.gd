@@ -27,12 +27,10 @@ func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	theme = MenuTheme.build()
+	UiArt.smooth(self)
 
-	button = Button.new()
+	button = UiArt.hud_button("mic")
 	button.name = "VoiceButton"
-	button.icon = _mic_icon()
-	button.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	button.focus_mode = Control.FOCUS_NONE
 	button.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 	button.pressed.connect(Voice.toggle)
 	add_child(button)
@@ -83,15 +81,12 @@ func place_list(right: float, top: float) -> void:
 func _refresh() -> void:
 	var on := Voice.enabled
 	button.tooltip_text = "Voz con amigos: %s" % ("activada (clic para salir)" if on else "desactivada")
-	var alpha := 0.45
-	var color := Color.BLACK
+	var color := MenuTheme.CHIP
 	if Voice.starting:
-		color = MenuTheme.TEXT_DIM
+		color = MenuTheme.TEXT_DIM.darkened(0.4)
 	elif on:
-		color = MenuTheme.SUCCESS.darkened(0.05 if Voice.transmitting else 0.35)
-		alpha = 0.95 if Voice.transmitting else 0.85
-	for state: String in ["normal", "hover", "pressed"]:
-		button.add_theme_stylebox_override(state, _style(color, alpha + (0.15 if state != "normal" else 0.0)))
+		color = MenuTheme.SUCCESS.darkened(0.15 if Voice.transmitting else 0.45)
+	UiArt.set_hud_button_tint(button, color)
 	button.modulate.a = 1.0 if Voice.supported() else 0.55
 
 	if talk_button:
@@ -176,23 +171,3 @@ func _style(color: Color, alpha: float, radius := 12) -> StyleBoxFlat:
 	_styles[key] = s
 	return s
 
-
-## Icono de micrófono, dibujado en píxeles (como MenuTheme.menu_icon).
-static func _mic_icon() -> Texture2D:
-	var img := Image.create_empty(10, 13, false, Image.FORMAT_RGBA8)
-	var c := MenuTheme.TEXT
-	for y in range(0, 7):  # cápsula
-		for x in range(3, 7):
-			if not ((y == 0 or y == 6) and (x == 3 or x == 6)):
-				img.set_pixel(x, y, c)
-	for y in range(4, 9):  # soporte en U
-		img.set_pixel(1, y, c)
-		img.set_pixel(8, y, c)
-	for x in range(2, 8):
-		img.set_pixel(x, 9, c)
-	for y in range(10, 12):  # pie
-		img.set_pixel(4, y, c)
-		img.set_pixel(5, y, c)
-	for x in range(2, 8):
-		img.set_pixel(x, 12, c)
-	return ImageTexture.create_from_image(img)

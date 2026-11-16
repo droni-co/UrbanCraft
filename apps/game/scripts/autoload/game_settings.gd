@@ -142,6 +142,9 @@ func _ready() -> void:
 	var forced: bool = "--touch" in OS.get_cmdline_user_args() \
 		or ProjectSettings.get_setting(SETTING_FORCE_TOUCH, false)
 	var is_mobile := OS.has_feature("mobile") or OS.has_feature("web_android") or OS.has_feature("web_ios")
+	# El juego es solo horizontal (además de display/window/handheld/orientation).
+	if OS.has_feature("mobile"):
+		DisplayServer.screen_set_orientation(DisplayServer.SCREEN_SENSOR_LANDSCAPE)
 
 	touch_controls_enabled = forced or is_mobile or DisplayServer.is_touchscreen_available()
 

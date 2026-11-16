@@ -41,6 +41,7 @@ func _ready() -> void:
 	set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	theme = MenuTheme.build()
+	UiArt.smooth(self)
 	_build_feed()
 	_build_button()
 	_build_window()
@@ -246,19 +247,10 @@ func _build_feed() -> void:
 
 
 func _build_button() -> void:
-	button = Button.new()
+	button = UiArt.hud_button("chat")
 	button.name = "ChatButton"
-	button.icon = _chat_icon()
-	button.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	button.tooltip_text = "Chat (Enter)"
-	button.focus_mode = Control.FOCUS_NONE
 	button.set_anchors_preset(Control.PRESET_TOP_RIGHT)
-	for state: String in ["normal", "hover", "pressed"]:
-		var s := StyleBoxFlat.new()
-		s.bg_color = Color(0, 0, 0, {"normal": 0.45, "hover": 0.65, "pressed": 0.8}[state])
-		s.set_corner_radius_all(12)
-		s.anti_aliasing = true
-		button.add_theme_stylebox_override(state, s)
 	button.pressed.connect(toggle)
 	add_child(button)
 
@@ -355,20 +347,3 @@ func _fit() -> void:
 	_window.offset_right = width / 2.0
 	_window.offset_top = WINDOW_TOP
 
-
-## Icono de globo de diálogo, dibujado en píxeles (como MenuTheme.menu_icon).
-static func _chat_icon() -> Texture2D:
-	var img := Image.create_empty(12, 11, false, Image.FORMAT_RGBA8)
-	var c := MenuTheme.TEXT
-	for y in range(0, 8):
-		for x in range(0, 12):
-			var corner := (x == 0 or x == 11) and (y == 0 or y == 7)
-			if not corner:
-				img.set_pixel(x, y, c)
-	for p: Vector2i in [Vector2i(2, 8), Vector2i(3, 8), Vector2i(2, 9), Vector2i(2, 10)]:
-		img.set_pixel(p.x, p.y, c)
-	# Tres puntos "…" en hueco.
-	for x: int in [3, 6, 9]:
-		img.set_pixel(x - 1, 4, Color.TRANSPARENT)
-		img.set_pixel(x, 4, Color.TRANSPARENT)
-	return ImageTexture.create_from_image(img)

@@ -90,6 +90,7 @@ adb install -r apps/game/export/android/UrbanCraft.apk
 - **Solo arm64-v8a:** cubre los teléfonos actuales. Para teléfonos de 32 bits muy viejos, activa `armeabi-v7a` (el APK pesa más).
 - **Ubicación:** el GPS nativo aún no está implementado (ver `LocationService`): en Android la posición sale de la IP, como en PC. Cuando se agregue el plugin habrá que pedir el permiso `ACCESS_FINE_LOCATION`.
 - **Login con Google:** abre el navegador del teléfono y el juego espera la respuesta; no necesita configuración extra.
+- **Solo horizontal:** `display/window/handheld/orientation=4` (*sensor landscape*) bloquea la app en horizontal: gira entre las dos posiciones horizontales, nunca a vertical. `GameSettings` lo vuelve a fijar al arrancar en móvil.
 - **Google Play** exige **AAB**, no APK. Para eso: instala la plantilla de Gradle (`godot --headless --path apps/game --install-android-build-template --export-release Android ...` o Proyecto → Instalar plantilla de compilación de Android), y en el preset `gradle_build/use_gradle_build=true` y `gradle_build/export_format=1`. Para repartir el APK directamente (o en pruebas internas) no hace falta.
 
 ## 4. Web (`urbancraft.droni.vip/play`)
@@ -103,6 +104,7 @@ El backend sirve la versión web en `/play`, en el **mismo dominio** que la API:
 - **Ubicación:** el navegador pide permiso y usa el GPS del dispositivo (solo con HTTPS o en `localhost`). Si se rechaza, sale de la IP.
 - **Login con Google:** abre una pestaña nueva. Si el navegador la bloquea (pasa en algunos cuando tarda la respuesta del servidor), el botón **Abrir el navegador otra vez** la abre sin problema.
 - El servidor elige la carpeta con `WEB_GAME_DIR` (por defecto `public/play`).
+- **Solo horizontal:** un navegador no deja bloquear la orientación de una página. En un teléfono en vertical, una capa tapa el juego desde que carga la página (antes de que arranque Godot) y pide girar el dispositivo. Si el navegador lo permite (Chrome en Android, no Safari en iOS), muestra además un botón que pone pantalla completa y bloquea la orientación en horizontal. Esa capa va en `html/head_include` del preset Web (`export_presets.cfg`) y su fuente legible está en `apps/game/web/orientation_head.html`: si la cambias, vuelve a copiarla al preset (escapando las comillas dobles como `\"`).
 
 ## Lista antes de publicar
 

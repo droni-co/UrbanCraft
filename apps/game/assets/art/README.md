@@ -34,7 +34,8 @@ art/
 ├── props/          árboles, rocas, arbustos, mobiliario urbano, 256×256 (64×64)
 ├── buildings/      fachadas de un piso para los edificios en 3D, 256×168 (64×42)
 ├── characters/     hojas de sprites de personajes (pixel art a x1, o a x2/x4)
-├── ui/icons/       iconos de la interfaz, 48×48 (12×12) (stats del HUD; ver ui/icons/README.md)
+├── ui/            logo, ilustraciones de título y carga, marco de panel (Layer.ai; ver ui/README.md)
+├── ui/icons/       iconos de la interfaz, 96×96 (HUD, menú y stats; ver ui/icons/README.md)
 ├── ui/poi/         icono de cada categoría de lugar, 28×28 (7×7) blanco (va dentro del pin)
 └── source/         material de Layer.ai para las variantes de suelo (no se exporta; ver «Variantes con detalles»)
 ```

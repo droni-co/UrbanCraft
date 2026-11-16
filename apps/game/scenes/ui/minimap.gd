@@ -44,7 +44,9 @@ void fragment() {
 """
 
 const BACKGROUND := Color(0.04, 0.06, 0.09, 0.55)
-const BORDER := Color(1, 1, 1, 0.25)
+## Marco de latón, como los paneles del menú (MenuTheme.GOLD).
+const BORDER := Color(0.9, 0.72, 0.36, 0.9)
+const BORDER_OUTER := Color(0.04, 0.06, 0.12, 0.85)
 const ZONE_COLOR := Color(1, 1, 1, 0.4)
 const POI_COLOR := Color(0.55, 0.75, 1.0, 0.7)
 const COMPASS_SIZE := Vector2(26, 26)
@@ -278,7 +280,8 @@ func _draw_dynamic() -> void:
 	_dynamic_layer.draw_colored_polygon(arrow, Color.WHITE)
 	arrow.append(arrow[0])
 	_dynamic_layer.draw_polyline(arrow, Color(0, 0, 0, 0.8), 1.0, true)
-	_dynamic_layer.draw_rect(Rect2(Vector2.ZERO, size), BORDER, false, 1.0)
+	_dynamic_layer.draw_rect(Rect2(Vector2.ZERO, size).grow(-0.5), BORDER_OUTER, false, 1.0)
+	_dynamic_layer.draw_rect(Rect2(Vector2.ONE, size - Vector2(2, 2)).grow(-0.5), BORDER, false, 1.0)
 
 
 ## Puntos de otros jugadores; los que quedan fuera se pegan al borde, más tenues.
