@@ -19,3 +19,7 @@ Para agregar uno nuevo, súmalo a `GameAudio.SOUNDS` (efectos) o a las listas de
   comprime solo a QOA al importar).
 - Los efectos largos se cortan con un fundido (campo `max` en `SOUNDS`) para no
   quedarse sonando sobre la interfaz.
+
+## Buses
+
+Los buses `Music` y `SFX` están en `apps/game/default_bus_layout.tres`, que Godot carga al arrancar. No los crees desde el código: en la versión web (reproducción por "samples") un bus creado en tiempo de ejecución deja mal conectado el audio del navegador y el juego queda mudo.

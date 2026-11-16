@@ -277,9 +277,13 @@ func _set_bus_volume(bus: StringName, volume: float) -> void:
 	AudioServer.set_bus_volume_db(index, linear_to_db(maxf(volume, 0.001)))
 
 
+## Los buses vienen de default_bus_layout.tres. Crearlos aquí es solo un
+## respaldo: en la web (reproducción por "samples") un bus creado en tiempo de
+## ejecución deja mal conectado el mezclador del navegador y no suena nada.
 func _ensure_bus(bus: StringName) -> void:
 	if AudioServer.get_bus_index(bus) >= 0:
 		return
+	push_warning("[GameAudio] Falta el bus %s en default_bus_layout.tres; se crea en tiempo de ejecución." % bus)
 	AudioServer.add_bus()
 	var index := AudioServer.bus_count - 1
 	AudioServer.set_bus_name(index, bus)

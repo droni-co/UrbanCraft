@@ -6,7 +6,7 @@ extends GameWindow
 ## El jugador eligió colocar un objeto en el mapa (la ventana ya se cerró).
 signal place_requested(item_key: String)
 
-const SLOT := Vector2(34, 34)
+const SLOT := Vector2(46, 46)
 const COLUMNS := 6
 const KIND_NAMES := {"food": "Comida", "material": "Material", "tool": "Herramienta", "placeable": "Para colocar"}
 const STATION_NAMES := {"mesa": "Mesa de trabajo", "parrilla": "Parrilla"}
@@ -25,7 +25,8 @@ var _status: Label
 
 
 func _build() -> void:
-	panel_size = Vector2(440, 300)
+	# Casi toda la pantalla: en el móvil los espacios y textos se ven bien.
+	panel_size = Vector2(620, 344)
 	title_text = "Morral"
 	var tabs := HBoxContainer.new()
 	tabs.add_theme_constant_override("separation", 3)
@@ -56,12 +57,12 @@ func _build() -> void:
 	body.add_child(bag)
 	var scroll := TouchScrollContainer.new()
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	scroll.custom_minimum_size.x = COLUMNS * (SLOT.x + 3) + 8
+	scroll.custom_minimum_size.x = COLUMNS * (SLOT.x + 4) + 8
 	bag.add_child(scroll)
 	_grid = GridContainer.new()
 	_grid.columns = COLUMNS
-	_grid.add_theme_constant_override("h_separation", 3)
-	_grid.add_theme_constant_override("v_separation", 3)
+	_grid.add_theme_constant_override("h_separation", 4)
+	_grid.add_theme_constant_override("v_separation", 4)
 	scroll.add_child(_grid)
 	_detail = VBoxContainer.new()
 	_detail.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -130,7 +131,14 @@ func _slot(key: String) -> Button:
 	button.theme_type_variation = &"CardButton"
 	button.focus_mode = Control.FOCUS_NONE
 	if key.is_empty():
+		# Espacio libre: un recuadro claro para que se vea cuánto cabe.
 		button.disabled = true
+		var empty := StyleBoxFlat.new()
+		empty.bg_color = Color(1, 1, 1, 0.06)
+		empty.border_color = Color(MenuTheme.GOLD, 0.3)
+		empty.set_border_width_all(1)
+		empty.set_corner_radius_all(6)
+		button.add_theme_stylebox_override("disabled", empty)
 		return button
 	button.toggle_mode = true
 	button.button_pressed = key == _selected
@@ -144,7 +152,7 @@ func _slot(key: String) -> Button:
 	var qty := Label.new()
 	qty.text = str(Game.count(key))
 	qty.add_theme_font_override("font", UiArt.FONT_BOLD)
-	qty.add_theme_font_size_override("font_size", 8)
+	qty.add_theme_font_size_override("font_size", 11)
 	qty.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.9))
 	qty.add_theme_constant_override("outline_size", 3)
 	qty.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -168,7 +176,7 @@ func _fill_detail() -> void:
 	_detail.add_child(head)
 	var icon := TextureRect.new()
 	icon.texture = GameArt.item(_selected)
-	icon.custom_minimum_size = Vector2(40, 40)
+	icon.custom_minimum_size = Vector2(56, 56)
 	icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	head.add_child(icon)
@@ -189,7 +197,7 @@ func _fill_detail() -> void:
 	var desc := Label.new()
 	desc.text = str(def.desc)
 	desc.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	desc.add_theme_font_size_override("font_size", 9)
+	desc.add_theme_font_size_override("font_size", 11)
 	_detail.add_child(desc)
 
 	var buttons := HBoxContainer.new()
@@ -253,7 +261,7 @@ func _recipe_row(recipe: Dictionary) -> Control:
 		parts.append("%d/%d %s" % [Game.count(key), int(recipe.inputs[key]), Game.item_name(key)])
 	var needs := Label.new()
 	needs.text = "  ·  ".join(parts)
-	needs.add_theme_font_size_override("font_size", 8)
+	needs.add_theme_font_size_override("font_size", 10)
 	needs.add_theme_color_override("font_color", MenuTheme.SUCCESS if ready else MenuTheme.TEXT_DIM)
 	needs.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	column.add_child(needs)
@@ -268,7 +276,7 @@ func _recipe_row(recipe: Dictionary) -> Control:
 	if not extra.is_empty():
 		var label := Label.new()
 		label.text = "  ·  ".join(extra)
-		label.add_theme_font_size_override("font_size", 8)
+		label.add_theme_font_size_override("font_size", 10)
 		var missing := Game.level() < int(recipe.level) or (recipe.get("tool") != null and Game.count(str(recipe.tool)) == 0)
 		label.add_theme_color_override("font_color", MenuTheme.DANGER if missing else MenuTheme.GOLD)
 		column.add_child(label)
