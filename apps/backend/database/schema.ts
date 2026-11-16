@@ -88,6 +88,30 @@ export class GeoPlaceSchema extends BaseModel {
   declare z: number
 }
 
+export class HarvestSchema extends BaseModel {
+  static $columns = ['at', 'userId', 'x', 'y'] as const
+  $columns = HarvestSchema.$columns
+  @column.dateTime()
+  declare at: DateTime
+  @column({ isPrimary: true })
+  declare userId: number
+  @column()
+  declare x: number
+  @column()
+  declare y: number
+}
+
+export class InventoryItemSchema extends BaseModel {
+  static $columns = ['item', 'qty', 'userId'] as const
+  $columns = InventoryItemSchema.$columns
+  @column()
+  declare item: string
+  @column()
+  declare qty: number
+  @column({ isPrimary: true })
+  declare userId: number
+}
+
 export class MapChunkSchema extends BaseModel {
   static $columns = [
     'bounds',
@@ -235,6 +259,58 @@ export class OsmSourceTileSchema extends BaseModel {
   declare z: number
 }
 
+export class PlayerAchievementSchema extends BaseModel {
+  static $columns = ['key', 'unlockedAt', 'userId'] as const
+  $columns = PlayerAchievementSchema.$columns
+  @column()
+  declare key: string
+  @column.dateTime()
+  declare unlockedAt: DateTime
+  @column({ isPrimary: true })
+  declare userId: number
+}
+
+export class PlayerCounterSchema extends BaseModel {
+  static $columns = ['key', 'userId', 'value'] as const
+  $columns = PlayerCounterSchema.$columns
+  @column()
+  declare key: string
+  @column({ isPrimary: true })
+  declare userId: number
+  @column()
+  declare value: number
+}
+
+export class PlayerJobSchema extends BaseModel {
+  static $columns = ['createdAt', 'data', 'expiresAt', 'id', 'kind', 'status', 'userId'] as const
+  $columns = PlayerJobSchema.$columns
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column()
+  declare data: any
+  @column.dateTime()
+  declare expiresAt: DateTime
+  @column({ isPrimary: true })
+  declare id: bigint | number
+  @column()
+  declare kind: string
+  @column()
+  declare status: string
+  @column()
+  declare userId: number
+}
+
+export class PlayerStateSchema extends BaseModel {
+  static $columns = ['data', 'updatedAt', 'userId'] as const
+  $columns = PlayerStateSchema.$columns
+  @column()
+  declare data: any
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime
+  @column({ isPrimary: true })
+  declare userId: number
+}
+
 export class PlayerStatSchema extends BaseModel {
   static $columns = ['key', 'updatedAt', 'userId', 'value'] as const
   $columns = PlayerStatSchema.$columns
@@ -246,6 +322,36 @@ export class PlayerStatSchema extends BaseModel {
   declare userId: number
   @column()
   declare value: number
+}
+
+export class PoiVisitSchema extends BaseModel {
+  static $columns = ['cat', 'firstAt', 'lastWorkAt', 'poiId', 'userId'] as const
+  $columns = PoiVisitSchema.$columns
+  @column()
+  declare cat: string
+  @column.dateTime()
+  declare firstAt: DateTime
+  @column.dateTime()
+  declare lastWorkAt: DateTime | null
+  @column()
+  declare poiId: string
+  @column({ isPrimary: true })
+  declare userId: number
+}
+
+export class SectorInfluenceSchema extends BaseModel {
+  static $columns = ['points', 'sx', 'sy', 'updatedAt', 'userId'] as const
+  $columns = SectorInfluenceSchema.$columns
+  @column()
+  declare points: number
+  @column({ isPrimary: true })
+  declare sx: number
+  @column()
+  declare sy: number
+  @column.dateTime({ autoCreate: true, autoUpdate: true })
+  declare updatedAt: DateTime
+  @column()
+  declare userId: number
 }
 
 export class SpatialRefSySchema extends BaseModel {
@@ -297,4 +403,46 @@ export class UserSchema extends BaseModel {
   declare skin: string | null
   @column.dateTime({ autoCreate: true, autoUpdate: true })
   declare updatedAt: DateTime | null
+}
+
+export class WorldObjectSchema extends BaseModel {
+  static $columns = [
+    'createdAt',
+    'cx',
+    'cy',
+    'id',
+    'kind',
+    'ownerId',
+    'state',
+    'sx',
+    'sy',
+    'touchedAt',
+    'x',
+    'y',
+  ] as const
+  $columns = WorldObjectSchema.$columns
+  @column.dateTime({ autoCreate: true })
+  declare createdAt: DateTime
+  @column()
+  declare cx: number
+  @column()
+  declare cy: number
+  @column({ isPrimary: true })
+  declare id: bigint | number
+  @column()
+  declare kind: string
+  @column()
+  declare ownerId: number
+  @column()
+  declare state: any
+  @column()
+  declare sx: number
+  @column()
+  declare sy: number
+  @column.dateTime()
+  declare touchedAt: DateTime
+  @column()
+  declare x: number
+  @column()
+  declare y: number
 }

@@ -20,6 +20,7 @@ const DevLoginController = () => import('#controllers/dev_login_controller')
 const PlayerStatsController = () => import('#controllers/player_stats_controller')
 const FriendsController = () => import('#controllers/friends_controller')
 const WebGameController = () => import('#controllers/web_game_controller')
+const GameController = () => import('#controllers/game_controller')
 
 router.get('/', () => {
   return { name: 'UrbanCraft API', version: 'v1' }
@@ -115,6 +116,51 @@ router
       })
       .prefix('friends')
       .as('friends')
+      .use(middleware.auth())
+
+    /**
+     * Mecánicas del juego: lugares, morral, fabricación, encargos, historia,
+     * territorio y objetos del mapa (ver GameController / GameService).
+     */
+    router
+      .group(() => {
+        const id = { id: router.matchers.number() }
+        router.get('catalog', [GameController, 'catalog']).as('catalog')
+        router.get('state', [GameController, 'state']).as('state')
+        router.post('story/seen', [GameController, 'storySeen']).as('story.seen')
+        router.post('story/talk', [GameController, 'storyTalk']).as('story.talk')
+        router.post('places/visit', [GameController, 'visit']).as('places.visit')
+        router.post('places/buy', [GameController, 'buy']).as('places.buy')
+        router.post('places/sell', [GameController, 'sell']).as('places.sell')
+        router.post('places/work', [GameController, 'work']).as('places.work')
+        router.post('places/service', [GameController, 'service']).as('places.service')
+        router.post('gather', [GameController, 'gather']).as('gather')
+        router.post('items/use', [GameController, 'use']).as('items.use')
+        router.post('craft', [GameController, 'craft']).as('craft')
+        router.get('jobs', [GameController, 'jobs']).as('jobs')
+        router.post('jobs/refresh', [GameController, 'jobRefresh']).as('jobs.refresh')
+        router
+          .post('jobs/:id/accept', [GameController, 'jobAccept'])
+          .where('id', id.id)
+          .as('jobs.accept')
+        router
+          .post('jobs/:id/abandon', [GameController, 'jobAbandon'])
+          .where('id', id.id)
+          .as('jobs.abandon')
+        router.post('jobs/:id/step', [GameController, 'jobStep']).where('id', id.id).as('jobs.step')
+        router.get('territory', [GameController, 'territory']).as('territory')
+        router.post('territory/collect', [GameController, 'collectRent']).as('territory.collect')
+        router.get('objects', [GameController, 'objects']).as('objects')
+        router.post('objects', [GameController, 'placeObject']).as('objects.place')
+        router
+          .post('objects/:id/act', [GameController, 'objectAction'])
+          .where('id', id.id)
+          .as('objects.act')
+        // Solo desarrollo y en local (ver app/auth/dev_tools.ts).
+        router.post('dev', [GameController, 'dev']).as('dev')
+      })
+      .prefix('game')
+      .as('game')
       .use(middleware.auth())
 
     router

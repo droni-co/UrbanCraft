@@ -69,6 +69,11 @@ func refresh() -> bool:
 	return _handle(res)
 
 
+## Stats que llegaron en la respuesta de una acción del juego (ver Game).
+func apply(new_stats: Array) -> void:
+	_apply(new_stats)
+
+
 ## Solo desarrollo (servidor con DEV_LOGIN_ENABLED, en local): suma `delta` o fija `set_value`.
 func dev_change(key: String, delta := 0.0, set_value: Variant = null) -> bool:
 	var body := {"key": key}

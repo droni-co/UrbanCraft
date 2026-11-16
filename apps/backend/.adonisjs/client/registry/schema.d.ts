@@ -307,6 +307,305 @@ export interface Registry {
       rawResponse: ExtractRawResponse<Awaited<ReturnType<import('#controllers/friends_controller').default['destroy']>>>
     }
   }
+  'game.catalog': {
+    methods: ["GET","HEAD"]
+    pattern: '/api/v1/game/catalog'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/game_controller').default['catalog']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/game_controller').default['catalog']>>>
+      rawResponse: ExtractRawResponse<Awaited<ReturnType<import('#controllers/game_controller').default['catalog']>>>
+    }
+  }
+  'game.state': {
+    methods: ["GET","HEAD"]
+    pattern: '/api/v1/game/state'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/game_controller').default['state']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/game_controller').default['state']>>>
+      rawResponse: ExtractRawResponse<Awaited<ReturnType<import('#controllers/game_controller').default['state']>>>
+    }
+  }
+  'game.story.seen': {
+    methods: ["POST"]
+    pattern: '/api/v1/game/story/seen'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/game_controller').default['storySeen']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/game_controller').default['storySeen']>>>
+      rawResponse: ExtractRawResponse<Awaited<ReturnType<import('#controllers/game_controller').default['storySeen']>>>
+    }
+  }
+  'game.story.talk': {
+    methods: ["POST"]
+    pattern: '/api/v1/game/story/talk'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/game_controller').default['storyTalk']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/game_controller').default['storyTalk']>>>
+      rawResponse: ExtractRawResponse<Awaited<ReturnType<import('#controllers/game_controller').default['storyTalk']>>>
+    }
+  }
+  'game.places.visit': {
+    methods: ["POST"]
+    pattern: '/api/v1/game/places/visit'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/game_controller').default['visit']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/game_controller').default['visit']>>>
+      rawResponse: ExtractRawResponse<Awaited<ReturnType<import('#controllers/game_controller').default['visit']>>>
+    }
+  }
+  'game.places.buy': {
+    methods: ["POST"]
+    pattern: '/api/v1/game/places/buy'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/game_controller').default['buy']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/game_controller').default['buy']>>>
+      rawResponse: ExtractRawResponse<Awaited<ReturnType<import('#controllers/game_controller').default['buy']>>>
+    }
+  }
+  'game.places.sell': {
+    methods: ["POST"]
+    pattern: '/api/v1/game/places/sell'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/game_controller').default['sell']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/game_controller').default['sell']>>>
+      rawResponse: ExtractRawResponse<Awaited<ReturnType<import('#controllers/game_controller').default['sell']>>>
+    }
+  }
+  'game.places.work': {
+    methods: ["POST"]
+    pattern: '/api/v1/game/places/work'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/game_controller').default['work']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/game_controller').default['work']>>>
+      rawResponse: ExtractRawResponse<Awaited<ReturnType<import('#controllers/game_controller').default['work']>>>
+    }
+  }
+  'game.places.service': {
+    methods: ["POST"]
+    pattern: '/api/v1/game/places/service'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/game_controller').default['service']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/game_controller').default['service']>>>
+      rawResponse: ExtractRawResponse<Awaited<ReturnType<import('#controllers/game_controller').default['service']>>>
+    }
+  }
+  'game.gather': {
+    methods: ["POST"]
+    pattern: '/api/v1/game/gather'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/game_controller').default['gather']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/game_controller').default['gather']>>>
+      rawResponse: ExtractRawResponse<Awaited<ReturnType<import('#controllers/game_controller').default['gather']>>>
+    }
+  }
+  'game.items.use': {
+    methods: ["POST"]
+    pattern: '/api/v1/game/items/use'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/game_controller').default['use']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/game_controller').default['use']>>>
+      rawResponse: ExtractRawResponse<Awaited<ReturnType<import('#controllers/game_controller').default['use']>>>
+    }
+  }
+  'game.craft': {
+    methods: ["POST"]
+    pattern: '/api/v1/game/craft'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/game_controller').default['craft']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/game_controller').default['craft']>>>
+      rawResponse: ExtractRawResponse<Awaited<ReturnType<import('#controllers/game_controller').default['craft']>>>
+    }
+  }
+  'game.jobs': {
+    methods: ["GET","HEAD"]
+    pattern: '/api/v1/game/jobs'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/game_controller').default['jobs']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/game_controller').default['jobs']>>>
+      rawResponse: ExtractRawResponse<Awaited<ReturnType<import('#controllers/game_controller').default['jobs']>>>
+    }
+  }
+  'game.jobs.refresh': {
+    methods: ["POST"]
+    pattern: '/api/v1/game/jobs/refresh'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/game_controller').default['jobRefresh']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/game_controller').default['jobRefresh']>>>
+      rawResponse: ExtractRawResponse<Awaited<ReturnType<import('#controllers/game_controller').default['jobRefresh']>>>
+    }
+  }
+  'game.jobs.accept': {
+    methods: ["POST"]
+    pattern: '/api/v1/game/jobs/:id/accept'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/game_controller').default['jobAccept']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/game_controller').default['jobAccept']>>>
+      rawResponse: ExtractRawResponse<Awaited<ReturnType<import('#controllers/game_controller').default['jobAccept']>>>
+    }
+  }
+  'game.jobs.abandon': {
+    methods: ["POST"]
+    pattern: '/api/v1/game/jobs/:id/abandon'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/game_controller').default['jobAbandon']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/game_controller').default['jobAbandon']>>>
+      rawResponse: ExtractRawResponse<Awaited<ReturnType<import('#controllers/game_controller').default['jobAbandon']>>>
+    }
+  }
+  'game.jobs.step': {
+    methods: ["POST"]
+    pattern: '/api/v1/game/jobs/:id/step'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/game_controller').default['jobStep']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/game_controller').default['jobStep']>>>
+      rawResponse: ExtractRawResponse<Awaited<ReturnType<import('#controllers/game_controller').default['jobStep']>>>
+    }
+  }
+  'game.territory': {
+    methods: ["GET","HEAD"]
+    pattern: '/api/v1/game/territory'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/game_controller').default['territory']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/game_controller').default['territory']>>>
+      rawResponse: ExtractRawResponse<Awaited<ReturnType<import('#controllers/game_controller').default['territory']>>>
+    }
+  }
+  'game.territory.collect': {
+    methods: ["POST"]
+    pattern: '/api/v1/game/territory/collect'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/game_controller').default['collectRent']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/game_controller').default['collectRent']>>>
+      rawResponse: ExtractRawResponse<Awaited<ReturnType<import('#controllers/game_controller').default['collectRent']>>>
+    }
+  }
+  'game.objects': {
+    methods: ["GET","HEAD"]
+    pattern: '/api/v1/game/objects'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/game_controller').default['objects']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/game_controller').default['objects']>>>
+      rawResponse: ExtractRawResponse<Awaited<ReturnType<import('#controllers/game_controller').default['objects']>>>
+    }
+  }
+  'game.objects.place': {
+    methods: ["POST"]
+    pattern: '/api/v1/game/objects'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/game_controller').default['placeObject']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/game_controller').default['placeObject']>>>
+      rawResponse: ExtractRawResponse<Awaited<ReturnType<import('#controllers/game_controller').default['placeObject']>>>
+    }
+  }
+  'game.objects.act': {
+    methods: ["POST"]
+    pattern: '/api/v1/game/objects/:id/act'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/game_controller').default['objectAction']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/game_controller').default['objectAction']>>>
+      rawResponse: ExtractRawResponse<Awaited<ReturnType<import('#controllers/game_controller').default['objectAction']>>>
+    }
+  }
+  'game.dev': {
+    methods: ["POST"]
+    pattern: '/api/v1/game/dev'
+    types: {
+      body: {}
+      paramsTuple: []
+      params: {}
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/game_controller').default['dev']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/game_controller').default['dev']>>>
+      rawResponse: ExtractRawResponse<Awaited<ReturnType<import('#controllers/game_controller').default['dev']>>>
+    }
+  }
   'map.map.config': {
     methods: ["GET","HEAD"]
     pattern: '/api/v1/map/config'

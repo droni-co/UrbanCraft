@@ -3,6 +3,7 @@ import type { RealtimeConfig } from '#config/realtime'
 import { GameRealtimeServer } from '#realtime/game_server'
 import { PlayerStatsService } from '#services/player_stats_service'
 import { FriendsService } from '#services/friends_service'
+import { GameService } from '#game/game_service'
 
 export default class RealtimeProvider {
   #realtime?: GameRealtimeServer
@@ -12,12 +13,22 @@ export default class RealtimeProvider {
   register() {
     this.app.container.singleton(GameRealtimeServer, async (resolver) => {
       const map = this.app.config.get<{ cellZoom: number; chunkZoom: number }>('map')
-      return new GameRealtimeServer(
+      const realtime = new GameRealtimeServer(
         this.app.config.get<RealtimeConfig>('realtime'),
         map,
         await resolver.make(PlayerStatsService),
         await resolver.make(FriendsService)
       )
+      // Las mecánicas del juego validan con la posición del tiempo real y
+      // avisan por él; el tiempo real les cuenta lo que ve (metros, saludos, chat).
+      const game = await resolver.make(GameService)
+      game.connect({
+        position: (userId) => realtime.position(userId),
+        notify: (userId, events) => realtime.notifyGame(userId, events),
+        broadcastObject: (x, y, payload) => realtime.broadcastNear(x, y, payload),
+      })
+      realtime.setGameHooks({ track: (userId, key, delta) => game.track(userId, key, delta) })
+      return realtime
     })
   }
 

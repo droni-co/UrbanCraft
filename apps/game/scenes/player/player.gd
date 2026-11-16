@@ -24,6 +24,8 @@ const FEET := CharacterSkins.FEET
 
 var facing := Vector2.DOWN
 var is_moving := false
+## Con el hambre en cero no se puede correr (lo decide el mundo).
+var can_run := true
 
 var _path: Array[Vector2] = []
 var _sprite: AnimatedSprite2D
@@ -91,7 +93,7 @@ func facing_index() -> int:
 
 
 func is_running() -> bool:
-	return is_moving and Input.is_action_pressed("run")
+	return is_moving and can_run and Input.is_action_pressed("run")
 
 
 func animation_name() -> String:
@@ -128,7 +130,7 @@ func _physics_process(delta: float) -> void:
 		direction = _next_path_direction()
 		strength = 1.0
 
-	var speed := run_speed if Input.is_action_pressed("run") and not typing else walk_speed
+	var speed := run_speed if can_run and Input.is_action_pressed("run") and not typing else walk_speed
 	velocity = direction * speed * strength
 	move_and_slide()
 
@@ -152,7 +154,7 @@ func _physics_process(delta: float) -> void:
 		var anim := animation_name()
 		if _sprite.animation != anim:
 			_sprite.play(anim)
-		_sprite.speed_scale = 1.6 if Input.is_action_pressed("run") and is_moving else 1.0
+		_sprite.speed_scale = 1.6 if is_running() else 1.0
 		CharacterSkins.breathe(_sprite, is_moving, _time)
 	queue_redraw()
 

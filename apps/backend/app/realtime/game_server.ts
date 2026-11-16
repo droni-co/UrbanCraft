@@ -28,7 +28,19 @@ interface Client {
   chatRefilledAt: number
   /** En la voz con amigos. */
   voice: boolean
+  /** Metros caminados que aún no se han sumado al contador del juego. */
+  walked: number
 }
+
+/** Lo que el tiempo real le cuenta al juego (contadores de logros e historia). */
+export interface GameHooks {
+  track(userId: number, key: string, delta: number): Promise<unknown>
+}
+
+/** Metros caminados que se acumulan antes de sumarlos al contador. */
+const WALK_FLUSH_METERS = 20
+/** Radio (celdas) en el que se avisa de un cambio en un objeto del mapa (3 chunks). */
+const OBJECT_RADIUS_CELLS = 192
 
 /** Códigos de cierre propios (4000–4999). */
 export const CLOSE = {
@@ -58,6 +70,7 @@ export class GameRealtimeServer {
   #attached = new WeakSet<HttpServer>()
   #timer?: NodeJS.Timeout
   #tick = 0
+  #hooks?: GameHooks
   private cellZoom: number
   /** Lado de un chunk del mapa, en celdas (64). */
   #chunkCells: number
@@ -78,6 +91,36 @@ export class GameRealtimeServer {
 
   get connected() {
     return this.#clients.size
+  }
+
+  /** Conecta las mecánicas del juego (metros caminados, saludos, chat). */
+  setGameHooks(hooks: GameHooks) {
+    this.#hooks = hooks
+  }
+
+  /** Celda global donde está un jugador conectado, o null. */
+  position(userId: number): { x: number; y: number } | null {
+    const p = this.#clients.has(userId) ? this.world.get(userId) : undefined
+    return p && p.placed ? { x: p.x, y: p.y } : null
+  }
+
+  /** Eventos del juego para un jugador conectado (logros, sectores, ventas…). */
+  notifyGame(userId: number, events: object[]) {
+    const client = this.#clients.get(userId)
+    if (client && events.length > 0) this.#send(client, { t: 'game', e: events })
+  }
+
+  /** Avisa a los jugadores de la zona (también en modo fantasma) de un cambio en el mapa. */
+  broadcastNear(x: number, y: number, payload: object) {
+    for (const client of this.#clients.values()) {
+      const p = client.presence
+      if (p.placed && Math.hypot(p.x - x, p.y - y) <= OBJECT_RADIUS_CELLS)
+        this.#send(client, payload)
+    }
+  }
+
+  #track(userId: number, key: string, delta: number) {
+    this.#hooks?.track(userId, key, delta).catch(() => {})
   }
 
   /** Engancha el upgrade de WebSocket al servidor HTTP (idempotente). */
@@ -174,6 +217,7 @@ export class GameRealtimeServer {
       chatTokens: this.config.chatBurst,
       chatRefilledAt: now,
       voice: false,
+      walked: 0,
     }
     this.#clients.set(user.id, client)
     this.#send(client, {
@@ -313,6 +357,11 @@ export class GameRealtimeServer {
           retry: this.config.minSpawnIntervalMs,
         })
       }
+      client.walked += Math.hypot(msg.x - p.x, msg.y - p.y) * this.world.metersPerCell(msg.y)
+      if (client.walked >= WALK_FLUSH_METERS) {
+        this.#track(p.id, 'distance_m', Math.floor(client.walked))
+        client.walked -= Math.floor(client.walked)
+      }
     }
     p.lastStateAt = now
     p.dir = msg.d
@@ -325,6 +374,7 @@ export class GameRealtimeServer {
     const now = this.now()
     if (!p.placed || !p.visible || now - client.lastActAt < MIN_ACT_INTERVAL_MS) return
     client.lastActAt = now
+    if (kind === 'wave') this.#track(p.id, 'waves', 1)
     for (const other of this.world.within(p.x, p.y, this.config.nearbyRadiusCells, p.id)) {
       const target = this.#clients.get(other.id)
       if (target) this.#send(target, { t: 'act', id: p.id, k: kind })
@@ -351,6 +401,7 @@ export class GameRealtimeServer {
       return this.#send(client, { t: 'reject', r: 'chat', retry })
     }
     client.chatTokens--
+    this.#track(client.presence.id, 'chat_messages', 1)
 
     const me = client.presence
     const recipients = new Set<number>([me.id])

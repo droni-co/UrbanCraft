@@ -54,7 +54,7 @@ func _ready() -> void:
 	var header := HBoxContainer.new()
 	header.add_theme_constant_override("separation", 6)
 	column.add_child(header)
-	var badge := UiArt.icon_rect("menu", 18)
+	var badge := UiArt.icon_rect("settings", 18)
 	header.add_child(badge)
 	var title := Label.new()
 	title.text = "Menú"
@@ -114,12 +114,13 @@ func _unhandled_input(event: InputEvent) -> void:
 
 # --- API --------------------------------------------------------------------------
 
-## `icon_name`: icono de assets/art/ui/icons (opcional).
-func add_section(title: String, control: Control, icon_name := "") -> void:
+## `icon`: nombre de un icono de assets/art/ui/icons, o una textura (opcional).
+func add_section(title: String, control: Control, icon: Variant = "") -> void:
 	var button := Button.new()
 	button.text = title
-	if not icon_name.is_empty():
-		button.icon = UiArt.icon(icon_name)
+	var texture: Texture2D = icon if icon is Texture2D else (UiArt.icon(str(icon)) if not str(icon).is_empty() else null)
+	if texture:
+		button.icon = texture
 		button.expand_icon = true
 		button.add_theme_constant_override("icon_max_width", 16)
 	button.toggle_mode = true
@@ -205,4 +206,4 @@ func _fit() -> void:
 	var narrow := screen.x < NARROW_WIDTH
 	_layout.vertical = narrow
 	_nav.vertical = not narrow
-	_nav.custom_minimum_size.x = 0 if narrow else 120
+	_nav.custom_minimum_size.x = 0 if narrow else 112

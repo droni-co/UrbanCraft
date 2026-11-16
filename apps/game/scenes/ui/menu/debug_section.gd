@@ -32,6 +32,22 @@ func _ready() -> void:
 	_button(grid, "Llenar hambre", func() -> void: PlayerStats.dev_change("hunger", 0, 100))
 	_button(grid, "Reiniciar stats", _reset)
 
+	var game_title := Label.new()
+	game_title.text = "Mecánicas"
+	game_title.theme_type_variation = &"SectionTitle"
+	add_child(game_title)
+	var game_grid := HFlowContainer.new()
+	game_grid.add_theme_constant_override("h_separation", 6)
+	game_grid.add_theme_constant_override("v_separation", 6)
+	add_child(game_grid)
+	_button(game_grid, "Saltar paso de la historia", func() -> void: Game.dev("skip"))
+	_button(game_grid, "+100 influencia aquí", func() -> void: Game.dev("influence", {"points": 100}))
+	for key: String in ["martillo", "tabla", "clavos", "tela", "pintura", "palo", "masa", "carne", "carbon", "chatarra", "piedra"]:
+		_button(game_grid, "+10 %s" % key, func() -> void: Game.dev("give", {"item": key, "qty": 10}))
+	for key: String in ["mesa", "parrilla", "bandera", "puesto", "caja", "matera", "banca", "letrero", "farol"]:
+		_button(game_grid, "+1 %s" % key, func() -> void: Game.dev("give", {"item": key, "qty": 1}))
+	_button(game_grid, "Empezar de cero (borra todo)", func() -> void: Game.dev("reset"))
+
 
 func _reset() -> void:
 	for key in ["hunger", "xp", "money"]:

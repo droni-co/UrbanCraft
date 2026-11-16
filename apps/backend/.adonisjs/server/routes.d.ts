@@ -27,6 +27,29 @@ export type ScannedRoutes = {
     'friends.requests.reject': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'friends.location': { paramsTuple: [ParamValue]; params: {'userId': ParamValue} }
     'friends.destroy': { paramsTuple: [ParamValue]; params: {'userId': ParamValue} }
+    'game.catalog': { paramsTuple?: []; params?: {} }
+    'game.state': { paramsTuple?: []; params?: {} }
+    'game.story.seen': { paramsTuple?: []; params?: {} }
+    'game.story.talk': { paramsTuple?: []; params?: {} }
+    'game.places.visit': { paramsTuple?: []; params?: {} }
+    'game.places.buy': { paramsTuple?: []; params?: {} }
+    'game.places.sell': { paramsTuple?: []; params?: {} }
+    'game.places.work': { paramsTuple?: []; params?: {} }
+    'game.places.service': { paramsTuple?: []; params?: {} }
+    'game.gather': { paramsTuple?: []; params?: {} }
+    'game.items.use': { paramsTuple?: []; params?: {} }
+    'game.craft': { paramsTuple?: []; params?: {} }
+    'game.jobs': { paramsTuple?: []; params?: {} }
+    'game.jobs.refresh': { paramsTuple?: []; params?: {} }
+    'game.jobs.accept': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'game.jobs.abandon': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'game.jobs.step': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'game.territory': { paramsTuple?: []; params?: {} }
+    'game.territory.collect': { paramsTuple?: []; params?: {} }
+    'game.objects': { paramsTuple?: []; params?: {} }
+    'game.objects.place': { paramsTuple?: []; params?: {} }
+    'game.objects.act': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'game.dev': { paramsTuple?: []; params?: {} }
     'map.map.config': { paramsTuple?: []; params?: {} }
     'map.map.chunk': { paramsTuple: [ParamValue,ParamValue,ParamValue]; params: {'z': ParamValue,'x': ParamValue,'y': ParamValue} }
     'time': { paramsTuple?: []; params?: {} }
@@ -44,6 +67,11 @@ export type ScannedRoutes = {
     'friends.index': { paramsTuple?: []; params?: {} }
     'friends.search': { paramsTuple?: []; params?: {} }
     'friends.location': { paramsTuple: [ParamValue]; params: {'userId': ParamValue} }
+    'game.catalog': { paramsTuple?: []; params?: {} }
+    'game.state': { paramsTuple?: []; params?: {} }
+    'game.jobs': { paramsTuple?: []; params?: {} }
+    'game.territory': { paramsTuple?: []; params?: {} }
+    'game.objects': { paramsTuple?: []; params?: {} }
     'map.map.config': { paramsTuple?: []; params?: {} }
     'map.map.chunk': { paramsTuple: [ParamValue,ParamValue,ParamValue]; params: {'z': ParamValue,'x': ParamValue,'y': ParamValue} }
     'time': { paramsTuple?: []; params?: {} }
@@ -61,6 +89,11 @@ export type ScannedRoutes = {
     'friends.index': { paramsTuple?: []; params?: {} }
     'friends.search': { paramsTuple?: []; params?: {} }
     'friends.location': { paramsTuple: [ParamValue]; params: {'userId': ParamValue} }
+    'game.catalog': { paramsTuple?: []; params?: {} }
+    'game.state': { paramsTuple?: []; params?: {} }
+    'game.jobs': { paramsTuple?: []; params?: {} }
+    'game.territory': { paramsTuple?: []; params?: {} }
+    'game.objects': { paramsTuple?: []; params?: {} }
     'map.map.config': { paramsTuple?: []; params?: {} }
     'map.map.chunk': { paramsTuple: [ParamValue,ParamValue,ParamValue]; params: {'z': ParamValue,'x': ParamValue,'y': ParamValue} }
     'time': { paramsTuple?: []; params?: {} }
@@ -78,6 +111,24 @@ export type ScannedRoutes = {
     'player.stats.dev': { paramsTuple?: []; params?: {} }
     'friends.requests.store': { paramsTuple?: []; params?: {} }
     'friends.requests.accept': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'game.story.seen': { paramsTuple?: []; params?: {} }
+    'game.story.talk': { paramsTuple?: []; params?: {} }
+    'game.places.visit': { paramsTuple?: []; params?: {} }
+    'game.places.buy': { paramsTuple?: []; params?: {} }
+    'game.places.sell': { paramsTuple?: []; params?: {} }
+    'game.places.work': { paramsTuple?: []; params?: {} }
+    'game.places.service': { paramsTuple?: []; params?: {} }
+    'game.gather': { paramsTuple?: []; params?: {} }
+    'game.items.use': { paramsTuple?: []; params?: {} }
+    'game.craft': { paramsTuple?: []; params?: {} }
+    'game.jobs.refresh': { paramsTuple?: []; params?: {} }
+    'game.jobs.accept': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'game.jobs.abandon': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'game.jobs.step': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'game.territory.collect': { paramsTuple?: []; params?: {} }
+    'game.objects.place': { paramsTuple?: []; params?: {} }
+    'game.objects.act': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
+    'game.dev': { paramsTuple?: []; params?: {} }
   }
   PATCH: {
     'profile.profile.update': { paramsTuple?: []; params?: {} }

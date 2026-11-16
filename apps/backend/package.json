@@ -41,7 +41,8 @@
     "#map/*": "./app/map/*.js",
     "#geo/*": "./app/geo/*.js",
     "#auth/*": "./app/auth/*.js",
-    "#realtime/*": "./app/realtime/*.js"
+    "#realtime/*": "./app/realtime/*.js",
+    "#game/*": "./app/game/*.js"
   },
   "devDependencies": {
     "@adonisjs/assembler": "^8.5.2",
