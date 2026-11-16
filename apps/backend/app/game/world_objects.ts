@@ -204,7 +204,7 @@ export class WorldObjects {
     const id = Number(inserted[0].id ?? inserted[0])
     await this.store.count(ctx, 'objects_placed')
     await this.store.count(ctx, `placed_${def.object}`)
-    await this.territory.gain(ctx, x, y, O.influence)
+    await this.territory.gain(ctx, x, y, def.influence ?? O.influence)
     if (def.object === 'bandera') await this.territory.checkOwner(ctx, sx, sy, ownerBefore)
     ctx.objectChanges.push({ op: 'put', id, x, y })
     ctx.events.push({ type: 'toast', text: `Pusiste: ${def.name}.` })
@@ -223,7 +223,12 @@ export class WorldObjects {
     await this.store.addItems(ctx.trx, ctx.userId, { [row.kind]: 1 })
     const ownerBefore = await this.territory.owner(ctx.trx, row.sx, row.sy)
     await ctx.trx.from('world_objects').where('id', row.id).delete()
-    await this.territory.lose(ctx, row.x, row.y, O.influence)
+    await this.territory.lose(
+      ctx,
+      row.x,
+      row.y,
+      ITEMS_BY_KEY.get(row.kind)?.influence ?? O.influence
+    )
     if (row.kind === 'bandera') await this.territory.checkOwner(ctx, row.sx, row.sy, ownerBefore)
     ctx.objectChanges.push({ op: 'del', id: Number(row.id), x: row.x, y: row.y })
     ctx.events.push({ type: 'toast', text: `Recogiste: ${itemName(row.kind)}.` })

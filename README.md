@@ -89,12 +89,13 @@ Juego **2D isométrico** (tiles 64×32 con arte a x4, estilo ilustrado) pensado 
 | Acción      | PC                         | Gamepad        | Móvil                       |
 | ----------- | -------------------------- | -------------- | --------------------------- |
 | Moverse     | WASD / flechas · clic      | Stick / D-pad  | Joystick dinámico · tocar   |
-| Correr      | Shift                      | B              | Botón B (alterna)           |
+| Correr      | Shift (enciende / apaga)   | Mantener B     | Botón B (alterna)           |
 | Interactuar | E / Espacio                | A              | Botón A                     |
 | Saludar     | G · menú → Multijugador    | Y              | Menú → Multijugador         |
 | Chat        | Enter · T (Esc cierra)     | —              | Botón de chat (junto al menú) |
 | Voz (amigos)| Mantener V · botón micrófono | —            | Mantener botón Voz · botón micrófono |
 | Zoom        | Rueda · `+` / `-`          | LB / RB        | Pellizco                    |
+| Mapa grande | Clic en el minimapa        | —              | Tocar el minimapa           |
 | Menú        | Esc / P · botón ☰          | Start          | Botón ☰                     |
 
 Para probar los controles táctiles en PC (el ratón simula toques): `pnpm game:touch`.

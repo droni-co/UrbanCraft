@@ -12,6 +12,11 @@ extends Control
 ## una paleta. Las capas del mapa (chunks, POIs, borde de zona) se dibujan
 ## centradas en `_center` y solo se redibujan cuando cambian los chunks; para
 ## seguir al jugador se mueven enteras (`_apply_scroll`), sin redibujar nada.
+##
+## Un clic o toque emite `pressed` (el HUD abre el mapa grande, MapWindow, que
+## dibuja estos mismos datos).
+
+signal pressed
 
 ## Colores por id de WorldTiles.Ground (mismo orden): el tono medio de cada
 ## tile de assets/art. Si cambias mucho el arte, actualízalos.
@@ -68,7 +73,9 @@ var _player_offset := Vector2.ZERO
 var _player_facing := Vector2.DOWN
 var _others_near := PackedVector2Array()
 var _others_far := PackedVector2Array()
-var _chunks := {}  # Vector2i (origen global) -> {texture, pois: Array[Vector2]}
+var _chunks := {}  # Vector2i (origen global) -> {texture, size, pois: Array[Dictionary]}
+## Metros por celda (para las distancias del mapa grande).
+var meters_per_cell := 1.0
 
 var _map_layer: Control
 var _static_layer: Control
@@ -77,7 +84,9 @@ var _compass: Compass
 
 
 func _ready() -> void:
-	mouse_filter = MOUSE_FILTER_IGNORE
+	mouse_filter = MOUSE_FILTER_STOP
+	mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	tooltip_text = "Ver el mapa"
 	clip_contents = true
 
 	_map_layer = _make_layer()
@@ -120,10 +129,16 @@ func add_chunk(origin_cell: Vector2i, chunk_size: int, ground: PackedByteArray, 
 	if ground.size() != chunk_size * chunk_size:
 		return
 	var image := Image.create_from_data(chunk_size, chunk_size, false, Image.FORMAT_L8, ground)
-	var poi_cells: Array[Vector2] = []
+	var poi_list: Array[Dictionary] = []
 	for poi: Dictionary in pois:
-		poi_cells.append(Vector2(float(poi.cell[0]) + 0.5, float(poi.cell[1]) + 0.5))
-	_chunks[origin_cell] = {"texture": ImageTexture.create_from_image(image), "pois": poi_cells}
+		poi_list.append({
+			"cell": Vector2(float(poi.cell[0]) + 0.5, float(poi.cell[1]) + 0.5),
+			"name": str(poi.get("name", "")),
+			"cat": str(poi.get("cat", "other")),
+			"kind": str(poi.get("kind", "")),
+			"detail": str(poi.get("detail", "")),
+		})
+	_chunks[origin_cell] = {"texture": ImageTexture.create_from_image(image), "size": chunk_size, "pois": poi_list}
 	_map_layer.queue_redraw()
 	_static_layer.queue_redraw()
 
@@ -156,6 +171,46 @@ func set_others(near: PackedVector2Array, far: PackedVector2Array) -> void:
 	_others_near = near
 	_others_far = far
 	_dynamic_layer.queue_redraw()
+
+
+# --- Datos para el mapa grande ----------------------------------------------------
+
+func center_cell() -> Vector2i:
+	return _center
+
+
+func zone_radius() -> float:
+	return _zone_radius
+
+
+func player_offset() -> Vector2:
+	return _player_offset
+
+
+func player_facing() -> Vector2:
+	return _player_facing
+
+
+func others_near() -> PackedVector2Array:
+	return _others_near
+
+
+## Origen global -> {texture, size, pois}. Solo lectura.
+func chunk_data() -> Dictionary:
+	return _chunks
+
+
+## Material que colorea las texturas de suelo (compartido con el mapa grande).
+func palette_material() -> Material:
+	return _map_layer.material
+
+
+func _gui_input(event: InputEvent) -> void:
+	var released: bool = (event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed) \
+		or (event is InputEventScreenTouch and not event.pressed)
+	if released:
+		accept_event()
+		pressed.emit()
 
 
 # --- Disposición ----------------------------------------------------------------
@@ -271,8 +326,8 @@ func _draw_map() -> void:
 func _draw_static() -> void:
 	for origin: Vector2i in _chunks:
 		var base := Vector2(origin - _center)
-		for cell: Vector2 in _chunks[origin].pois:
-			_static_layer.draw_rect(Rect2(_to_map(base + cell).floor(), Vector2.ONE), POI_COLOR)
+		for poi: Dictionary in _chunks[origin].pois:
+			_static_layer.draw_rect(Rect2(_to_map(base + poi.cell).floor(), Vector2.ONE), POI_COLOR)
 
 	if _zone_radius > 0.0:
 		var points := PackedVector2Array()

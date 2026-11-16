@@ -16,6 +16,22 @@ const KIND_TEXT := {
 	"bandera": "Con esta bandera su dueño pelea por el dominio del sector.",
 	"farol": "Un farol. De noche se agradece.",
 	"fiesta": "La mesa de la fiesta. Hay torta para todos.",
+	"seto": "Un seto podado con regla. Marca dónde empieza el territorio de su dueño.",
+	"cerca": "Una cerca blanca, impecable.",
+	"muro": "Un muro de ladrillo. Alguien quiso dejar claro hasta dónde llega lo suyo.",
+	"columna": "Una columna de mármol. No sostiene nada, pero impone.",
+	"palmera": "Una palma real en su matera.",
+	"farola": "Una farola doble de hierro forjado.",
+	"arco": "Un arco de flores. Pasar por debajo da buena suerte, dicen.",
+	"fuente": "Una fuente de piedra. Costó una fortuna y se nota.",
+	"reloj": "El reloj de la plaza. Da la hora, más o menos.",
+	"estandarte": "El estandarte de su dueño: este pedazo de barrio tiene nombre.",
+	"estatua": "Una estatua de bronce. Se parece sospechosamente a su dueño.",
+	"molino": "Un molino decorativo. Hipnotiza.",
+	"kiosco": "El kiosco del parque. Solo falta la banda.",
+	"arbol_dorado": "Un árbol de hojas de oro. Solo los más ricos del barrio tienen uno.",
+	"obelisco": "Un obelisco de granito con punta dorada. Cero modestia.",
+	"trono": "El trono dorado. Aquí se sienta quien manda en el barrio.",
 }
 
 var _object := {}

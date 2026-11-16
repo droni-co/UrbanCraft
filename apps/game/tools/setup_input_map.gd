@@ -10,7 +10,9 @@ func _initialize() -> void:
 		"move_down": [_key(KEY_S), _key(KEY_DOWN), _axis(JOY_AXIS_LEFT_Y, 1.0), _button(JOY_BUTTON_DPAD_DOWN)],
 		"move_left": [_key(KEY_A), _key(KEY_LEFT), _axis(JOY_AXIS_LEFT_X, -1.0), _button(JOY_BUTTON_DPAD_LEFT)],
 		"move_right": [_key(KEY_D), _key(KEY_RIGHT), _axis(JOY_AXIS_LEFT_X, 1.0), _button(JOY_BUTTON_DPAD_RIGHT)],
-		"run": [_key(KEY_SHIFT), _button(JOY_BUTTON_B)],
+		# Correr: el gamepad y el botón táctil lo mantienen; Shift lo enciende y apaga.
+		"run": [_button(JOY_BUTTON_B)],
+		"run_toggle": [_key(KEY_SHIFT)],
 		"interact": [_key(KEY_E), _key(KEY_SPACE), _button(JOY_BUTTON_A)],
 		"zoom_in": [_key(KEY_EQUAL), _key(KEY_KP_ADD), _button(JOY_BUTTON_RIGHT_SHOULDER)],
 		"zoom_out": [_key(KEY_MINUS), _key(KEY_KP_SUBTRACT), _button(JOY_BUTTON_LEFT_SHOULDER)],

@@ -14,6 +14,8 @@ const MAIN_SCENE := "res://scenes/main/main.tscn"
 const INFO_SECONDS := 0.25
 ## Espera entre intentos de ubicar al jugador cuando el GPS no responde.
 const GPS_RETRY_SECONDS := 4.0
+## Celdas a las que se alcanza algo para rebuscar (árbol, arbusto, banca…).
+const GATHER_REACH := 2.2
 
 @export var demo_map_size := Vector2i(64, 64)
 @export var demo_seed := 1337
@@ -105,6 +107,8 @@ func _ready() -> void:
 
 	player.interacted.connect(_on_player_interacted)
 	player.path_ended.connect(cursor.clear_target)
+	player.run_toggled.connect(func(on: bool) -> void:
+		hud.show_message("Corriendo (Shift para caminar)" if on else "Caminando (Shift para correr)", 1.5))
 	player.set_physics_process(false)  # hasta que haya mapa bajo sus pies
 
 	camera.target = player
@@ -304,10 +308,57 @@ func _visit(marker: PoiMarker) -> void:
 ## Rebusca en el árbol, arbusto, banca… de una celda local.
 func _gather(cell: Vector2i) -> void:
 	_interacting = true
+	var at := cell_to_world(cell)
+	_float_text("…", at, Color(1, 1, 1, 0.8), 0.5)  # se nota al instante que sí rebuscaste
 	var res := await Game.gather(chunks.local_to_global(cell))
 	_interacting = false
 	if not res.ok:
-		hud.show_message(str(res.message), 3.0)
+		GameAudio.play("fail")
+		_float_text(str(res.message), at, Color("ffb86b"), 2.2)
+	elif res.data is Dictionary and res.data.get("found", false):
+		GameAudio.play("gather")
+		_float_text("¡Encontraste algo!", at, Color("ffe08a"))
+	else:
+		GameAudio.play("fail")
+		_float_text("No salió nada", at, Color("c9d2dc"))
+
+
+## Texto que sube y se desvanece sobre un punto del mundo (respuesta a una acción).
+func _float_text(text: String, at: Vector2, color: Color, seconds := 1.4) -> void:
+	var label := Label.new()
+	label.text = text
+	label.add_theme_font_override("font", UiArt.FONT_BOLD)
+	label.add_theme_font_size_override("font_size", 8)
+	label.add_theme_color_override("font_color", color)
+	label.add_theme_color_override("font_outline_color", Color(0.08, 0.05, 0.02, 0.95))
+	label.add_theme_constant_override("outline_size", 3)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	label.size = Vector2(110, 12)
+	label.z_index = 200
+	add_child(label)
+	label.global_position = at + Vector2(-55, -46)
+	var tween := label.create_tween()
+	tween.tween_property(label, "position:y", label.position.y - 16.0, seconds)
+	tween.parallel().tween_property(label, "modulate:a", 0.0, 0.4).set_delay(seconds - 0.4)
+	tween.tween_callback(label.queue_free)
+
+
+## Celda con algo donde rebuscar más cercana al jugador dentro de `reach`
+## celdas (no hace falta estar justo enfrente), o null.
+func _nearest_prop(grid_position: Vector2, reach: float) -> Variant:
+	var best: Variant = null
+	var best_distance := reach
+	var base := Vector2i(grid_position.floor())
+	var span := ceili(reach)
+	for dy in range(-span, span + 1):
+		for dx in range(-span, span + 1):
+			var cell := base + Vector2i(dx, dy)
+			var d := grid_position.distance_to(Vector2(cell) + Vector2(0.5, 0.5))
+			if d <= best_distance and props.get_cell_source_id(cell) != -1:
+				best = cell
+				best_distance = d
+	return best
 
 
 ## Coloca en la casilla de enfrente un objeto del morral.
@@ -636,6 +687,7 @@ func _update_minimap_area(player_global: Vector2i, force := false) -> void:
 			area.append(chunk)
 	chunks.set_pinned_chunks(area)
 	hud.minimap.set_view(anchor_cell, play_radius_cells, view_cells)
+	hud.minimap.meters_per_cell = meters_per_cell
 
 
 ## "800 m", "5 km", "2.5 km".
@@ -713,7 +765,15 @@ func _on_player_interacted(facing: Vector2) -> void:
 		if not object.is_empty():
 			hud.object_panel.open_object(object)
 			return
-		var marker := _nearest_poi(grid, 3.5)
+		# Tolerancia: un árbol, arbusto, banca… a un par de celdas también vale,
+		# salvo que el jugador esté parado en la entrada de un lugar.
+		var marker := _nearest_poi(grid, 1.2)
+		var prop_cell: Variant = null if marker else _nearest_prop(grid, GATHER_REACH)
+		if prop_cell != null:
+			_gather(prop_cell)
+			return
+		if marker == null:
+			marker = _nearest_poi(grid, 3.5)
 		if marker:
 			_visit(marker)
 			return

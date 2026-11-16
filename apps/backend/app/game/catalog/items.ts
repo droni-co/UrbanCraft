@@ -26,6 +26,8 @@ export interface ItemDefinition {
   slots?: number
   /** Tipo de objeto del mapa que coloca (solo placeable). */
   object?: string
+  /** Influencia que da en el sector al ponerlo (solo placeable; por defecto RULES.objects.influence). */
+  influence?: number
 }
 
 const food = (
@@ -50,6 +52,15 @@ const placeable = (key: string, name: string, price: number, desc: string): Item
   price,
   object: key,
 })
+
+/** Decoración de lujo: solo se compra, cuesta una fortuna y marca más el territorio. */
+const luxury = (
+  key: string,
+  name: string,
+  price: number,
+  influence: number,
+  desc: string
+): ItemDefinition => ({ ...placeable(key, name, price, desc), influence })
 
 export const ITEMS: ItemDefinition[] = [
   // --- Comida -------------------------------------------------------------------
@@ -147,6 +158,60 @@ export const ITEMS: ItemDefinition[] = [
   placeable('bandera', 'Bandera', 60, 'Plántala para pelear por el dominio de un sector.'),
   placeable('farol', 'Farol', 55, 'Alumbra la cuadra de noche.'),
   placeable('fiesta', 'Mesa de fiesta', 500, 'Torta, bombas y motivo de sobra para celebrar.'),
+
+  // --- Decoración de lujo (metas de ahorro: solo en tiendas, a precio de oro) -----
+  luxury(
+    'seto',
+    'Seto podado',
+    900,
+    6,
+    'Un cubo verde perfecto. Sirve para marcar hasta dónde llega lo tuyo.'
+  ),
+  luxury('cerca', 'Cerca blanca', 800, 6, 'De las de película. Delimita con elegancia.'),
+  luxury(
+    'muro',
+    'Muro de ladrillo',
+    1200,
+    7,
+    'Ladrillo a la vista. Dice “aquí mando yo” sin gritar.'
+  ),
+  luxury('columna', 'Columna de mármol', 2200, 9, 'No sostiene nada, pero qué porte.'),
+  luxury('palmera', 'Palma real', 1500, 8, 'Una palma en matera. El trópico, a domicilio.'),
+  luxury(
+    'farola',
+    'Farola doble',
+    2000,
+    9,
+    'Hierro forjado y dos faroles. La cuadra queda de postal.'
+  ),
+  luxury('arco', 'Arco de flores', 2800, 10, 'Todo el que pase por debajo se siente en una boda.'),
+  luxury(
+    'fuente',
+    'Fuente de piedra',
+    3500,
+    12,
+    'El sonido del agua sube el estrato de la cuadra.'
+  ),
+  luxury('reloj', 'Reloj de plaza', 4500, 14, 'Da la hora. Más o menos.'),
+  luxury(
+    'estandarte',
+    'Estandarte',
+    5000,
+    16,
+    'Carmesí y oro, con tu nombre. Que se vea desde lejos.'
+  ),
+  luxury(
+    'estatua',
+    'Estatua de bronce',
+    6000,
+    18,
+    'Un prócer anónimo que se parece sospechosamente a ti.'
+  ),
+  luxury('molino', 'Molino', 7500, 20, 'No muele nada, pero hipnotiza a los vecinos.'),
+  luxury('kiosco', 'Kiosco', 9500, 24, 'La glorieta del parque. Solo falta la banda.'),
+  luxury('arbol_dorado', 'Árbol dorado', 12000, 28, 'Hojas de oro. No se cosecha, se presume.'),
+  luxury('obelisco', 'Obelisco', 15000, 32, 'Granito, punta dorada y cero modestia.'),
+  luxury('trono', 'Trono dorado', 25000, 45, 'Para quien manda en el barrio. Terciopelo incluido.'),
 ]
 
 export const ITEMS_BY_KEY = new Map(ITEMS.map((item) => [item.key, item]))

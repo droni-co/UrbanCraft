@@ -28,6 +28,7 @@ var bag: BagPanel
 var bag_button: Button
 var place_panel: PlacePanel
 var object_panel: ObjectPanel
+var map_window: MapWindow
 var dialog: DialogBox
 var toasts: Toasts
 var tracker: QuestTracker
@@ -175,10 +176,15 @@ func _build_game_ui() -> void:
 	place_panel.name = "PlacePanel"
 	object_panel = ObjectPanel.new()
 	object_panel.name = "ObjectPanel"
+	map_window = MapWindow.new()
+	map_window.name = "MapWindow"
 	dialog = DialogBox.new()
 	dialog.name = "Dialog"
-	for window: Control in [bag, place_panel, object_panel]:
+	for window: Control in [bag, place_panel, object_panel, map_window]:
 		add_child(window)
+	minimap.pressed.connect(func() -> void:
+		if not menu.visible:
+			map_window.open_map(minimap))
 	bag_button.pressed.connect(func() -> void: bag.open_bag())
 	# Sin las mecánicas cargadas (mapa de demostración, sin servidor) no hay morral.
 	bag_button.visible = Game.ready_to_play
@@ -189,7 +195,7 @@ func _build_game_ui() -> void:
 	add_child(dialog)
 	move_child(toasts, dialog.get_index())
 	menu.opened.connect(func() -> void:
-		for window: GameWindow in [bag, place_panel, object_panel]:
+		for window: GameWindow in [bag, place_panel, object_panel, map_window]:
 			window.close())
 	Game.events_received.connect(func(events: Array) -> void:
 		for event: Dictionary in events:

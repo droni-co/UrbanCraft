@@ -220,8 +220,6 @@ func _on_action(path: String, body: Variant, ok: bool) -> void:
 		"/craft":
 			if ok:
 				play(_craft_sound(str(args.get("recipe", ""))))
-		"/gather":
-			play("gather" if ok else "fail")
 		"/places/visit":
 			play("door_open" if ok else "door_locked")
 		"/places/buy", "/places/sell", "/places/service", "/territory/collect":

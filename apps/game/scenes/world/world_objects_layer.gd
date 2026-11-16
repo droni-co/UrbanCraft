@@ -130,8 +130,8 @@ func _style(entry: Dictionary) -> void:
 		sprite.texture = GameArt.object("farol_on")
 	else:
 		sprite.texture = GameArt.object(kind, state)
-	# Las banderas dicen de quién son.
-	if kind == "bandera" and not node.has_node("Owner"):
+	# Las banderas y los estandartes dicen de quién son.
+	if kind in ["bandera", "estandarte"] and not node.has_node("Owner"):
 		var label := Label.new()
 		label.name = "Owner"
 		label.text = str(data.get("ownerName", ""))

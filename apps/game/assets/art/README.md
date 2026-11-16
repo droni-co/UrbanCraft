@@ -186,7 +186,7 @@ Recorta cada cuadro (se queda con la mancha más grande, sin restos del vecino),
 
 ## Mecánicas: `items/`, `medals/`, `npcs/`, `objects/`
 
-Arte de las mecánicas del juego (ver `docs/mecanicas.md`), generado en [Layer.ai](https://layer.ai) con GPT Image 2.5 Flare y `baseStyle.jpeg` como referencia. Los originales son hojas de 4×4 (o 3×3 los retratos) en `source/gameplay/`. Cada casilla se recortó y se centró.
+Arte de las mecánicas del juego (ver `docs/mecanicas.md`), generado en [Layer.ai](https://layer.ai) con GPT Image 2.5 Flare y `baseStyle.jpeg` como referencia. Los originales son hojas de 4×4 (o 3×3 los retratos) en `source/gameplay/`. Cada casilla se recortó y se centró. La decoración de lujo (`source/gameplay/objects_luxury.png`) se recorta con `tools/layer_art/cut_sheet.py <hoja> assets/art` (necesita numpy y scipy): quita el fondo y escribe `objects/` e `items/`.
 
 - `items/<clave>.png`: la clave es la del objeto en `apps/backend/app/game/catalog/items.ts`. Un objeto sin icono usa `paquete.png`.
 - `medals/<emblema>.png`: el campo `emblem` de cada familia en `catalog/achievements.ts`. El juego dibuja el disco y el aro de color según el nivel (`scenes/ui/game/medal_icon.gd`).
