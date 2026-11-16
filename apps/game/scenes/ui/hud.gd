@@ -116,6 +116,7 @@ func _build_menu() -> void:
 	menu.add_section("Amigos", friends, "friends")
 	Friends.changed.connect(_update_friends_badge)
 	Friends.notified.connect(_on_friends_notified)
+	menu.add_section("Ajustes", SettingsSection.new(), "settings")
 	account = AccountSection.new()
 	menu.add_section("Cuenta", account, "account")
 	if OS.is_debug_build():

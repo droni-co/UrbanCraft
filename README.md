@@ -123,7 +123,7 @@ godot --path apps/game -- --lat=4.6097 --lon=-74.0817   # forzar una ubicación
 
 El botón **☰** (arriba a la derecha, junto al minimapa) o **Esc** abre el menú: un modal que pausa el juego. Tiene una lista de secciones a la izquierda (arriba en pantallas angostas) y el contenido a la derecha. Se cierra con la X, con Esc o tocando fuera del panel.
 
-Secciones: **Teletransporte**, **Personaje** (elegir la skin: vista previa caminando y girando; se guarda en la cuenta y los demás la ven al momento; para agregar personajes ver [assets/art/README.md](apps/game/assets/art/README.md#personajes-characterspng)), **Multijugador** (estado, modo fantasma, saludar; ver [docs/multijugador.md](docs/multijugador.md)), **Amigos** (buscar por apodo exacto, solicitudes, ir a donde está un amigo; ver [docs/amigos.md](docs/amigos.md)) y **Cuenta** (iniciar sesión con Google, cambiar el apodo, cerrar sesión; la pantalla inicial muestra una versión compacta). Ver [docs/login-google.md](docs/login-google.md).
+Secciones: **Teletransporte**, **Personaje** (elegir la skin: vista previa caminando y girando; se guarda en la cuenta y los demás la ven al momento; para agregar personajes ver [assets/art/README.md](apps/game/assets/art/README.md#personajes-characterspng)), **Multijugador** (estado, modo fantasma, saludar; ver [docs/multijugador.md](docs/multijugador.md)), **Amigos** (buscar por apodo exacto, solicitudes, ir a donde está un amigo; ver [docs/amigos.md](docs/amigos.md)), **Ajustes** (volumen de la música y de los efectos por separado; se guarda en el dispositivo) y **Cuenta** (iniciar sesión con Google, cambiar el apodo, cerrar sesión; la pantalla inicial muestra una versión compacta). Ver [docs/login-google.md](docs/login-google.md).
 
 **Teletransporte**:
 - Escribe la latitud y la longitud, o pega el par en cualquiera de los dos campos (`4.6097, -74.0817`, como lo copia Google Maps). Acepta decimales con punto o con coma (`4,6097`).
@@ -134,6 +134,10 @@ Secciones: **Teletransporte**, **Personaje** (elegir la skin: vista previa camin
 - Si nadie ha visitado la zona, generarla puede tardar hasta un minuto (Overpass).
 
 Para agregar una opción nueva, crea un `Control` con su contenido y regístralo en `Hud._build_menu()` con `menu.add_section("Título", control)`. El estilo de todo el menú está en `scenes/ui/menu/menu_theme.gd`.
+
+### Sonido
+
+Música de día (dos temas que se alternan) y de noche según la hora real del sol; la pantalla de inicio usa un tema de día. Efectos para las acciones (comer, rebuscar, entrar a un lugar, fabricar, teletransportarse, logros…) y ambiente de la ciudad (pájaros, grillos, agua, fuentes). Los archivos y qué suena en cada caso: [apps/game/assets/audio/README.md](apps/game/assets/audio/README.md).
 
 ### Stats del jugador
 

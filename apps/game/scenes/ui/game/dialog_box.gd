@@ -40,8 +40,8 @@ func _ready() -> void:
 	_panel.anchor_right = 0.5
 	_panel.anchor_top = 1.0
 	_panel.anchor_bottom = 1.0
-	_panel.offset_top = -HEIGHT - 10.0
-	_panel.offset_bottom = -10.0
+	# Si el texto pide más alto, el panel crece hacia arriba (no se sale por abajo).
+	_panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
 
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 8)
@@ -88,6 +88,7 @@ func _ready() -> void:
 	column.add_child(_text)
 
 	resized.connect(_fit)
+	UiArt.keep_fitted(_panel, _fit)
 	_fit()
 
 
@@ -101,6 +102,7 @@ func say(npc_key: String, lines: Array) -> void:
 		return
 	_queue.append({"npc": npc_key, "lines": lines})
 	if not _open:
+		GameAudio.play("scroll")
 		_next_dialog()
 
 
@@ -185,3 +187,6 @@ func _fit() -> void:
 	var width := minf(440.0, get_viewport_rect().size.x - 16.0)
 	_panel.offset_left = -width / 2.0
 	_panel.offset_right = width / 2.0
+	# Vuelve al alto normal: si una línea larga lo agrandó, se encoge otra vez.
+	_panel.offset_top = -HEIGHT - 10.0
+	_panel.offset_bottom = -10.0

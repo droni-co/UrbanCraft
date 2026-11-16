@@ -162,6 +162,14 @@ static func build() -> Theme:
 		t.set_stylebox("grabber_highlight", type, _box(Color(GOLD, 0.7), 3, 0))
 		t.set_stylebox("grabber_pressed", type, _box(GOLD, 3, 0))
 
+	# Deslizadores (volumen): riel oscuro, la parte llena en latón y una perilla.
+	t.set_stylebox("slider", "HSlider", _box(Color(0, 0, 0, 0.35), 3, 2))
+	t.set_stylebox("grabber_area", "HSlider", _box(Color(GOLD, 0.75), 3, 2))
+	t.set_stylebox("grabber_area_highlight", "HSlider", _box(GOLD, 3, 2))
+	t.set_icon("grabber", "HSlider", _knob_icon(false))
+	t.set_icon("grabber_highlight", "HSlider", _knob_icon(true))
+	t.set_icon("grabber_disabled", "HSlider", _knob_icon(false))
+
 	# Desplegables y su lista.
 	t.set_stylebox("panel", "PopupMenu", _box(BG, 6, 4, Color(GOLD, 0.6)))
 	t.set_stylebox("hover", "PopupMenu", _box(Color(GOLD, 0.22), 4, 4))
@@ -265,6 +273,25 @@ static func _switch_icon(on: bool) -> Texture2D:
 	img.generate_mipmaps()
 	var tex := ImageTexture.create_from_image(img)
 	return _Scaled.new(tex, 4.0)
+
+
+## Perilla de los deslizadores (14 px), dibujada a x4 con bordes suaves.
+static func _knob_icon(highlight: bool) -> Texture2D:
+	var n := 56
+	var img := Image.create_empty(n, n, false, Image.FORMAT_RGBA8)
+	var center := Vector2(n, n) / 2.0
+	var fill := TEXT.lerp(Color.WHITE, 0.6) if highlight else TEXT
+	for y in n:
+		for x in n:
+			var d := Vector2(x + 0.5, y + 0.5).distance_to(center)
+			var outer := clampf(n / 2.0 - 1.0 - d + 0.5, 0.0, 1.0)  # borde de latón
+			var inner := clampf(n / 2.0 - 7.0 - d + 0.5, 0.0, 1.0)
+			var c := Color(GOLD.darkened(0.2), outer)
+			if inner > 0.0:
+				c = c.blend(Color(fill, inner))
+			img.set_pixel(x, y, c)
+	img.generate_mipmaps()
+	return _Scaled.new(ImageTexture.create_from_image(img), 4.0)
 
 
 ## Icono de cerrar (X), dibujado a x4 con bordes suaves.

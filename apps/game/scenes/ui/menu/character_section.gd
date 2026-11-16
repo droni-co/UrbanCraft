@@ -175,6 +175,8 @@ func _apply() -> void:
 	_refresh()
 	var result := await Auth.update_skin(_selected)
 	_busy = false
+	if result.ok:
+		GameAudio.play("cloth")
 	_message.text = result.message
 	_message.add_theme_color_override("font_color", MenuTheme.SUCCESS if result.ok else MenuTheme.DANGER)
 	_refresh()

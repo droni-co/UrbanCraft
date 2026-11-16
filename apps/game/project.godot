@@ -30,6 +30,7 @@ Friends="*res://scripts/autoload/friends.gd"
 Chat="*res://scripts/autoload/chat.gd"
 Voice="*res://scripts/autoload/voice.gd"
 Game="*res://scripts/autoload/game.gd"
+GameAudio="*res://scripts/autoload/game_audio.gd"
 
 [display]
 

@@ -124,6 +124,12 @@ func _ready() -> void:
 	birds.day_night = day_night
 	birds.view_provider = atmosphere.view_rect
 	add_child(birds)
+	# Sonido: pájaros, grillos, agua… y la música de día o de noche.
+	var ambient := AmbientSounds.new()
+	ambient.name = "AmbientSounds"
+	ambient.day_night = day_night
+	ambient.nearby = _nearby_sounds
+	add_child(ambient)
 	camera.hovered.connect(_on_hovered)
 
 	hud.teleport.teleport_requested.connect(_teleport_to)
@@ -493,11 +499,13 @@ func _show_limit_message() -> void:
 ## (chunks, minimapa, etiquetas, ciudad). LocationService sobrevive (autoload).
 ## TODO(multijugador): pedir el teletransporte al servidor y esperar su visto bueno.
 func _teleport_to(lat: float, lon: float) -> void:
+	GameAudio.play("teleport")
 	LocationService.teleport(lat, lon)
 	_reload_world()
 
 
 func _return_home() -> void:
+	GameAudio.play("teleport")
 	LocationService.return_home()
 	_reload_world()
 
@@ -720,7 +728,31 @@ func _on_player_interacted(facing: Vector2) -> void:
 		hud.show_message(PROP_DESCRIPTIONS.get(props.get_cell_atlas_coords(cell).x, "Algo interesante."))
 		return
 	var ground_kind := WorldTiles.ground_kind(ground.get_cell_atlas_coords(cell))
+	if WorldTiles.is_building(ground_kind):
+		GameAudio.play("door_locked")  # "Las puertas aún no se abren"
 	hud.show_message(GROUND_DESCRIPTIONS.get(ground_kind, "No hay nada aquí."))
+
+
+## Distancia (celdas) del jugador al agua y a la fuente más cercanas, para los
+## sonidos de ambiente (AmbientSounds). INF si no hay dentro del radio.
+func _nearby_sounds() -> Dictionary:
+	var result := {"water": INF, "fountain": INF}
+	if mode == Mode.LOADING or not player.is_physics_processing():
+		return result
+	var radius := int(AmbientSounds.WATER_RANGE)
+	for dy in range(-radius, radius + 1):
+		for dx in range(-radius, radius + 1):
+			var d := Vector2(dx, dy).length()
+			if d > radius:
+				continue
+			var cell := player_cell + Vector2i(dx, dy)
+			if d < result.water and ground.get_cell_source_id(cell) != -1 \
+					and WorldTiles.ground_kind(ground.get_cell_atlas_coords(cell)) == WorldTiles.Ground.WATER:
+				result.water = d
+			if d < result.fountain and props.get_cell_source_id(cell) != -1 \
+					and props.get_cell_atlas_coords(cell).x == WorldTiles.Prop.FOUNTAIN:
+				result.fountain = d
+	return result
 
 
 ## Posición del jugador en celdas locales con decimales (centro de celda = n + 0.5).

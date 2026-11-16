@@ -50,6 +50,7 @@ func _ready() -> void:
 	Online.status_changed.connect(func(_s: String) -> void: _update_hint())
 	GameSettings.online_settings_changed.connect(_update_hint)
 	get_viewport().size_changed.connect(_fit)
+	UiArt.keep_fitted(_window, _fit)
 	_fit()
 	_update_badge(Chat.unread)
 	_update_hint()
@@ -346,4 +347,5 @@ func _fit() -> void:
 	_window.offset_left = -width / 2.0
 	_window.offset_right = width / 2.0
 	_window.offset_top = WINDOW_TOP
+	_window.offset_bottom = WINDOW_TOP  # el alto lo da su contenido (y se vuelve a encoger)
 

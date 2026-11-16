@@ -50,6 +50,35 @@ static func panel(padding := 10.0, alpha := 1.0) -> ArtStyleBox:
 	return s
 
 
+## Ajusta un panel flotante a la pantalla: le da el tamaño `wanted` (o lo que
+## exija su contenido, si es más), lo centra y lo deja dentro de la pantalla con
+## `margin`, sin salirse por abajo.
+static func fit_panel(panel: Control, screen: Vector2, wanted: Vector2, margin := 6.0) -> void:
+	panel.size = wanted  # también lo encoge si antes creció de más
+	var real := panel.size
+	var pos := ((screen - real) / 2.0).floor()
+	pos.x = clampf(pos.x, margin, maxf(margin, screen.x - real.x - margin))
+	pos.y = clampf(pos.y, margin, maxf(margin, screen.y - real.y - margin))
+	panel.position = pos
+
+
+## Vuelve a llamar `fit` (una vez por frame) cada vez que cambia lo que necesita
+## el contenido del panel. Sin esto, un panel crece hacia abajo cuando su
+## contenido pide más alto (p. ej. un texto largo que se mide un instante como
+## si fuera angosto) y no vuelve a encogerse: queda cortado por debajo de la
+## pantalla.
+static func keep_fitted(panel: Control, fit: Callable) -> void:
+	var state := {"queued": false}
+	panel.minimum_size_changed.connect(func() -> void:
+		if state.queued:
+			return
+		state.queued = true
+		(func() -> void:
+			state.queued = false
+			if is_instance_valid(panel):
+				fit.call()).call_deferred())
+
+
 ## El arte de la interfaz está a mayor resolución que la pantalla lógica: se
 ## dibuja con filtro lineal y mipmaps (el proyecto usa *nearest* por el pixel art).
 static func smooth(item: CanvasItem) -> void:
