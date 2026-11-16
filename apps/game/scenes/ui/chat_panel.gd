@@ -305,7 +305,7 @@ func _build_window() -> void:
 	close_button.pressed.connect(close)
 	header.add_child(close_button)
 
-	_scroll = ScrollContainer.new()
+	_scroll = TouchScrollContainer.new()
 	_scroll.custom_minimum_size.y = HISTORY_HEIGHT
 	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	box.add_child(_scroll)

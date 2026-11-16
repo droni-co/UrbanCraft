@@ -95,7 +95,6 @@ export interface ApiDefinition {
   geo: {
     geo: {
       place: typeof routes['geo.geo.place']
-      ip: typeof routes['geo.geo.ip']
     }
   }
 }

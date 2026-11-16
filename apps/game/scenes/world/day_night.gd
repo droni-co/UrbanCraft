@@ -34,7 +34,16 @@ var player: Node2D
 var sun_elevation := 45.0
 var night := 0.0
 
+## Las luces se recalculan cuando la vista sale de este margen (px de mundo),
+## no en cada frame.
+const VIEW_MARGIN := 96.0
+
 var _lamps := {}  # chunk -> PackedVector2Array (posiciones en el mundo)
+## Postes encendidos cerca de la vista y la zona para la que valen.
+var _lamp_lights: Array[Vector4] = []
+var _lights_view := Rect2()
+var _lights_dirty := true
+var _lights_on := false
 var _elapsed := UPDATE_SECONDS
 
 
@@ -47,23 +56,27 @@ func setup(atmosphere_layer: Atmosphere, player_node: Node2D) -> void:
 ## Postes de luz de un chunk (para iluminarlos de noche).
 func add_chunk(chunk: Vector2i, base: Vector2i, size: int, props: PackedByteArray, layer: TileMapLayer) -> void:
 	var lamps := PackedVector2Array()
-	for i in mini(props.size(), size * size):
-		if props[i] == WorldTiles.Prop.STREET_LAMP:
-			var cell := base + Vector2i(i % size, i / size)
-			# La bombilla está arriba del poste; la luz cae en el suelo junto a él.
-			lamps.append(layer.to_global(layer.map_to_local(cell)))
+	var i := props.find(WorldTiles.Prop.STREET_LAMP)
+	while i != -1 and i < size * size:
+		var cell := base + Vector2i(i % size, i / size)
+		# La bombilla está arriba del poste; la luz cae en el suelo junto a él.
+		lamps.append(layer.to_global(layer.map_to_local(cell)))
+		i = props.find(WorldTiles.Prop.STREET_LAMP, i + 1)
 	if lamps.is_empty():
 		_lamps.erase(chunk)
 	else:
 		_lamps[chunk] = lamps
+	_lights_dirty = true
 
 
 func remove_chunk(chunk: Vector2i) -> void:
 	_lamps.erase(chunk)
+	_lights_dirty = true
 
 
 func clear() -> void:
 	_lamps.clear()
+	_lights_dirty = true
 
 
 func _process(delta: float) -> void:
@@ -73,21 +86,38 @@ func _process(delta: float) -> void:
 		_update_sun()
 	if atmosphere == null:
 		return
-	var lights: Array[Vector4] = []
-	if night > 0.0:
-		var view := atmosphere.view_rect().grow(LAMP_RADIUS)
-		for chunk_lamps: PackedVector2Array in _lamps.values():
-			for p in chunk_lamps:
-				if view.has_point(p):
-					lights.append(Vector4(p.x, p.y, LAMP_RADIUS, LAMP_INTENSITY))
-		if player:
-			var center := player.global_position
-			# Las más cercanas al jugador, si hay más de las que caben.
-			lights.sort_custom(func(a: Vector4, b: Vector4) -> bool:
-				return Vector2(a.x, a.y).distance_squared_to(center) < Vector2(b.x, b.y).distance_squared_to(center))
-			lights.resize(mini(lights.size(), Atmosphere.MAX_LIGHTS - 1))
-			lights.append(Vector4(center.x, center.y - 4.0, PLAYER_RADIUS, PLAYER_INTENSITY))
+	if night <= 0.0:
+		if _lights_on:
+			_lights_on = false
+			_lights_dirty = true
+			atmosphere.set_lights([])
+		return
+	_lights_on = true
+	var view := atmosphere.view_rect()
+	if _lights_dirty or not _lights_view.encloses(view):
+		_collect_lamps(view)
+	var lights: Array[Vector4] = _lamp_lights.duplicate()
+	if player:
+		var center := player.global_position
+		lights.append(Vector4(center.x, center.y - 4.0, PLAYER_RADIUS, PLAYER_INTENSITY))
 	atmosphere.set_lights(lights)
+
+
+## Postes que alumbran la vista (y un margen alrededor, para no repetir esto en
+## cada frame): los más cercanos a su centro, si hay más de los que caben.
+func _collect_lamps(view: Rect2) -> void:
+	_lights_dirty = false
+	_lights_view = view.grow(VIEW_MARGIN)
+	var reach := _lights_view.grow(LAMP_RADIUS)
+	var center := view.get_center()
+	_lamp_lights.clear()
+	for chunk_lamps: PackedVector2Array in _lamps.values():
+		for p in chunk_lamps:
+			if reach.has_point(p):
+				_lamp_lights.append(Vector4(p.x, p.y, LAMP_RADIUS, LAMP_INTENSITY))
+	_lamp_lights.sort_custom(func(a: Vector4, b: Vector4) -> bool:
+		return Vector2(a.x, a.y).distance_squared_to(center) < Vector2(b.x, b.y).distance_squared_to(center))
+	_lamp_lights.resize(mini(_lamp_lights.size(), Atmosphere.max_lights() - 1))
 
 
 func _update_sun() -> void:

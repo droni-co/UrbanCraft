@@ -54,7 +54,7 @@ func _build() -> void:
 	bag.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	bag.add_theme_constant_override("separation", 8)
 	body.add_child(bag)
-	var scroll := ScrollContainer.new()
+	var scroll := TouchScrollContainer.new()
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	scroll.custom_minimum_size.x = COLUMNS * (SLOT.x + 3) + 8
 	bag.add_child(scroll)

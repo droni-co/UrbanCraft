@@ -2,9 +2,8 @@ import { test } from '@japa/runner'
 import app from '@adonisjs/core/services/app'
 import db from '@adonisjs/lucid/services/db'
 import type { GeoConfig } from '#config/geo'
-import { IpLocator } from '#geo/providers/ip_locator'
 import { ReverseGeocoder } from '#geo/providers/reverse_geocoder'
-import { GeoProviderError, type IpLocation, type Place } from '#geo/types'
+import { GeoProviderError, type Place } from '#geo/types'
 import { GeoService } from '#services/geo_service'
 
 class FakeGeocoder extends ReverseGeocoder {
@@ -23,24 +22,6 @@ class FakeGeocoder extends ReverseGeocoder {
   }
 }
 
-class FakeIpLocator extends IpLocator {
-  readonly name = 'fake'
-  calls: Array<string | null> = []
-  async locate(ip: string | null): Promise<IpLocation | null> {
-    this.calls.push(ip)
-    return {
-      latitude: 4.6097,
-      longitude: -74.0817,
-      city: 'Bogotá',
-      region: 'Bogotá D.C.',
-      country: 'Colombia',
-      countryCode: 'CO',
-      accuracyKm: 10,
-      provider: 'fake',
-    }
-  }
-}
-
 const MADRID: Place = {
   city: 'Madrid',
   region: 'Comunidad de Madrid',
@@ -56,9 +37,7 @@ function setup(geocoder: FakeGeocoder, overrides: Partial<GeoConfig> = {}) {
     ...overrides,
     nominatim: { ...base.nominatim, minIntervalMs: 0 },
   }
-  const ip = new FakeIpLocator()
-  app.container.swap(GeoService, () => new GeoService(config, geocoder, ip))
-  return { ip }
+  app.container.swap(GeoService, () => new GeoService(config, geocoder))
 }
 
 test.group('Geo API', (group) => {
@@ -115,24 +94,8 @@ test.group('Geo API', (group) => {
     assert.equal(rows[0].n, 0)
   })
 
-  test('ubicación por IP: aproximada; con IP local consulta la del servidor', async ({
-    client,
-    assert,
-  }) => {
-    const { ip } = setup(new FakeGeocoder(MADRID), {
-      ip: { ...app.config.get<GeoConfig>('geo').ip, enabled: true },
-    })
-    const res = await client.get('/api/v1/geo/ip')
-    res.assertStatus(200)
-    assert.equal(res.body().city, 'Bogotá')
-    assert.isTrue(res.body().approximate)
-    assert.deepEqual(ip.calls, [null], 'localhost -> IP pública del propio servidor')
-  })
-
-  test('ubicación por IP desactivada responde 404', async ({ client }) => {
-    setup(new FakeGeocoder(MADRID), {
-      ip: { ...app.config.get<GeoConfig>('geo').ip, enabled: false },
-    })
+  test('ya no hay ubicación por IP', async ({ client }) => {
+    setup(new FakeGeocoder(MADRID))
     const res = await client.get('/api/v1/geo/ip')
     res.assertStatus(404)
   })

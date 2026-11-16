@@ -189,7 +189,6 @@ router
     router
       .group(() => {
         router.get('place', [GeoController, 'place'])
-        router.get('ip', [GeoController, 'ip'])
       })
       .prefix('geo')
       .as('geo')

@@ -18,6 +18,8 @@ const SEARCH := 13
 var solid: TileMapLayer
 var faded: TileMapLayer
 var _faded := {}  # Vector2i -> true
+var _last_feet := Vector2.INF
+var _dirty := true
 
 
 func setup(solid_layer: TileMapLayer, faded_layer: TileMapLayer) -> void:
@@ -25,10 +27,21 @@ func setup(solid_layer: TileMapLayer, faded_layer: TileMapLayer) -> void:
 	faded = faded_layer
 
 
+## Cambió el mapa (se dibujó un chunk): hay que volver a revisar aunque el
+## jugador esté quieto.
+func invalidate() -> void:
+	_dirty = true
+
+
 ## `feet`: posición de los pies del jugador en coordenadas de la capa.
+## Llamar cada frame: solo trabaja si el jugador se movió o cambió el mapa.
 func update(feet: Vector2) -> void:
 	if solid == null:
 		return
+	if not _dirty and feet.distance_squared_to(_last_feet) < 4.0:
+		return
+	_dirty = false
+	_last_feet = feet
 	var player_rect := Rect2(feet + PLAYER_RECT.position, PLAYER_RECT.size)
 	var here := solid.local_to_map(feet)
 	var tile := Vector2(WorldTiles.TILE_SIZE)
@@ -68,3 +81,4 @@ func clear() -> void:
 			solid.set_cell(cell, faded.get_cell_source_id(cell), faded.get_cell_atlas_coords(cell), faded.get_cell_alternative_tile(cell))
 			faded.erase_cell(cell)
 	_faded.clear()
+	_dirty = true

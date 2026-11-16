@@ -32,26 +32,4 @@ export default class GeoController {
     if (!result.place) return response.notFound({ error: 'Zona sin ciudad conocida' })
     return result.place
   }
-
-  /**
-   * GET /api/v1/geo/ip
-   * Ubicación APROXIMADA (nivel ciudad) por la IP de quien llama. Respaldo para
-   * dispositivos sin GPS. 404 si no se pudo ubicar; 503/429 si no está disponible.
-   */
-  async ip({ request, response }: HttpContext) {
-    response.header('Cache-Control', 'private, no-store')
-    const result = await this.geo.locateIp(request.ip())
-    switch (result.state) {
-      case 'disabled':
-        return response.notFound({ error: 'Geolocalización por IP desactivada' })
-      case 'throttled':
-        response.header('Retry-After', '60')
-        return response.tooManyRequests({ error: 'Demasiadas consultas' })
-      case 'unavailable':
-        response.header('Retry-After', '30')
-        return response.serviceUnavailable({ error: 'Servicio de geolocalización no disponible' })
-    }
-    if (!result.location) return response.notFound({ error: 'No se pudo ubicar esta IP' })
-    return { ...result.location, approximate: true }
-  }
 }

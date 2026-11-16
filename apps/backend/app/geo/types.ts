@@ -9,19 +9,6 @@ export interface Place {
   label: string
 }
 
-/** Ubicación aproximada a partir de la IP. */
-export interface IpLocation {
-  latitude: number
-  longitude: number
-  city: string | null
-  region: string | null
-  country: string | null
-  countryCode: string | null
-  /** Precisión estimada: la geolocalización por IP es de nivel ciudad. */
-  accuracyKm: number
-  provider: string
-}
-
 export class GeoProviderError extends Error {
   constructor(
     message: string,

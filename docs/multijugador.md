@@ -60,7 +60,7 @@ godot --path apps/game -- --local --dev-login=beto --lat=40.42003 --lon=-3.68866
 
 - **Varias instancias del backend:** hoy el estado está en memoria de un proceso. Con varias instancias, repartir a los jugadores por zona (sharding por chunk) o publicar las posiciones por Redis pub/sub (Redis ya está en docker-compose).
 - **Teletransporte con permiso del servidor:** hoy el cliente decide a dónde se teletransporta (el servidor solo limita la frecuencia). Cuando el teletransporte cueste algo, el servidor debería autorizarlo.
-- **Validar contra el mapa:** el servidor no comprueba si la celda es caminable ni el radio de 5 km alrededor del ancla real; para eso tendría que conocer el ancla de cada jugador.
+- **Validar contra el mapa:** el servidor no comprueba si la celda es caminable ni el radio de 2 km alrededor del ancla real; para eso tendría que conocer el ancla de cada jugador.
 - **Personaje (skin):** se guarda en la cuenta (`PATCH /api/v1/account/profile { skin }`) y el servidor lo reenvía en el próximo snap a quienes te tienen cerca. El servidor no conoce el arte: valida solo el formato del nombre, y si un jugador no tiene esa hoja usa el personaje por defecto.
 - **Nivel en vivo:** el nivel que ven los demás se lee al conectar; si subes de nivel jugando, se actualiza al reconectar.
 - **Protocolo binario:** el JSON pesa ~40 bytes por jugador cercano y snapshot. Con muchos jugadores juntos se puede pasar a binario o enviar solo los cambios.

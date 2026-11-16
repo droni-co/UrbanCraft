@@ -39,7 +39,6 @@ export default await Env.create(new URL('../', import.meta.url), {
 
   // Geolocalización por IP y geocodificación inversa (ciudad/país)
   NOMINATIM_URL: Env.schema.string.optional({ format: 'url', tld: false }),
-  GEO_IP_ENABLED: Env.schema.boolean.optional(),
 
   // Inicio de sesión con Google (ver docs/login-google.md)
   GOOGLE_CLIENT_ID: Env.schema.string.optional(),

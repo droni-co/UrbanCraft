@@ -9,7 +9,9 @@ extends Control
 ##
 ## Rendimiento: cada chunk se sube como textura L8 creada directamente desde sus
 ## bytes de suelo (sin recorrer celdas en GDScript) y un shader la colorea con
-## una paleta. Las capas estáticas solo se redibujan cuando cambian los chunks.
+## una paleta. Las capas del mapa (chunks, POIs, borde de zona) se dibujan
+## centradas en `_center` y solo se redibujan cuando cambian los chunks; para
+## seguir al jugador se mueven enteras (`_apply_scroll`), sin redibujar nada.
 
 ## Colores por id de WorldTiles.Ground (mismo orden): el tono medio de cada
 ## tile de assets/art. Si cambias mucho el arte, actualízalos.
@@ -144,10 +146,8 @@ func set_player(offset_cells: Vector2, facing: Vector2) -> void:
 		return
 	_player_offset = offset_cells
 	_player_facing = facing
-	if GameSettings.minimap_follow_player:
-		_redraw_all()
-	else:
-		_dynamic_layer.queue_redraw()
+	_apply_scroll()
+	_dynamic_layer.queue_redraw()
 
 
 ## Otros jugadores en celdas relativas al centro (como set_player):
@@ -207,6 +207,7 @@ func _make_palette_material() -> ShaderMaterial:
 func _redraw_all() -> void:
 	queue_redraw()
 	if _map_layer:
+		_apply_scroll()
 		_map_layer.queue_redraw()
 		_static_layer.queue_redraw()
 		_dynamic_layer.queue_redraw()
@@ -235,6 +236,21 @@ func _to_screen(offset_cells: Vector2) -> Vector2:
 	return size / 2.0 + _iso(offset_cells - _view_offset()) * _scale()
 
 
+## Celdas relativas al centro -> píxeles de las capas del mapa (sin el
+## desplazamiento de seguir al jugador, que se aplica moviendo las capas).
+func _to_map(offset_cells: Vector2) -> Vector2:
+	return size / 2.0 + _iso(offset_cells) * _scale()
+
+
+## Mueve las capas del mapa para que el jugador (o el centro) quede en el medio.
+func _apply_scroll() -> void:
+	if _map_layer == null:
+		return
+	var scroll := -_iso(_view_offset()) * _scale()
+	_map_layer.position = scroll
+	_static_layer.position = scroll
+
+
 # --- Dibujo ---------------------------------------------------------------------
 
 func _draw() -> void:
@@ -246,26 +262,23 @@ func _draw_map() -> void:
 	var x_axis := Vector2(1.0, 0.5) * s
 	var y_axis := Vector2(-1.0, 0.5) * s
 	for origin: Vector2i in _chunks:
-		var screen := _to_screen(Vector2(origin - _center))
+		var screen := _to_map(Vector2(origin - _center))
 		_map_layer.draw_set_transform_matrix(Transform2D(x_axis, y_axis, screen))
 		_map_layer.draw_texture(_chunks[origin].texture, Vector2.ZERO)
 	_map_layer.draw_set_transform_matrix(Transform2D.IDENTITY)
 
 
 func _draw_static() -> void:
-	var bounds := Rect2(Vector2.ZERO, size)
 	for origin: Vector2i in _chunks:
 		var base := Vector2(origin - _center)
 		for cell: Vector2 in _chunks[origin].pois:
-			var p := _to_screen(base + cell)
-			if bounds.has_point(p):
-				_static_layer.draw_rect(Rect2(p.floor(), Vector2.ONE), POI_COLOR)
+			_static_layer.draw_rect(Rect2(_to_map(base + cell).floor(), Vector2.ONE), POI_COLOR)
 
 	if _zone_radius > 0.0:
 		var points := PackedVector2Array()
 		for i in 129:
 			var angle := TAU * i / 128.0
-			points.append(_to_screen(Vector2(cos(angle), sin(angle)) * _zone_radius))
+			points.append(_to_map(Vector2(cos(angle), sin(angle)) * _zone_radius))
 		_static_layer.draw_polyline(points, ZONE_COLOR, 1.0, true)
 
 

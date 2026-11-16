@@ -145,7 +145,7 @@ func clear() -> void:
 
 ## Posición del jugador en la grilla. Redibuja solo si se movió lo suficiente.
 func set_focus(grid_position: Vector2) -> void:
-	if grid_position.distance_squared_to(_focus) < 0.04:
+	if grid_position.distance_squared_to(_focus) < 0.25:  # media celda
 		return
 	_focus = grid_position
 	_redraw()

@@ -6,13 +6,18 @@ extends Node
 ##   - Datos: chunks descargados y decodificados (baratos, ~1 KB). Incluye los
 ##     alrededor del jugador y los "fijados" (pinned), p. ej. toda la zona de
 ##     juego para el minimapa. Señales chunk_data_ready / chunk_data_released.
-##   - Tiles: chunks dentro de `load_radius` se dibujan en los TileMapLayer y se
-##     quitan al salir de `keep_radius` (histéresis: sin carga/descarga continua
-##     al caminar por un borde). Señales chunk_loaded / chunk_unloaded.
+##   - Tiles: solo se dibujan en los TileMapLayer los chunks que están a menos
+##     de `draw_margin_cells` celdas del jugador (lo que cabe en pantalla más
+##     un margen: entre 1 y 4 chunks), y se quitan al pasar de
+##     `keep_margin_cells` (histéresis: sin carga/descarga continua al caminar
+##     por un borde). Cada celda de edificio o árbol es un objeto que el motor
+##     ordena en cada frame, así que dibujar de más cuesta caro en móvil.
+##     Señales chunk_loaded / chunk_unloaded.
 ##
 ## Además: caché en disco (user://map_cache/v<versión>/) para cargar al instante
 ## y jugar sin conexión en zonas visitadas; reintentos tras 202 (el servidor
-## está generando la zona); y aplicación de tiles por partes (rows_per_frame).
+## está generando la zona); y tiles que se ponen y se quitan por partes, con un
+## tope de tiempo por frame (`frame_budget_usec`) para no dar tirones.
 ##
 ## Coordenadas: "global" = celda Web Mercator a cellZoom; "local" = global -
 ## origin_cell, que es lo que usan los TileMapLayer (evita floats enormes).
@@ -30,13 +35,23 @@ const CACHE_ROOT := "user://map_cache"
 const RETRY_NETWORK_SECONDS := 10.0
 const RETRY_FAILED_SECONDS := 60.0
 
-## Radio (en chunks) que se dibuja alrededor del jugador: 1 => 3x3 chunks.
+## Cada cuántas celdas caminadas se revisa qué chunks dibujar.
+const REFRESH_CELLS := 4
+
+## Radio (en chunks) cuyos datos se piden alrededor del jugador: 1 => 3x3 chunks.
 @export var load_radius := 1
-## Los chunks dibujados a más de este radio se quitan del TileMap.
+## Los datos de chunks a más de este radio se sueltan (si no están fijados).
 @export var keep_radius := 2
+## Se dibujan los chunks a menos de estas celdas del jugador. La pantalla
+## alcanza unas 22 celdas con el zoom más lejano.
+@export var draw_margin_cells := 32
+## Los chunks dibujados a más de estas celdas se quitan del TileMap.
+@export var keep_margin_cells := 48
 @export var max_concurrent_requests := 4
-## Filas de celdas que se aplican al TileMap por frame.
-@export var rows_per_frame := 16
+## Microsegundos por frame para poner y quitar tiles (siempre avanza al menos
+## una fila). Al ser tiempo y no filas, un teléfono lento reparte el trabajo en
+## más frames en vez de trabarse.
+@export var frame_budget_usec := 3000
 
 var ground: TileMapLayer
 var props: TileMapLayer
@@ -54,8 +69,11 @@ var _pinned := {}  # Vector2i -> true (datos que se mantienen siempre)
 var _requested := {}  # Vector2i -> true (en cola, en vuelo o esperando reintento)
 var _queue: Array[Vector2i] = []
 var _apply_queue: Array[Dictionary] = []  # {chunk, data, row}
+var _remove_queue: Array[Dictionary] = []  # {chunk, row}
 var _in_flight := 0
 var _center := Vector2i(-1, -1)
+## Celda global del jugador la última vez que se revisó qué dibujar.
+var _cell := Vector2i.ZERO
 var _cache_dir := ""
 
 
@@ -120,13 +138,17 @@ func chunks_in_circle(center_cell: Vector2i, radius_cells: float) -> Array[Vecto
 	return result
 
 
-## Llamar cada frame con la celda global del jugador; solo actúa al cambiar de chunk.
+## Llamar cada frame con la celda global del jugador; solo actúa al cambiar de
+## chunk (datos) o al caminar unas celdas (qué chunks se dibujan).
 func update_center(global_cell: Vector2i) -> void:
 	var chunk := chunk_of_global(global_cell)
-	if chunk == _center:
-		return
-	_center = chunk
-	_refresh()
+	if chunk != _center:
+		_center = chunk
+		_cell = global_cell
+		_refresh()
+	elif absi(global_cell.x - _cell.x) >= REFRESH_CELLS or absi(global_cell.y - _cell.y) >= REFRESH_CELLS:
+		_cell = global_cell
+		_refresh_tiles()
 
 
 func _refresh() -> void:
@@ -147,19 +169,33 @@ func _refresh() -> void:
 			_queue.append(chunk)
 
 	for chunk: Vector2i in _loaded.keys():
-		var d := _distance(chunk)
-		if d <= load_radius and not _tiled.has(chunk):
-			_queue_apply(chunk)
-		elif d > keep_radius and _tiled.has(chunk):
-			_remove_tiles(chunk)
 		if not _wants_data(chunk):
 			_release(chunk)
-
+	_refresh_tiles()
 	_pump()
+
+
+## Dibuja los chunks cercanos al jugador y quita los que quedaron lejos.
+func _refresh_tiles() -> void:
+	for chunk: Vector2i in _loaded:
+		var d := _cell_distance(chunk)
+		if d <= draw_margin_cells:
+			if not _tiled.has(chunk):
+				_queue_apply(chunk)
+		elif d > keep_margin_cells and _tiled.has(chunk):
+			_remove_tiles(chunk)
 
 
 func _distance(chunk: Vector2i) -> int:
 	return maxi(absi(chunk.x - _center.x), absi(chunk.y - _center.y))
+
+
+## Celdas entre el jugador y el borde más cercano del chunk (0 = está dentro).
+func _cell_distance(chunk: Vector2i) -> int:
+	var origin := Geo.chunk_origin(chunk, chunk_size)
+	var dx := maxi(maxi(origin.x - _cell.x, _cell.x - (origin.x + chunk_size - 1)), 0)
+	var dy := maxi(maxi(origin.y - _cell.y, _cell.y - (origin.y + chunk_size - 1)), 0)
+	return maxi(dx, dy)
 
 
 func _wants_data(chunk: Vector2i) -> bool:
@@ -229,72 +265,100 @@ func _on_data(chunk: Vector2i, data: Dictionary) -> void:
 		return
 	_loaded[chunk] = data
 	chunk_data_ready.emit(chunk, data)
-	if _distance(chunk) <= load_radius:
+	if _cell_distance(chunk) <= draw_margin_cells:
 		_queue_apply(chunk)
 
 
 func _queue_apply(chunk: Vector2i) -> void:
+	# Si se estaba quitando, se deja de quitar: aplicar vuelve a poner todo.
+	_drop_job(_remove_queue, chunk)
 	_tiled[chunk] = true
 	_apply_queue.append({"chunk": chunk, "data": _loaded[chunk], "row": 0})
 
 
+func _drop_job(queue: Array[Dictionary], chunk: Vector2i) -> void:
+	for i in range(queue.size() - 1, -1, -1):
+		if queue[i].chunk == chunk:
+			queue.remove_at(i)
+
+
 func _process(_delta: float) -> void:
-	var rows_left := rows_per_frame
-	while rows_left > 0 and not _apply_queue.is_empty():
-		var job: Dictionary = _apply_queue[0]
-		var chunk: Vector2i = job.chunk
-		var data: Dictionary = job.data
-		var base := global_to_local(Geo.chunk_origin(chunk, chunk_size))
-		var ground_bytes: PackedByteArray = data.ground
-		var prop_bytes: PackedByteArray = data.props
-		var level_bytes: PackedByteArray = data.get("levels", PackedByteArray())
-		var roof_bytes: PackedByteArray = data.get("roofs", PackedByteArray())
-		var row: int = job.row
-		var end_row := mini(row + rows_left, chunk_size)
-
-		for y in range(row, end_row):
-			for x in chunk_size:
-				var i := y * chunk_size + x
-				var cell := base + Vector2i(x, y)
-				var gx := cell.x + origin_cell.x
-				var gy := cell.y + origin_cell.y
-				var kind := ground_bytes[i]
-				ground.set_cell(cell, WorldTiles.SOURCE_GROUND, WorldTiles.pick_ground(kind, gx, gy))
-				if buildings and WorldTiles.is_building(kind):
-					var levels := level_bytes[i] if i < level_bytes.size() else 0
-					var source := WorldTiles.building_source(WorldTiles.building_floors(kind, levels))
-					var coords := WorldTiles.pick_building(kind, gx, gy)
-					var roof := roof_bytes[i] if i < roof_bytes.size() else 0
-					buildings.set_cell(cell, source, coords, RoofStyles.alternative(buildings.tile_set, source, coords, roof))
-				var prop := prop_bytes[i]
-				if prop != WorldTiles.NO_PROP:
-					props.set_cell(cell, WorldTiles.SOURCE_PROPS, WorldTiles.pick_prop(prop, gx, gy))
-
-		rows_left -= end_row - row
-		job.row = end_row
-		if end_row >= chunk_size:
-			_apply_queue.pop_front()
-			_applied[chunk] = true
-			chunk_loaded.emit(chunk, data)
+	if _apply_queue.is_empty() and _remove_queue.is_empty():
+		return
+	var deadline := Time.get_ticks_usec() + frame_budget_usec
+	var worked := false
+	# Primero lo que falta por dibujar; quitar lo lejano puede esperar.
+	while not _apply_queue.is_empty() and (not worked or Time.get_ticks_usec() < deadline):
+		_apply_row()
+		worked = true
+	while not _remove_queue.is_empty() and (not worked or Time.get_ticks_usec() < deadline):
+		_remove_row()
+		worked = true
 
 
-## Quita los tiles de un chunk del TileMap (los datos se conservan si se quieren).
-func _remove_tiles(chunk: Vector2i) -> void:
-	for i in range(_apply_queue.size() - 1, -1, -1):
-		if _apply_queue[i].chunk == chunk:
-			_apply_queue.remove_at(i)
+## Pone en el TileMap una fila de celdas del primer chunk en cola.
+func _apply_row() -> void:
+	var job: Dictionary = _apply_queue[0]
+	var chunk: Vector2i = job.chunk
+	var data: Dictionary = job.data
 	var base := global_to_local(Geo.chunk_origin(chunk, chunk_size))
-	for y in chunk_size:
-		for x in chunk_size:
-			var cell := base + Vector2i(x, y)
-			ground.erase_cell(cell)
-			props.erase_cell(cell)
-			if buildings:
-				buildings.erase_cell(cell)
-				buildings_faded.erase_cell(cell)
+	var ground_bytes: PackedByteArray = data.ground
+	var prop_bytes: PackedByteArray = data.props
+	var level_bytes: PackedByteArray = data.get("levels", PackedByteArray())
+	var roof_bytes: PackedByteArray = data.get("roofs", PackedByteArray())
+	var y: int = job.row
+
+	for x in chunk_size:
+		var i := y * chunk_size + x
+		var cell := base + Vector2i(x, y)
+		var gx := cell.x + origin_cell.x
+		var gy := cell.y + origin_cell.y
+		var kind := ground_bytes[i]
+		ground.set_cell(cell, WorldTiles.SOURCE_GROUND, WorldTiles.pick_ground(kind, gx, gy))
+		if buildings and WorldTiles.is_building(kind):
+			var levels := level_bytes[i] if i < level_bytes.size() else 0
+			var source := WorldTiles.building_source(WorldTiles.building_floors(kind, levels))
+			var coords := WorldTiles.pick_building(kind, gx, gy)
+			var roof := roof_bytes[i] if i < roof_bytes.size() else 0
+			buildings.set_cell(cell, source, coords, RoofStyles.alternative(buildings.tile_set, source, coords, roof))
+		var prop := prop_bytes[i]
+		if prop != WorldTiles.NO_PROP:
+			props.set_cell(cell, WorldTiles.SOURCE_PROPS, WorldTiles.pick_prop(prop, gx, gy))
+
+	job.row = y + 1
+	if job.row >= chunk_size:
+		_apply_queue.pop_front()
+		_applied[chunk] = true
+		chunk_loaded.emit(chunk, data)
+
+
+## Quita los tiles de un chunk del TileMap (los datos se conservan si se
+## quieren). El chunk deja de contar como cargado ya; sus celdas se borran por
+## partes en los frames siguientes.
+func _remove_tiles(chunk: Vector2i) -> void:
+	_drop_job(_apply_queue, chunk)
+	_drop_job(_remove_queue, chunk)
+	_remove_queue.append({"chunk": chunk, "row": 0})
 	_tiled.erase(chunk)
 	if _applied.erase(chunk):
 		chunk_unloaded.emit(chunk)
+
+
+## Borra del TileMap una fila de celdas del primer chunk en cola.
+func _remove_row() -> void:
+	var job: Dictionary = _remove_queue[0]
+	var base := global_to_local(Geo.chunk_origin(job.chunk, chunk_size))
+	var y: int = job.row
+	for x in chunk_size:
+		var cell := base + Vector2i(x, y)
+		ground.erase_cell(cell)
+		props.erase_cell(cell)
+		if buildings:
+			buildings.erase_cell(cell)
+			buildings_faded.erase_cell(cell)
+	job.row = y + 1
+	if job.row >= chunk_size:
+		_remove_queue.pop_front()
 
 
 func _release(chunk: Vector2i) -> void:

@@ -42,7 +42,7 @@ const mapConfig = {
    * híbrido). El cliente NO descarga toda la zona: carga chunks alrededor del
    * jugador y el servidor genera las zonas nuevas a medida que se acerca.
    */
-  playRadiusMeters: 5000,
+  playRadiusMeters: 2000,
 
   attribution: '© OpenStreetMap contributors',
 
