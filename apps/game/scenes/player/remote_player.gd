@@ -32,7 +32,17 @@ var _move := 0
 func _ready() -> void:
 	_set_skin(null)
 	_name_label = _make_label(NAME_FONT_SIZE, Color(1, 1, 1, 0.95))
-	_name_label.position.y = -Player.FEET.y - 12
+	# Apodo en un chip oscuro con borde de latón (como el HUD).
+	var tag := UiArt.chip(4, 0.7)
+	tag.content_margin_left = 3
+	tag.content_margin_right = 3
+	tag.content_margin_top = 0
+	tag.content_margin_bottom = 0
+	tag.shadow_size = 1
+	_name_label.add_theme_stylebox_override("normal", tag)
+	_name_label.add_theme_font_override("font", UiArt.FONT_BOLD)
+	_name_label.add_theme_constant_override("outline_size", 0)
+	_name_label.position.y = -Player.FEET.y - 13
 	add_child(_name_label)
 	_bubble = _make_label(NAME_FONT_SIZE + 2, Color("ffd75e"))
 	_bubble.position.y = -Player.FEET.y - 24

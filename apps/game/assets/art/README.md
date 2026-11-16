@@ -34,8 +34,13 @@ art/
 ├── props/          árboles, rocas, arbustos, mobiliario urbano, 256×256 (64×64)
 ├── buildings/      fachadas de un piso para los edificios en 3D, 256×168 (64×42)
 ├── characters/     hojas de sprites de personajes (pixel art a x1, o a x2/x4)
-├── ui/icons/       iconos de la interfaz, 48×48 (12×12) (stats del HUD; ver ui/icons/README.md)
+├── ui/            logo, ilustraciones de título y carga, marco de panel (Layer.ai; ver ui/README.md)
+├── ui/icons/       iconos de la interfaz, 96×96 (HUD, menú y stats; ver ui/icons/README.md)
 ├── ui/poi/         icono de cada categoría de lugar, 28×28 (7×7) blanco (va dentro del pin)
+├── items/          iconos de los objetos del juego, 96×96 (uno por clave de items.ts)
+├── medals/         dibujos de las medallas de logros, 128×128 (el aro del nivel lo pone el juego)
+├── npcs/           retratos de personajes, 256×256 (historia y quien atiende en cada lugar)
+├── objects/        objetos que los jugadores dejan en el mapa, 192×192 con la base abajo al centro
 └── source/         material de Layer.ai para las variantes de suelo (no se exporta; ver «Variantes con detalles»)
 ```
 
@@ -178,6 +183,17 @@ python tools/layer_art/char_sheet.py assets/art/characters/player06.png \
 ```
 
 Recorta cada cuadro (se queda con la mancha más grande, sin restos del vecino), escala todo el personaje igual (quieto de frente mide `--height` px lógicos), pone el píxel más bajo en la línea de los pies y centra el torso, y arma `sw`, `w` y `nw` como espejo de `se`, `e` y `ne`.
+
+## Mecánicas: `items/`, `medals/`, `npcs/`, `objects/`
+
+Arte de las mecánicas del juego (ver `docs/mecanicas.md`), generado en [Layer.ai](https://layer.ai) con GPT Image 2.5 Flare y `baseStyle.jpeg` como referencia. Los originales son hojas de 4×4 (o 3×3 los retratos) en `source/gameplay/`. Cada casilla se recortó y se centró.
+
+- `items/<clave>.png`: la clave es la del objeto en `apps/backend/app/game/catalog/items.ts`. Un objeto sin icono usa `paquete.png`.
+- `medals/<emblema>.png`: el campo `emblem` de cada familia en `catalog/achievements.ts`. El juego dibuja el disco y el aro de color según el nivel (`scenes/ui/game/medal_icon.gd`).
+- `npcs/<retrato>.png`: el campo `portrait` de los personajes (`catalog/story.ts`) y de los perfiles de lugar (`catalog/places.ts`).
+- `objects/<tipo>.png`: se dibujan a un cuarto de su tamaño (48 px lógicos), con la base del objeto en el centro de su celda (`scenes/world/world_objects_layer.gd`). Variantes por estado: `matera_0/1/2`, `caja` y `caja_open`, `puesto` y `puesto_vacio`, `farol` y `farol_on`.
+
+Los `.import` de estas carpetas tienen `mipmaps/generate=true`, como el resto del arte de la interfaz.
 
 ## Estilo
 

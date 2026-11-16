@@ -33,6 +33,10 @@
  *   { t: 'voice', id, n, on }                un amigo entró o salió de la voz (al entrar tú,
  *                                            llega uno por cada amigo que ya estaba)
  *   { t: 'rtc', from, k, d }                 señalización WebRTC de un amigo
+ *   { t: 'game', e: [evento, …] }            eventos del juego (logros, sectores, ventas en
+ *                                            tu puesto…): ver GameEvent en #game/types
+ *   { t: 'obj', op: 'put', o } | { t: 'obj', op: 'del', id }
+ *                                            cambió un objeto del mapa cerca de ti
  *   { t: 'pong', c }
  *   { t: 'error', e }                        y a veces se cierra la conexión
  */

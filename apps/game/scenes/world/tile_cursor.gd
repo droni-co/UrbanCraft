@@ -4,7 +4,8 @@ extends Node2D
 
 const HOVER_FILL := Color(1, 1, 1, 0.18)
 const HOVER_LINE := Color(1, 1, 1, 0.55)
-const TARGET_COLOR := Color(1.0, 0.85, 0.2)
+## Destino: latón como la interfaz, con una onda que se abre y se apaga.
+const TARGET_COLOR := Color(1.0, 0.82, 0.38)
 
 var ground: TileMapLayer
 
@@ -42,18 +43,21 @@ func _draw() -> void:
 		_draw_diamond(_hover, HOVER_FILL, HOVER_LINE)
 	if _target != null:
 		var pulse := 0.5 + 0.5 * sin(_time * 6.0)
-		_draw_diamond(_target, Color(TARGET_COLOR, 0.15 + 0.2 * pulse), TARGET_COLOR)
+		_draw_diamond(_target, Color(TARGET_COLOR, 0.12 + 0.15 * pulse), TARGET_COLOR, 1.0, 1.5)
+		var ripple := fmod(_time * 1.2, 1.0)
+		_draw_diamond(_target, Color(0, 0, 0, 0), Color(TARGET_COLOR, 0.8 * (1.0 - ripple)), 0.4 + 0.6 * ripple, 1.0)
 
 
-func _draw_diamond(cell: Vector2i, fill: Color, line: Color) -> void:
+func _draw_diamond(cell: Vector2i, fill: Color, line: Color, scale := 1.0, width := 1.0) -> void:
 	var center := to_local(ground.to_global(ground.map_to_local(cell)))
-	var half := Vector2(ground.tile_set.tile_size) / 2.0
+	var half := Vector2(ground.tile_set.tile_size) / 2.0 * scale
 	var points := PackedVector2Array([
 		center + Vector2(0, -half.y),
 		center + Vector2(half.x, 0),
 		center + Vector2(0, half.y),
 		center + Vector2(-half.x, 0),
 	])
-	draw_colored_polygon(points, fill)
+	if fill.a > 0.0:
+		draw_colored_polygon(points, fill)
 	points.append(points[0])
-	draw_polyline(points, line, 1.0)
+	draw_polyline(points, line, width, true)

@@ -7,6 +7,7 @@ export const controllers = {
   AccessTokens: () => import('#controllers/access_tokens_controller'),
   DevLogin: () => import('#controllers/dev_login_controller'),
   Friends: () => import('#controllers/friends_controller'),
+  Game: () => import('#controllers/game_controller'),
   Geo: () => import('#controllers/geo_controller'),
   GoogleAuth: () => import('#controllers/google_auth_controller'),
   Map: () => import('#controllers/map_controller'),

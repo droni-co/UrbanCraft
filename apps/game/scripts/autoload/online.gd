@@ -32,6 +32,10 @@ signal chat_rejected(retry_seconds: float)
 ## Un amigo entró (on) o salió de la voz. Si player_id == my_id y on es false,
 ## el servidor no te dejó entrar (modo fantasma). Ver el autoload Voice.
 signal voice_peer(player_id: int, nickname: String, on: bool)
+## Eventos del juego que manda el servidor (logros, sectores, ventas…): ver Game.
+signal game_events(events: Array)
+## Cambió un objeto del mapa cerca: { op: "put", o } o { op: "del", id }.
+signal object_message(message: Dictionary)
 ## Señalización WebRTC de un amigo (k: "offer", "answer" o "ice").
 signal rtc_received(from_id: int, kind: String, data: String)
 
@@ -256,6 +260,11 @@ func _handle(raw: String) -> void:
 			voice_peer.emit(int(msg.id), str(msg.get("n", "")), bool(msg.get("on", false)))
 		"rtc":
 			rtc_received.emit(int(msg.get("from", 0)), str(msg.get("k", "")), str(msg.get("d", "")))
+		"game":
+			if msg.get("e") is Array:
+				game_events.emit(msg.e)
+		"obj":
+			object_message.emit(msg)
 		"reject" when msg.get("r") == "chat":
 			chat_rejected.emit(float(msg.get("retry", 1000)) / 1000.0)
 		"reject":

@@ -82,6 +82,12 @@ var _district := ""
 ## chunk -> barrio en el que cae (lo calcula el backend; "" si no se sabe).
 var _chunk_districts := {}
 var _remote_players: RemotePlayers
+## Objetos que dejan los jugadores y guía hacia los objetivos (solo mapa real).
+var _objects: WorldObjectsLayer
+var _guide: TargetGuide
+var _sector := Vector2i(-99999, -99999)
+var _interacting := false
+var _intro_shown := false
 
 
 func _ready() -> void:
@@ -129,6 +135,7 @@ func _ready() -> void:
 			_back_to_main())  # cerró sesión (o caducó)
 	PlayerStats.start()  # hambre, xp, dinero + latido mientras se juega
 	tree_exiting.connect(PlayerStats.stop)
+	hud.bag.place_requested.connect(_place_item)
 	hud.online.wave_requested.connect(_wave)
 
 	if force_demo or "--demo" in OS.get_cmdline_user_args():
@@ -182,6 +189,7 @@ func _start_real(config: Dictionary) -> void:
 	hud.set_loading("Cargando el mapa…", 0.12)
 	chunks.update_center(anchor_cell)
 	_start_online()
+	_start_game()
 
 
 func _start_demo(message: String) -> void:
@@ -201,6 +209,102 @@ func _spawn_player_at(cell: Vector2i) -> void:
 	_last_valid_position = player.global_position
 	camera.snap_to_target()
 	player.set_physics_process(true)
+
+
+# --- Mecánicas del juego ---------------------------------------------------------
+
+## Morral, historia, encargos, territorio y objetos del mapa (autoload Game).
+## Solo con el mapa real: todo se valida en el servidor contra lugares de verdad.
+func _start_game() -> void:
+	_objects = WorldObjectsLayer.new()
+	_objects.name = "WorldObjects"
+	_objects.container = entities
+	_objects.cell_to_world = func(global_cell: Vector2i) -> Vector2: return cell_to_world(chunks.global_to_local(global_cell))
+	_objects.day_night = day_night
+	_objects.setup(chunks.chunk_size)
+	add_child(_objects)
+	var lights := Timer.new()
+	lights.wait_time = 20.0
+	lights.autostart = true
+	lights.timeout.connect(_objects.refresh_lights)
+	add_child(lights)
+
+	_guide = TargetGuide.new()
+	_guide.name = "TargetGuide"
+	_guide.player = player
+	_guide.global_to_world = _global_to_world
+	_guide.markers = func() -> Array: return _pois.values()
+	_guide.meters_per_cell = meters_per_cell
+	add_child(_guide)
+
+	if await Game.start():
+		_show_story_intro()
+	else:
+		hud.show_message("No se pudieron cargar tus misiones. Reintentando…", 3.0)
+		await get_tree().create_timer(8.0).timeout
+		if is_inside_tree() and await Game.start():
+			_show_story_intro()
+
+
+## El personaje de la historia saluda al entrar (primer paso o paso recién empezado).
+func _show_story_intro() -> void:
+	if _intro_shown or not Game.ready_to_play or not player.is_physics_processing() or hud.loading_screen.is_open():
+		return
+	var dialog: Variant = Game.story.get("dialog")
+	if dialog is Dictionary:
+		_intro_shown = true
+		hud.dialog.say(str(dialog.npc), dialog.get("lines", []))
+		Game.story_seen()
+
+
+## Entra a un lugar del mapa: el servidor dice qué se puede hacer ahí.
+func _visit(marker: PoiMarker) -> void:
+	_interacting = true
+	var res := await Game.visit({"id": marker.poi_id, "cx": marker.chunk.x, "cy": marker.chunk.y})
+	_interacting = false
+	if res.ok and res.data.get("place") is Dictionary:
+		hud.place_panel.open_place(res.data.place)
+	else:
+		hud.show_message(str(res.message), 3.0)
+
+
+## Rebusca en el árbol, arbusto, banca… de una celda local.
+func _gather(cell: Vector2i) -> void:
+	_interacting = true
+	var res := await Game.gather(chunks.local_to_global(cell))
+	_interacting = false
+	if not res.ok:
+		hud.show_message(str(res.message), 3.0)
+
+
+## Coloca en la casilla de enfrente un objeto del morral.
+func _place_item(item_key: String) -> void:
+	if mode != Mode.REAL:
+		return
+	var res := await Game.place_object(item_key, chunks.local_to_global(_front_cell(player.facing)))
+	if not res.ok:
+		hud.show_message(str(res.message), 4.0)
+
+
+## Lugar del mapa más cercano al jugador dentro de `radius` celdas, o null.
+func _nearest_poi(grid_position: Vector2, radius: float) -> PoiMarker:
+	var best: PoiMarker = null
+	var best_distance := radius
+	for cell: Vector2i in _pois:
+		var d := grid_position.distance_to(Vector2(cell) + Vector2(0.5, 0.5))
+		if d <= best_distance:
+			best = _pois[cell]
+			best_distance = d
+	return best
+
+
+## Celda que el jugador tiene al frente.
+func _front_cell(facing: Vector2) -> Vector2i:
+	var here := world_to_cell(player.global_position)
+	var cell := world_to_cell(player.global_position + facing * 24.0)
+	if cell == here:
+		cell = world_to_cell(player.global_position + facing * 40.0)
+	return cell
 
 
 # --- Multijugador --------------------------------------------------------------
@@ -285,6 +389,11 @@ func _physics_process(delta: float) -> void:
 		var global_cell := chunks.local_to_global(cell)
 		_update_minimap_area(global_cell)
 		chunks.update_center(global_cell)
+		if _objects:
+			_objects.update_center(global_cell)
+		if Game.ready_to_play and Game.sector_of(global_cell) != _sector:
+			_sector = Game.sector_of(global_cell)
+			Game.refresh_territory()
 		if Vector2(global_cell - anchor_cell).length() > play_radius_cells:
 			valid = false
 			_show_limit_message()
@@ -298,6 +407,7 @@ func _physics_process(delta: float) -> void:
 
 func _process(_delta: float) -> void:
 	player_cell = world_to_cell(player.global_position)
+	player.can_run = not Game.is_hungry()
 	building_fader.update(buildings.to_local(player.global_position))
 	if mode != Mode.LOADING:
 		var grid_position := _player_grid_position()
@@ -341,7 +451,7 @@ func _show_limit_message() -> void:
 	if _limit_message_cooldown > 0.0:
 		return
 	_limit_message_cooldown = 3.0
-	var hint := "Usa el teletransporte del menú para ir más lejos." if LocationService.is_teleported() \
+	var hint := "Vuelve a entrar al juego para regresar a tu zona." if LocationService.is_teleported() \
 		else "Camina en la vida real para explorar más."
 	hud.show_message("Límite de tu zona (%s). %s" % [_format_distance(float(map_config.playRadiusMeters)), hint])
 
@@ -395,6 +505,7 @@ func _on_chunk_loaded(chunk: Vector2i, data: Dictionary) -> void:
 		if hud.loading_screen.is_open():
 			await hud.loading_screen.closed
 		hud.show_message(_welcome_message(), 5.0)
+		_show_story_intro()
 
 
 func _on_chunk_unloaded(chunk: Vector2i) -> void:
@@ -427,6 +538,7 @@ func _add_pois(chunk: Vector2i, pois: Array) -> void:
 		var local_cell: Vector2i = base + Vector2i(int(poi.cell[0]), int(poi.cell[1]))
 		var marker := PoiMarker.new()
 		marker.setup(poi)
+		marker.chunk = chunk
 		marker.position = entities.to_local(cell_to_world(local_cell))
 		entities.add_child(marker)
 		markers.append(marker)
@@ -545,10 +657,30 @@ func _on_hovered(world_position: Vector2) -> void:
 
 func _on_player_interacted(facing: Vector2) -> void:
 	Online.send_action("interact")
+	if _interacting:
+		return
 	var here := world_to_cell(player.global_position)
-	var cell := world_to_cell(player.global_position + facing * 24.0)
-	if cell == here:
-		cell = world_to_cell(player.global_position + facing * 40.0)
+	var cell := _front_cell(facing)
+
+	# Con el juego en marcha: primero lo que hay justo enfrente (un objeto de
+	# otro jugador o algo donde rebuscar), luego lo que hay cerca (objeto o lugar).
+	if mode == Mode.REAL and Game.ready_to_play and _objects:
+		var grid := _player_grid_position()
+		var object := _objects.object_at(chunks.local_to_global(cell))
+		if not object.is_empty():
+			hud.object_panel.open_object(object)
+			return
+		if props.get_cell_source_id(cell) != -1:
+			_gather(cell)
+			return
+		object = _objects.nearest(grid, chunks.origin_cell, 1.6)
+		if not object.is_empty():
+			hud.object_panel.open_object(object)
+			return
+		var marker := _nearest_poi(grid, 3.5)
+		if marker:
+			_visit(marker)
+			return
 
 	for c in [here, cell]:
 		if _pois.has(c):

@@ -9,6 +9,8 @@ var poi_name := ""
 var poi_kind := ""
 var poi_category := "other"
 var poi_detail := ""
+## Chunk del mapa al que pertenece (con el id identifica el lugar en el servidor).
+var chunk := Vector2i.ZERO
 var _time := randf() * TAU
 var _icon: Texture2D
 var _color := Color.WHITE

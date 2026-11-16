@@ -18,7 +18,19 @@ const MENU_BUTTON_TOP := 22.0
 
 ## Menú del jugador (modal) y sus secciones.
 var menu: GameMenu
+## Teletransporte libre: solo para depurar (se agrega al menú con la sección Depuración).
 var teleport: TeleportSection
+var missions: MissionsSection
+var territory: TerritorySection
+var achievements: AchievementsSection
+## Mecánicas: morral, ventana de lugar, ventana de objeto, diálogos y avisos.
+var bag: BagPanel
+var bag_button: Button
+var place_panel: PlacePanel
+var object_panel: ObjectPanel
+var dialog: DialogBox
+var toasts: Toasts
+var tracker: QuestTracker
 var account: AccountSection
 var online: OnlineSection
 var character: CharacterSection
@@ -46,6 +58,8 @@ func _ready() -> void:
 	touch_controls.visible = GameSettings.touch_controls_enabled
 	GameSettings.touch_controls_changed.connect(func(enabled: bool) -> void: touch_controls.visible = enabled)
 	message_label.modulate.a = 0.0
+	message_label.add_theme_font_override("font", UiArt.FONT_BOLD)
+	message_label.add_theme_color_override("font_outline_color", Color(0.06, 0.08, 0.14, 0.9))
 	set_online(false)
 	set_attribution("")
 	location_label = _make_location_label()
@@ -62,6 +76,9 @@ func _ready() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("pause") and not menu.visible:
 		menu.open()
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("bag") and not menu.visible and Game.ready_to_play:
+		bag.open_bag()
 		get_viewport().set_input_as_handled()
 
 
@@ -85,31 +102,31 @@ func _build_menu() -> void:
 	Voice.notice.connect(func(text: String) -> void: show_message(text, 3.0))
 
 	teleport = TeleportSection.new()
-	menu.add_section("Teletransporte", teleport)
+	missions = MissionsSection.new()
+	menu.add_section("Misiones", missions, GameArt.medal("libro"))
+	territory = TerritorySection.new()
+	menu.add_section("Territorio", territory, GameArt.medal("bandera"))
+	achievements = AchievementsSection.new()
+	menu.add_section("Logros", achievements, GameArt.medal("trofeo"))
 	character = CharacterSection.new()
-	menu.add_section("Personaje", character)
+	menu.add_section("Personaje", character, "character")
 	online = OnlineSection.new()
-	menu.add_section("Multijugador", online)
+	menu.add_section("Multijugador", online, "multiplayer")
 	friends = FriendsSection.new()
-	menu.add_section("Amigos", friends)
+	menu.add_section("Amigos", friends, "friends")
 	Friends.changed.connect(_update_friends_badge)
 	Friends.notified.connect(_on_friends_notified)
 	account = AccountSection.new()
-	menu.add_section("Cuenta", account)
+	menu.add_section("Cuenta", account, "account")
 	if OS.is_debug_build():
 		_add_debug_section.call_deferred()
-	# Para agregar más opciones: menu.add_section("Título", MiSeccion.new())
+	# Para agregar más opciones: menu.add_section("Título", MiSeccion.new(), "icono")
+	# (el icono es assets/art/ui/icons/<icono>.png).
 
-	menu_button = Button.new()
+	menu_button = UiArt.hud_button("settings", MENU_BUTTON_SIZE)
 	menu_button.name = "MenuButton"
 	menu_button.theme = MenuTheme.build()
-	menu_button.icon = MenuTheme.menu_icon()
-	menu_button.icon_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	menu_button.tooltip_text = "Menú (Esc)"
-	menu_button.focus_mode = Control.FOCUS_NONE
-	menu_button.add_theme_stylebox_override("normal", _menu_button_style(0.45))
-	menu_button.add_theme_stylebox_override("hover", _menu_button_style(0.65))
-	menu_button.add_theme_stylebox_override("pressed", _menu_button_style(0.8))
 	menu_button.pressed.connect(menu.open)
 	menu_button.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 	add_child(menu_button)
@@ -122,15 +139,74 @@ func _build_menu() -> void:
 	add_child(stats_panel)
 	move_child(stats_panel, menu.get_index())
 	stats_panel.resized.connect(_layout_voice_list)
+	_build_game_ui()
+	# La pantalla de carga tapa todo el HUD menos el menú.
+	move_child(loading_screen, menu.get_index())
 	PlayerStats.level_up.connect(func(_key: String, level: int) -> void:
 		show_message("¡Subiste al nivel %d!" % level, 3.0))
 
 
-## Lista de amigos en la voz: bajo los stats, alineada al botón de menú.
+## Morral, ventanas de lugar y de objeto, diálogos, avisos y rastreador de misión.
+func _build_game_ui() -> void:
+	bag_button = UiArt.hud_button("menu", MENU_BUTTON_SIZE)
+	bag_button.name = "BagButton"
+	bag_button.theme = MenuTheme.build()
+	bag_button.tooltip_text = "Morral (I)"
+	bag_button.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	add_child(bag_button)
+
+	tracker = QuestTracker.new()
+	tracker.name = "QuestTracker"
+	tracker.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	tracker.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	tracker.pressed.connect(func() -> void: menu.open("Misiones"))
+	tracker.resized.connect(_layout_voice_list)
+	tracker.visibility_changed.connect(_layout_voice_list)
+	add_child(tracker)
+
+	toasts = Toasts.new()
+	toasts.name = "Toasts"
+	add_child(toasts)
+
+	bag = BagPanel.new()
+	bag.name = "Bag"
+	place_panel = PlacePanel.new()
+	place_panel.name = "PlacePanel"
+	object_panel = ObjectPanel.new()
+	object_panel.name = "ObjectPanel"
+	dialog = DialogBox.new()
+	dialog.name = "Dialog"
+	for window: Control in [bag, place_panel, object_panel]:
+		add_child(window)
+	bag_button.pressed.connect(func() -> void: bag.open_bag())
+	# Sin las mecánicas cargadas (mapa de demostración, sin servidor) no hay morral.
+	bag_button.visible = Game.ready_to_play
+	Game.changed.connect(func() -> void: bag_button.visible = Game.ready_to_play)
+	# Orden (de abajo arriba): HUD, carga, ventanas, menú, avisos, diálogos.
+	for node: Node in [bag_button, tracker]:
+		move_child(node, loading_screen.get_index())
+	add_child(dialog)
+	move_child(toasts, dialog.get_index())
+	menu.opened.connect(func() -> void:
+		for window: GameWindow in [bag, place_panel, object_panel]:
+			window.close())
+	Game.events_received.connect(func(events: Array) -> void:
+		for event: Dictionary in events:
+			if event.get("type") == "dialog":
+				dialog.say(str(event.npc), event.get("lines", [])))
+
+
+## Bajo los stats van el rastreador de misión y, debajo, la lista de la voz.
 func _layout_voice_list() -> void:
 	if voice == null:
 		return
 	var bottom := stats_panel.offset_top + (stats_panel.size.y if stats_panel.visible else 0.0)
+	if tracker:
+		tracker.offset_right = menu_button.offset_right
+		tracker.offset_left = menu_button.offset_right
+		tracker.offset_top = bottom + STATS_GAP
+		if tracker.visible:
+			bottom = tracker.offset_top + tracker.size.y
 	voice.place_list(menu_button.offset_right, bottom + STATS_GAP * 2.0)
 
 
@@ -152,15 +228,8 @@ func _on_friends_notified(event: String, nickname: String) -> void:
 func _add_debug_section() -> void:
 	await Auth.fetch_methods()
 	if Auth.methods.dev and is_instance_valid(menu):
-		menu.add_section("Depuración", DebugSection.new())
-
-
-func _menu_button_style(alpha: float) -> StyleBoxFlat:
-	var s := StyleBoxFlat.new()
-	s.bg_color = Color(0, 0, 0, alpha)
-	s.set_corner_radius_all(int(MENU_BUTTON_SIZE / 2.0))
-	s.anti_aliasing = true
-	return s
+		menu.add_section("Depuración", DebugSection.new(), "debug")
+		menu.add_section("Teletransporte", teleport, "teleport")
 
 
 func set_info(text: String) -> void:
@@ -195,6 +264,10 @@ func _layout_around_minimap() -> void:
 	voice.button.offset_left = voice.button.offset_right - MENU_BUTTON_SIZE
 	voice.button.offset_top = MENU_BUTTON_TOP
 	voice.button.offset_bottom = MENU_BUTTON_TOP + MENU_BUTTON_SIZE
+	bag_button.offset_right = voice.button.offset_left - CHAT_BUTTON_GAP
+	bag_button.offset_left = bag_button.offset_right - MENU_BUTTON_SIZE
+	bag_button.offset_top = MENU_BUTTON_TOP
+	bag_button.offset_bottom = MENU_BUTTON_TOP + MENU_BUTTON_SIZE
 	_layout_voice_list()
 	_layout_location_label()
 	_refresh_location()
@@ -221,8 +294,9 @@ func _make_location_label() -> Label:
 	var label := Label.new()
 	label.name = "LocationLabel"
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	label.add_theme_font_override("font", UiArt.FONT_BOLD)
 	label.add_theme_font_size_override("font_size", 8)
-	label.add_theme_color_override("font_color", Color(1, 1, 1, 0.85))
+	label.add_theme_color_override("font_color", Color(1, 1, 1, 0.9))
 	label.add_theme_color_override("font_outline_color", Color(0, 0, 0, 0.8))
 	label.add_theme_constant_override("outline_size", 3)
 	label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
