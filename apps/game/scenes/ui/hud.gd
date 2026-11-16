@@ -15,6 +15,8 @@ extends CanvasLayer
 
 const MENU_BUTTON_SIZE := 24.0
 const MENU_BUTTON_TOP := 22.0
+## El morral es más grande que los demás botones y lleva el dibujo de una mochila.
+const BAG_BUTTON_SIZE := 32.0
 
 ## Menú del jugador (modal) y sus secciones.
 var menu: GameMenu
@@ -26,6 +28,8 @@ var achievements: AchievementsSection
 ## Mecánicas: morral, ventana de lugar, ventana de objeto, diálogos y avisos.
 var bag: BagPanel
 var bag_button: Button
+## Tu rango en el sector donde estás, bajo el minimapa.
+var territory_badge: TerritoryBadge
 var place_panel: PlacePanel
 var object_panel: ObjectPanel
 var map_window: MapWindow
@@ -150,12 +154,22 @@ func _build_menu() -> void:
 
 ## Morral, ventanas de lugar y de objeto, diálogos, avisos y rastreador de misión.
 func _build_game_ui() -> void:
-	bag_button = UiArt.hud_button("menu", MENU_BUTTON_SIZE)
+	bag_button = UiArt.hud_button("menu", BAG_BUTTON_SIZE)
+	bag_button.icon = GameArt.item("morral")
 	bag_button.name = "BagButton"
 	bag_button.theme = MenuTheme.build()
 	bag_button.tooltip_text = "Morral (I)"
+	UiArt.set_hud_button_tint(bag_button, MenuTheme.GOLD.darkened(0.35))
 	bag_button.set_anchors_preset(Control.PRESET_TOP_RIGHT)
 	add_child(bag_button)
+
+	territory_badge = TerritoryBadge.new()
+	territory_badge.name = "TerritoryBadge"
+	territory_badge.pressed.connect(func() -> void: menu.open("Territorio"))
+	add_child(territory_badge)
+	move_child(territory_badge, location_label.get_index() + 1)
+	territory_badge.visibility_changed.connect(_layout_around_minimap)
+	territory_badge.resized.connect(_layout_around_minimap)
 
 	tracker = QuestTracker.new()
 	tracker.name = "QuestTracker"
@@ -266,15 +280,19 @@ func _layout_around_minimap() -> void:
 	var feed_top := MENU_BUTTON_TOP + 6.0
 	if GameSettings.minimap_visible and GameSettings.minimap_corner == GameSettings.ScreenCorner.TOP_LEFT:
 		feed_top = GameSettings.minimap_margin.y + GameSettings.minimap_size.y + 20.0
+		# Los mensajes del chat van debajo del rango del sector.
+		if territory_badge and territory_badge.visible:
+			feed_top += territory_badge.size.y + 4.0
 	chat.set_feed_top(feed_top)
 	voice.button.offset_right = chat.button.offset_left - CHAT_BUTTON_GAP
 	voice.button.offset_left = voice.button.offset_right - MENU_BUTTON_SIZE
 	voice.button.offset_top = MENU_BUTTON_TOP
 	voice.button.offset_bottom = MENU_BUTTON_TOP + MENU_BUTTON_SIZE
 	bag_button.offset_right = voice.button.offset_left - CHAT_BUTTON_GAP
-	bag_button.offset_left = bag_button.offset_right - MENU_BUTTON_SIZE
-	bag_button.offset_top = MENU_BUTTON_TOP
-	bag_button.offset_bottom = MENU_BUTTON_TOP + MENU_BUTTON_SIZE
+	bag_button.offset_left = bag_button.offset_right - BAG_BUTTON_SIZE
+	# Centrado en la fila de botones (es más alto que ellos).
+	bag_button.offset_top = MENU_BUTTON_TOP + (MENU_BUTTON_SIZE - BAG_BUTTON_SIZE) / 2.0
+	bag_button.offset_bottom = bag_button.offset_top + BAG_BUTTON_SIZE
 	_layout_voice_list()
 	_layout_location_label()
 	_refresh_location()
@@ -337,6 +355,22 @@ func _layout_location_label() -> void:
 	else:
 		location_label.offset_top = m.y + (s.y + 2.0 if shown else 0.0)
 	location_label.offset_bottom = location_label.offset_top + height
+	if territory_badge:
+		# El rango del sector va pegado al nombre del lugar, hacia afuera del minimapa.
+		var badge_width := TerritoryBadge.WIDTH
+		territory_badge.anchor_left = location_label.anchor_left
+		territory_badge.anchor_right = location_label.anchor_left
+		territory_badge.anchor_top = location_label.anchor_top
+		territory_badge.anchor_bottom = location_label.anchor_top
+		territory_badge.offset_left = -m.x - badge_width if right else m.x
+		territory_badge.offset_right = territory_badge.offset_left + badge_width
+		territory_badge.grow_vertical = Control.GROW_DIRECTION_BEGIN if bottom else Control.GROW_DIRECTION_END
+		if bottom:
+			territory_badge.offset_bottom = location_label.offset_top - 2.0
+			territory_badge.offset_top = territory_badge.offset_bottom
+		else:
+			territory_badge.offset_top = location_label.offset_bottom + 2.0
+			territory_badge.offset_bottom = territory_badge.offset_top
 
 
 ## Texto central de carga; vacío lo oculta.

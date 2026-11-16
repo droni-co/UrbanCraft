@@ -1,7 +1,7 @@
 class_name QuestTracker
 extends PanelContainer
 ## Lo que toca hacer, siempre a la vista: el capítulo de la historia con sus
-## metas, los encargos en curso y el sector donde estás (tu rango y su dueño).
+## metas y los encargos en curso. (El sector y tu rango: TerritoryBadge.)
 ## Tocarlo abre Menú → Misiones.
 
 signal pressed
@@ -66,16 +66,7 @@ func _refresh() -> void:
 		for entry: Dictionary in steps:
 			_line("• " + JobList.step_text(entry.step), 8, MenuTheme.TEXT)
 
-	var sector := Game.current_sector()
-	if not sector.is_empty():
-		_gap()
-		_line(str(sector.name), 9, MenuTheme.GOLD, UiArt.FONT_BOLD)
-		var owner: Variant = sector.get("owner")
-		var who := "sin dueño"
-		if owner is Dictionary:
-			who = "es tuyo" if sector.get("mine", false) else "de %s" % owner.name
-		_line("%s (%d) · %s" % [Game.rank_name(int(sector.rank)), int(sector.points), who], 8,
-			MenuTheme.SUCCESS if sector.get("mine", false) else MenuTheme.TEXT_DIM)
+	# El sector y tu rango van en TerritoryBadge, bajo el minimapa.
 
 
 func _line(text: String, font_size: int, color: Color, font: Font = null) -> void:
