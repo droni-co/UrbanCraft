@@ -51,6 +51,9 @@ export interface ApiDefinition {
     location: typeof routes['friends.location']
     destroy: typeof routes['friends.destroy']
   }
+  players: {
+    show: typeof routes['players.show']
+  }
   game: {
     catalog: typeof routes['game.catalog']
     state: typeof routes['game.state']

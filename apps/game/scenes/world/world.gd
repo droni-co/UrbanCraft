@@ -154,6 +154,7 @@ func _ready() -> void:
 	tree_exiting.connect(PlayerStats.stop)
 	hud.bag.place_requested.connect(_place_item)
 	hud.online.wave_requested.connect(_wave)
+	hud.player_panel.wave_requested.connect(_wave)
 
 	if force_demo or "--demo" in OS.get_cmdline_user_args():
 		_start_demo("Modo demo: mapa procedural")
@@ -719,6 +720,12 @@ func world_to_cell(world_position: Vector2) -> Vector2i:
 func _on_tapped(world_position: Vector2) -> void:
 	if not player.is_physics_processing():
 		return
+	# Tocar a otro jugador abre su perfil (en vez de caminar hasta ahí).
+	if _remote_players and Auth.is_signed_in():
+		var other := _remote_players.at(world_position)
+		if other != 0:
+			hud.player_panel.open_player(other)
+			return
 	var target := world_to_cell(world_position)
 	if mode == Mode.REAL and Vector2(chunks.local_to_global(target) - anchor_cell).length() > play_radius_cells:
 		_limit_message_cooldown = 0.0

@@ -73,6 +73,31 @@ export class FriendsService {
     return row ? publicUser(row.id, row.nickname, row.full_name, row.skin) : null
   }
 
+  /** Datos públicos de un jugador por su id. */
+  async findById(id: number): Promise<PublicUser | null> {
+    const row = await db
+      .from('users')
+      .select('id', 'nickname', 'full_name', 'skin')
+      .where('id', id)
+      .first()
+    return row ? publicUser(row.id, row.nickname, row.full_name, row.skin) : null
+  }
+
+  /**
+   * Relación y, si hay una solicitud pendiente, su id (para aceptarla o
+   * cancelarla desde el perfil del jugador).
+   */
+  async relationDetail(
+    userId: number,
+    otherId: number
+  ): Promise<{ relation: Relation; requestId: number | null }> {
+    if (userId === otherId) return { relation: 'self', requestId: null }
+    const row = await this.#pair(userId, otherId)
+    if (!row) return { relation: 'none', requestId: null }
+    if (row.status === 'accepted') return { relation: 'friend', requestId: null }
+    return { relation: row.requester_id === userId ? 'outgoing' : 'incoming', requestId: row.id }
+  }
+
   async relation(userId: number, otherId: number): Promise<Relation> {
     if (userId === otherId) return 'self'
     const row = await this.#pair(userId, otherId)
@@ -82,14 +107,14 @@ export class FriendsService {
   }
 
   /**
-   * Envía una solicitud al jugador con ese apodo. Si él ya te había enviado
-   * una, se acepta directamente (los dos querían ser amigos).
+   * Envía una solicitud al jugador con ese apodo (o id). Si él ya te había
+   * enviado una, se acepta directamente (los dos querían ser amigos).
    */
   async sendRequest(
     userId: number,
-    nickname: string
+    to: string | number
   ): Promise<{ status: 'sent' | 'accepted'; user: PublicUser; friendshipId: number }> {
-    const target = await this.findByNickname(nickname)
+    const target = typeof to === 'number' ? await this.findById(to) : await this.findByNickname(to)
     if (!target) throw new FriendsError('user_not_found')
     if (target.id === userId) throw new FriendsError('self')
 

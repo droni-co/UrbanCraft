@@ -27,6 +27,7 @@ export type ScannedRoutes = {
     'friends.requests.reject': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'friends.location': { paramsTuple: [ParamValue]; params: {'userId': ParamValue} }
     'friends.destroy': { paramsTuple: [ParamValue]; params: {'userId': ParamValue} }
+    'players.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'game.catalog': { paramsTuple?: []; params?: {} }
     'game.state': { paramsTuple?: []; params?: {} }
     'game.story.seen': { paramsTuple?: []; params?: {} }
@@ -66,6 +67,7 @@ export type ScannedRoutes = {
     'friends.index': { paramsTuple?: []; params?: {} }
     'friends.search': { paramsTuple?: []; params?: {} }
     'friends.location': { paramsTuple: [ParamValue]; params: {'userId': ParamValue} }
+    'players.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'game.catalog': { paramsTuple?: []; params?: {} }
     'game.state': { paramsTuple?: []; params?: {} }
     'game.jobs': { paramsTuple?: []; params?: {} }
@@ -87,6 +89,7 @@ export type ScannedRoutes = {
     'friends.index': { paramsTuple?: []; params?: {} }
     'friends.search': { paramsTuple?: []; params?: {} }
     'friends.location': { paramsTuple: [ParamValue]; params: {'userId': ParamValue} }
+    'players.show': { paramsTuple: [ParamValue]; params: {'id': ParamValue} }
     'game.catalog': { paramsTuple?: []; params?: {} }
     'game.state': { paramsTuple?: []; params?: {} }
     'game.jobs': { paramsTuple?: []; params?: {} }

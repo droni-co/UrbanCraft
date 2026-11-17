@@ -11,6 +11,9 @@ var container: Node2D
 var to_world: Callable
 
 var _avatars := {}  # id -> RemotePlayer
+## Píxeles del mundo alrededor del cuerpo que cuentan como tocarlo (generoso
+## para los dedos).
+const TAP_RADIUS := 18.0
 
 
 func _ready() -> void:
@@ -22,6 +25,22 @@ func _ready() -> void:
 
 func count() -> int:
 	return _avatars.size()
+
+
+## Id del jugador que está bajo `world_position` (un toque sobre su cuerpo o
+## su apodo), o 0. Si hay varios, el más cercano al toque.
+func at(world_position: Vector2) -> int:
+	var best := 0
+	var best_distance := TAP_RADIUS
+	for id: int in _avatars:
+		var avatar: RemotePlayer = _avatars[id]
+		# Del suelo hasta el apodo: el centro del cuerpo queda ~20 px arriba.
+		var body := avatar.global_position + Vector2(0, -20)
+		var d := Vector2((world_position.x - body.x), (world_position.y - body.y) * 0.6).length()
+		if d < best_distance:
+			best = id
+			best_distance = d
+	return best
 
 
 func _sync() -> void:

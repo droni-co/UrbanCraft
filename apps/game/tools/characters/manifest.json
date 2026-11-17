@@ -1,0 +1,118 @@
+{
+  "_doc": "Material de Layer.ai de los personajes (workspace UrbanCraft). Diseños: gpt-image-2.6-flare con source/characters/style_*.png como referencia de estilo; modelos: meshy-t2.5 (A-pose); esqueleto: meshy-rigging con 'Walking 2 (In Place)'. Las animaciones donantes se riggearon una vez sobre otro modelo y se transfieren a todos (render.gd --donor). Descarga: curl -o <archivo> <url>.",
+  "donors": {
+    "idle": {
+      "meshy_animation": "Idle (Meshy)",
+      "reference_set": "e619fb16-b10a-43ed-afd3-c2a5f8b22054",
+      "url": "https://media.app.layer.ai/workspaces/0399b4e3-95e2-48e0-a700-574d8151112e/files/9ec82216-e0d5-4797-9050-8857ea097a21/3d-generation-2026-11-17-035711.glb"
+    },
+    "walk": {
+      "meshy_animation": "Walking 2 (In Place)",
+      "reference_set": "685055d3-a279-41d7-9dfc-2030a92ab2b1",
+      "url": "https://media.app.layer.ai/workspaces/0399b4e3-95e2-48e0-a700-574d8151112e/files/1dc8a2ea-c04c-4b30-a3a3-1d4d924d12cb/3d-generation-2026-11-17-035711.glb"
+    },
+    "wave": {
+      "meshy_animation": "Wave One Hand",
+      "reference_set": "004173b8-ca0b-4b98-8f20-92c656e3cbff",
+      "url": "https://media.app.layer.ai/workspaces/0399b4e3-95e2-48e0-a700-574d8151112e/files/29a521fb-5d5b-4c85-9945-6d73b145e4d4/3d-generation-2026-11-17-035712.glb"
+    },
+    "craft": {
+      "meshy_animation": "Kneeling Reload",
+      "reference_set": "5f56d161-2355-4b86-bb1f-287b77a10e0d",
+      "url": "https://media.app.layer.ai/workspaces/0399b4e3-95e2-48e0-a700-574d8151112e/files/061c58ca-0404-40d2-b809-9181b4648818/3d-generation-2026-11-17-041211.glb"
+    },
+    "interact": {
+      "meshy_animation": "Collect Object",
+      "reference_set": "b375b27a-9066-41f6-a5ec-fce33ff92df5",
+      "url": "https://media.app.layer.ai/workspaces/0399b4e3-95e2-48e0-a700-574d8151112e/files/af2160c9-0f8a-4260-98da-e3fe25a912b7/3d-generation-2026-11-17-041213.glb"
+    },
+    "attack": {
+      "meshy_animation": "Right-hand Sword Slash",
+      "reference_set": "cd624cda-f3e3-4af1-9c60-4a0a1552d40c",
+      "url": "https://media.app.layer.ai/workspaces/0399b4e3-95e2-48e0-a700-574d8151112e/files/08985afd-184f-4c5b-8e4d-eb66d8e7f3cc/3d-generation-2026-11-17-041615.glb"
+    },
+    "defend": {
+      "meshy_animation": "Block",
+      "reference_set": "c641b606-8700-457b-b806-c6d36375d55a",
+      "url": "https://media.app.layer.ai/workspaces/0399b4e3-95e2-48e0-a700-574d8151112e/files/057013eb-901e-4a3f-a4a9-60694df8abd4/3d-generation-2026-11-17-041214.glb"
+    }
+  },
+  "bike": {
+    "design_file": "efd5a0b2-8261-40dc-b3fd-6b9ae972a128",
+    "url": "https://media.app.layer.ai/workspaces/0399b4e3-95e2-48e0-a700-574d8151112e/files/87a59d84-6128-4820-8326-55cdaf8c6621/3d-generation-2026-11-17-041627.glb"
+  },
+  "characters": {
+    "mateo": {
+      "design_file": "4bd22e4e-810e-4519-b5d9-b167e2a6003f",
+      "mesh_file": "f391d23f-45bc-4ec3-ab39-2014537272f6",
+      "rigged_url": "https://media.app.layer.ai/workspaces/0399b4e3-95e2-48e0-a700-574d8151112e/files/4ad226fe-fe7c-4fc1-88c8-7c4572502555/3d-generation-2026-11-17-041445.glb",
+      "head": 1.25
+    },
+    "sofia": {
+      "design_file": "0d89c96f-11bb-4a6e-8e34-2245141fefc8",
+      "mesh_file": "e30dceeb-4974-45ed-b214-2a65275c7898",
+      "rigged_url": "https://media.app.layer.ai/workspaces/0399b4e3-95e2-48e0-a700-574d8151112e/files/9c910279-b7be-4aea-a786-b1a960de1a4b/3d-generation-2026-11-17-042127.glb",
+      "head": 1.25
+    },
+    "andres": {
+      "design_file": "fdcad2d0-120e-4360-97b7-82954cc74ce5",
+      "mesh_file": "3c117421-2b66-4827-98fd-b917c9a0065d",
+      "rigged_url": "https://media.app.layer.ai/workspaces/0399b4e3-95e2-48e0-a700-574d8151112e/files/447f08fe-f7be-4335-92d2-d7bf4ff8395f/3d-generation-2026-11-17-042127.glb",
+      "head": 1.25
+    },
+    "camila": {
+      "design_file": "a8b79115-6bc9-4787-8278-00f913ea30f9",
+      "mesh_file": "6c5f244f-399b-4d27-9067-588f34458e95",
+      "rigged_url": "https://media.app.layer.ai/workspaces/0399b4e3-95e2-48e0-a700-574d8151112e/files/02880982-8ba5-4483-947f-28637ade56eb/3d-generation-2026-11-17-042128.glb",
+      "head": 1.25
+    },
+    "don_jorge": {
+      "design_file": "3a28fe8c-4881-4749-8f72-d3cbb3b9e8b2",
+      "mesh_file": "c471cc56-19e1-4de3-b95c-468165abfbb8",
+      "rigged_url": "https://media.app.layer.ai/workspaces/0399b4e3-95e2-48e0-a700-574d8151112e/files/ed6019cd-a0d8-4b51-ba1a-d5b219860d57/3d-generation-2026-11-17-042129.glb",
+      "head": 1.15
+    },
+    "dona_rosa": {
+      "design_file": "45c57539-8fe6-4ff3-a599-bb9e035101b9",
+      "mesh_file": "157c9a1f-e103-4fe2-97fe-001cbd199c56",
+      "rigged_url": "https://media.app.layer.ai/workspaces/0399b4e3-95e2-48e0-a700-574d8151112e/files/e98c62d2-ad2e-4295-8a3e-9eddd1dac35d/3d-generation-2026-11-17-042129.glb",
+      "head": 1.25
+    },
+    "kevin": {
+      "design_file": "87cbf575-c40a-4b8b-9a37-8787d1a44f24",
+      "mesh_file": "da8ac84e-c4fe-4114-9b53-1b9acfe9018b",
+      "rigged_url": "https://media.app.layer.ai/workspaces/0399b4e3-95e2-48e0-a700-574d8151112e/files/c430344b-6a06-46f6-a441-b4778f24ad51/3d-generation-2026-11-17-042130.glb",
+      "head": 1.15
+    },
+    "laura": {
+      "design_file": "6146dbb8-c982-43c2-b0ad-80a3bd036c83",
+      "mesh_file": "877099cf-3b2e-46e6-9fa7-bdf0a0696a2e",
+      "rigged_url": "https://media.app.layer.ai/workspaces/0399b4e3-95e2-48e0-a700-574d8151112e/files/944e94b8-5085-4fd4-873a-af040aba2b43/3d-generation-2026-11-17-042130.glb",
+      "head": 1.25
+    },
+    "santiago": {
+      "design_file": "154b4f95-34f5-43ac-b6ee-8540da0c61fe",
+      "mesh_file": "a554e818-59b2-4ed3-9e7b-033098208ded",
+      "rigged_url": "https://media.app.layer.ai/workspaces/0399b4e3-95e2-48e0-a700-574d8151112e/files/63447364-e6a4-4ec2-8ae4-03363385f8e5/3d-generation-2026-11-17-042131.glb",
+      "head": 1.25
+    },
+    "valeria": {
+      "design_file": "a5beadda-d09b-4113-a292-de34c96e8989",
+      "mesh_file": "762bd760-06da-4e73-8708-f9d78904b430",
+      "rigged_url": "https://media.app.layer.ai/workspaces/0399b4e3-95e2-48e0-a700-574d8151112e/files/ecc80db6-e441-4167-b9c2-c162cb1f6bcc/3d-generation-2026-11-17-042132.glb",
+      "head": 1.1
+    },
+    "julian": {
+      "design_file": "a61c9c44-0e82-418f-9298-d32ad2d7059f",
+      "mesh_file": "82e78fc2-4866-4ca1-b24d-d05d48a7640a",
+      "rigged_url": "https://media.app.layer.ai/workspaces/0399b4e3-95e2-48e0-a700-574d8151112e/files/ab0d29b5-5d77-4249-b4e2-4b61b4cc424e/3d-generation-2026-11-17-042132.glb",
+      "head": 1.25
+    },
+    "isabella": {
+      "design_file": "4f9291ff-d1c5-4e10-bfe6-8f4d9397da62",
+      "mesh_file": "52a3d501-feb2-431c-9bcd-94fa5bccb5b2",
+      "rigged_url": "https://media.app.layer.ai/workspaces/0399b4e3-95e2-48e0-a700-574d8151112e/files/15a397ae-d723-42b6-8575-4f983000d8c8/3d-generation-2026-11-17-042133.glb",
+      "head": 1.15
+    }
+  }
+}

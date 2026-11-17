@@ -146,6 +146,12 @@ const routes = {
     tokens: [[0,"api"],[0,"v1"],[0,"friends"],[1,"userId"]],
     types: placeholder as Registry['friends.destroy']['types'],
   },
+  'players.show': {
+    methods: ["GET","HEAD"],
+    pattern: '/api/v1/players/:id',
+    tokens: [[0,"api"],[0,"v1"],[0,"players"],[1,"id"]],
+    types: placeholder as Registry['players.show']['types'],
+  },
   'game.catalog': {
     methods: ["GET","HEAD"],
     pattern: '/api/v1/game/catalog',

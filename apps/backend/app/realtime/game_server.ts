@@ -244,6 +244,17 @@ export class GameRealtimeServer {
     for (const client of this.#clients.values()) client.known.delete(userId)
   }
 
+  /**
+   * `viewerId` tiene a `targetId` en pantalla (o casi): los dos conectados y
+   * en el mapa, y el otro visible y cerca. Para ver perfiles de desconocidos.
+   */
+  canSee(viewerId: number, targetId: number) {
+    const me = this.#clients.has(viewerId) ? this.world.get(viewerId) : undefined
+    const other = this.#clients.has(targetId) ? this.world.get(targetId) : undefined
+    if (!me || !other || !me.placed || !other.placed || !other.visible) return false
+    return Math.hypot(me.x - other.x, me.y - other.y) <= this.config.nearbyRadiusCells * 1.5
+  }
+
   /** Conectado y visible (en modo fantasma aparece como desconectado). */
   isOnline(userId: number) {
     const p = this.#clients.has(userId) ? this.world.get(userId) : undefined

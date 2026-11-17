@@ -103,8 +103,7 @@ func _process(delta: float) -> void:
 		return
 	_anim_time += delta
 	var row: int = TURN_ROWS[int(_anim_time / TURN_SECONDS) % TURN_ROWS.size()]
-	var col := 1 + int(_anim_time * CharacterSkins.WALK_FPS) % CharacterSkins.WALK_FRAMES
-	_preview_frame.region = Rect2(Vector2(col, row) * Vector2(CharacterSkins.FRAME_SIZE), CharacterSkins.FRAME_SIZE)
+	_preview_frame.region = CharacterSkins.walk_region(_selected, row, _anim_time)
 
 
 # --- Interno ----------------------------------------------------------------------
@@ -145,7 +144,7 @@ func _select(id: String, from_click: bool) -> void:
 	_selected = id
 	_preview_frame.atlas = CharacterSkins.sheet_texture(id)
 	_preview.texture_filter = CharacterSkins.filter_for(id)
-	_preview_frame.region = Rect2(Vector2(0, 2) * Vector2(CharacterSkins.FRAME_SIZE), CharacterSkins.FRAME_SIZE)
+	_preview_frame.region = CharacterSkins.walk_region(id, 2, 0.0)
 	_refresh()
 
 

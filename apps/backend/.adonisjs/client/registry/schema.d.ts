@@ -307,6 +307,19 @@ export interface Registry {
       rawResponse: ExtractRawResponse<Awaited<ReturnType<import('#controllers/friends_controller').default['destroy']>>>
     }
   }
+  'players.show': {
+    methods: ["GET","HEAD"]
+    pattern: '/api/v1/players/:id'
+    types: {
+      body: {}
+      paramsTuple: [ParamValue]
+      params: { id: ParamValue }
+      query: {}
+      response: ExtractResponse<Awaited<ReturnType<import('#controllers/players_controller').default['show']>>>
+      errorResponse: ExtractErrorResponse<Awaited<ReturnType<import('#controllers/players_controller').default['show']>>>
+      rawResponse: ExtractRawResponse<Awaited<ReturnType<import('#controllers/players_controller').default['show']>>>
+    }
+  }
   'game.catalog': {
     methods: ["GET","HEAD"]
     pattern: '/api/v1/game/catalog'

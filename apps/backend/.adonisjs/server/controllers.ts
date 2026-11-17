@@ -13,6 +13,7 @@ export const controllers = {
   Map: () => import('#controllers/map_controller'),
   NewAccount: () => import('#controllers/new_account_controller'),
   PlayerStats: () => import('#controllers/player_stats_controller'),
+  Players: () => import('#controllers/players_controller'),
   Profile: () => import('#controllers/profile_controller'),
   WebGame: () => import('#controllers/web_game_controller'),
 }

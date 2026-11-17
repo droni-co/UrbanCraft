@@ -33,7 +33,7 @@ art/
 ├── tiles/ground/   suelo, 256×128 (64×32)
 ├── props/          árboles, rocas, arbustos, mobiliario urbano, 256×256 (64×64)
 ├── buildings/      fachadas de un piso para los edificios en 3D, 256×168 (64×42)
-├── characters/     hojas de sprites de personajes (pixel art a x1, o a x2/x4)
+├── characters/     hojas de sprites de personajes (animadas a x3, o pixel art a x1)
 ├── ui/            logo, ilustraciones de título y carga, marco de panel (Layer.ai; ver ui/README.md)
 ├── ui/icons/       iconos de la interfaz, 96×96 (HUD, menú y stats; ver ui/icons/README.md)
 ├── ui/poi/         icono de cada categoría de lugar, 28×28 (7×7) blanco (va dentro del pin)
@@ -144,19 +144,27 @@ Cada celda de edificio se dibuja como un bloque isométrico: las dos paredes del
 
 ## Personajes: `characters/*.png`
 
-Cada PNG de `characters/` es un **personaje (skin)** que el jugador puede elegir en **Menú → Personaje**: `player01.png` … `player05.png`. Para agregar uno basta con poner otra hoja ahí: aparece sola en el selector como "Personaje N" (`player06.png`) o con su nombre (`ninja_rojo.png` → "Ninja Rojo"). `player01` es el personaje por defecto. El personaje elegido se guarda en la cuenta y los demás jugadores lo ven.
+Cada PNG de `characters/` es un **personaje (skin)** que el jugador puede elegir en **Menú → Personaje**: hay 12 (`mateo`, `sofia`, `andres`, `camila`, `don_jorge`, `dona_rosa`, `kevin`, `laura`, `santiago`, `valeria`, `julian`, `isabella`). Para agregar uno basta con poner otra hoja ahí: aparece sola en el selector con su nombre (`ninja_rojo.png` → "Ninja Rojo"; los nombres con tilde están en `NAMES` de `character_skins.gd`). `mateo` es el personaje por defecto, y también el que ve quien tenía guardado un personaje que ya no existe. El personaje elegido se guarda en la cuenta y los demás jugadores lo ven.
 
-Hay dos formatos de hoja, ambos con 8 filas (direcciones) de frames de **32×48** lógicos; el juego los distingue por el ancho y acepta cualquier escala entera (a x1 usa *nearest*, para pixel art; a x2 o más, filtro lineal).
+Hay dos formatos de hoja, con frames de **32×48** lógicos y una fila por dirección. El juego los distingue por la forma y acepta cualquier escala entera: a x1 usa *nearest*, para pixel art; a x2 o más, filtro lineal.
 
-**Hoja animada** (la de los 5 personajes actuales): **512×384** lógicos, a x3 = **1536×1152**.
+**Hoja animada** (la de los 12 personajes): cuadrada, **768×768** lógicos (24 columnas × 16 filas), a x3 = **2304×2304**. Son dos bandas de 8 filas (direcciones). Los **pies** van en **(16, 40)** de cada frame. La bici usa cuadros dobles de 64×48 con los pies en (32, 40).
 
-| Columnas | Animación |
-| -------- | --------- |
-| 0–3 | Quieto: respira (y parpadea), 3 fps |
-| 4–11 | Caminata de 8 cuadros, 11 fps (al correr se acelera) |
-| 12–15 | Saludo con la mano, 6 fps (tecla G o el botón Saludar) |
+| Banda | Columnas | Animación |
+| ----- | -------- | --------- |
+| 1 (filas 0–7) | 0–3 | `idle`: quieto, respira, 3 fps |
+| 1 | 4–11 | `walk`: caminata de 8 cuadros, 11 fps (al correr se acelera) |
+| 1 | 12–15 | `wave`: saludo, 6 fps (botón Saludar) |
+| 1 | 16–23 | `bike`: pedalear, 4 cuadros dobles, 8 fps |
+| 2 (filas 8–15) | 0–3 | `craft`: fabricar (arrodillado, trabajando con las manos), 6 fps |
+| 2 | 4–7 | `interact`: agacharse a tomar o usar algo, 6 fps |
+| 2 | 8–11 | `attack`: golpe con el brazo derecho, 10 fps, **sin bucle** |
+| 2 | 12–15 | `defend`: guardia con los brazos, 6 fps |
+| 2 | 16–23 | libres para animaciones futuras |
 
-**Hoja simple** (pixel art clásico): **160×384** lógicos, columna 0 quieto y 1–4 caminata (8 fps). Al estar quieto el juego le agrega una respiración leve (estira el sprite desde los pies) y no tiene saludo. Si sus filas quedan un poco corridas, el juego las **alinea al cargar** (mueve cada fila en bloque para que su píxel más bajo quede en y = 44); el PNG no se modifica.
+Las acciones (`bike`, `craft`, `interact`, `attack`, `defend`) todavía no las usa ninguna mecánica. Para mostrarlas: `CharacterSkins.animation_for(sprite, moving, waving, dir, "bike")`. `CharacterSkins.has_action(id, "bike")` dice si la hoja la trae (las simples no traen ninguna). Columnas, velocidades y bucle están en `ANIMATED` de `scripts/characters/character_skins.gd`.
+
+**Hoja simple** (pixel art clásico): **160×384** lógicos, columna 0 quieto y 1–4 caminata (8 fps), pies en **(16, 44)**. Al estar quieto el juego le agrega una respiración leve (estira el sprite desde los pies) y no tiene saludo ni acciones. Si sus filas quedan un poco corridas, el juego las **alinea al cargar**: mueve cada fila en bloque para que su píxel más bajo quede en y = 44. El PNG no se modifica.
 
 | Fila | Dirección en pantalla |
 | ---- | --------------------- |
@@ -169,20 +177,29 @@ Hay dos formatos de hoja, ambos con 8 filas (direcciones) de frames de **32×48*
 | 6 | `n` ↑ (de espaldas) |
 | 7 | `ne` ↗ |
 
-- Los **pies** van en el píxel **(16, 44)** de cada frame: es el punto que toca el suelo.
 - La sombra la dibuja el juego, así que no la incluyas.
-- Las animaciones (`idle_<dir>`, `walk_<dir>`, `wave_<dir>`) se arman desde la hoja al iniciar (`scripts/characters/character_skins.gd`), así que basta con editar el PNG. Velocidades y columnas están en `ANIMATED` de ese archivo.
+- Las hojas se importan como WebP con pérdida (calidad 0.9): ~1 MB cada una en el juego exportado.
 
-### Cómo se hicieron las hojas animadas (Layer.ai)
+### Cómo se hacen las hojas animadas (Layer.ai + Godot)
 
-Los originales están en `source/characters/` (WebP): por personaje, un *turnaround* con 5 vistas (`playerNN_turnaround`) y una hoja de 4×4 cuadros por dirección (`playerNN_s|se|e|ne|n`: fila 1 respirar, filas 2–3 caminar, fila 4 saludar), hechas con la herramienta *Sprite sheet* de Layer (GPT Image 2.5, fondo transparente) usando el turnaround y la hoja de frente como guía. `tools/layer_art/char_sheet.py` las convierte en la hoja final:
+Los personajes se hacen en 3D y se renderizan a sprites. Así las 8 direcciones y todas las animaciones son el mismo personaje en la misma pose, sin cuadros inventados uno por uno.
+
+1. **Diseño**: GPT Image 2.6 en Layer, de frente, en A-pose, sobre fondo gris. Lleva como referencia de estilo `source/characters/style_turnaround.webp` y `style_npcs.webp` (pintado a mano, chibi, contorno marrón y paleta terrosa). Los diseños quedan en `source/characters/<id>_design.webp`.
+2. **Modelo 3D**: Meshy T2.5 desde el diseño (A-pose).
+3. **Esqueleto**: Meshy Rigging, una sola vez por personaje.
+4. **Animaciones**: cada animación de Meshy se compró **una sola vez**, sobre otro modelo. `render.gd --donor` la transfiere hueso a hueso a cualquier personaje, porque todos tienen el mismo esqueleto. Meshy no tiene animación de bici: la pose de pedaleo se arma en `render.gd` con IK (cadera en el sillín, pies en los pedales, manos en el manubrio) sobre una bici 3D también de Layer.
+5. **Render** (`tools/characters/`): cámara ortográfica a 30°, sombreado *toon* pintado (`toon.gdshader`) y cabeza agrandada ×1.25 (estilo chibi). `pack.py` arma la hoja, le pone el contorno y hace GIFs de vista previa.
+
+Los IDs de Layer de todo (diseños, modelos, animaciones donantes y bici) están en `tools/characters/manifest.json`. Los GLB no están en el repositorio (unos 100 MB): se bajan de sus URLs. Para rehacer o agregar un personaje:
 
 ```sh
-python tools/layer_art/char_sheet.py assets/art/characters/player06.png \
-  --s s.png --se se.png --e e.png --ne ne.png --n n.png   # [--height 39] [--scale 3]
+tools/characters/build.sh <id> personaje_riggeado.glb dir_donantes/ bici.glb salida/
+# dir_donantes/: idle.glb walk.glb wave.glb craft.glb interact.glb attack.glb defend.glb
+# HEAD=1.15 (o 1.1) si el pelo o un sombrero se salen por arriba del cuadro
+cp salida/<id>.png assets/art/characters/
 ```
 
-Recorta cada cuadro (se queda con la mancha más grande, sin restos del vecino), escala todo el personaje igual (quieto de frente mide `--height` px lógicos), pone el píxel más bajo en la línea de los pies y centra el torso, y arma `sw`, `w` y `nw` como espejo de `se`, `e` y `ne`.
+Hace falta `godot` en el PATH y Python con Pillow.
 
 ## Mecánicas: `items/`, `medals/`, `npcs/`, `objects/`
 

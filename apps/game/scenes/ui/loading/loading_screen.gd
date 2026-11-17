@@ -24,17 +24,32 @@ const READY_COLOR := Color("7ec96a")
 ## Segundos que se ve cada ilustración y cada consejo.
 const SLIDE_SECONDS := 7.0
 const TIP_SECONDS := 6.0
+## Consejos que valen en cualquier dispositivo.
 const TIPS: Array[String] = [
 	"El mapa es tu ciudad real: calles, parques y edificios salen de OpenStreetMap.",
-	"Mantén Shift para correr (en pantalla táctil, el botón B).",
-	"Pulsa G para saludar a los jugadores que tengas cerca.",
-	"Pulsa Enter para abrir el chat con los jugadores cercanos y tus amigos.",
-	"Mantén V para hablar por voz con tus amigos.",
+	"¿No sabes qué hacer? El recuadro de la misión (arriba a la derecha) te dice el siguiente paso. Tócalo para ver más.",
+	"La flecha amarilla junto a tu personaje apunta a tu próximo objetivo.",
+	"Toca a otro jugador para ver su perfil, saludarlo o enviarle una solicitud de amistad.",
 	"El día y la noche siguen la hora real de tu ciudad.",
-	"Desde Menú → Teletransporte puedes visitar cualquier lugar del mundo.",
 	"Cambia de personaje en Menú → Personaje: los demás verán tu elección.",
 	"Agrega amigos desde Menú → Amigos para chatear y hablar con ellos.",
 	"Cuida tu hambre: la barra baja mientras exploras.",
+]
+## Solo con pantalla táctil.
+const TOUCH_TIPS: Array[String] = [
+	"Toca el suelo para caminar hasta ahí, o usa el joystick de la izquierda.",
+	"Mantén presionado el botón B para correr.",
+	"Acércate a un lugar, árbol u objeto y toca el botón A para interactuar.",
+	"Toca el botón de chat (arriba) para escribirles a los jugadores cercanos y a tus amigos.",
+	"Activa el micrófono (arriba) y mantén el botón Voz para hablar con tus amigos.",
+]
+## Solo con teclado.
+const KEYBOARD_TIPS: Array[String] = [
+	"Camina con las flechas o WASD, o haz clic en el suelo.",
+	"Pulsa Shift para alternar entre correr y caminar.",
+	"Pulsa G para saludar a los jugadores que tengas cerca.",
+	"Pulsa Enter para abrir el chat con los jugadores cercanos y tus amigos.",
+	"Mantén V para hablar por voz con tus amigos.",
 ]
 
 var _open := false
@@ -54,6 +69,7 @@ var _slide := 0
 var _slide_order: Array[String] = []
 var _tip: Label
 var _tip_index := 0
+var _tips: Array[String] = []
 var _timers: Array[Timer] = []
 
 
@@ -195,8 +211,9 @@ func _start_slides() -> void:
 	_slide = 0
 	_show_slide(_slides[0], _slide_order[0], true)
 	_slides[1].modulate.a = 0.0
-	_tip_index = randi() % TIPS.size()
-	_tip.text = TIPS[_tip_index]
+	_tips = TIPS + (TOUCH_TIPS if GameSettings.touch_controls_enabled else KEYBOARD_TIPS)
+	_tip_index = randi() % _tips.size()
+	_tip.text = _tips[_tip_index]
 	for t in _timers:
 		t.start()
 
@@ -223,10 +240,10 @@ func _show_slide(rect: TextureRect, screen_name: String, instant: bool) -> void:
 
 
 func _next_tip() -> void:
-	_tip_index = (_tip_index + 1) % TIPS.size()
+	_tip_index = (_tip_index + 1) % _tips.size()
 	var t := create_tween()
 	t.tween_property(_tip, "modulate:a", 0.0, 0.3)
-	t.tween_callback(func() -> void: _tip.text = TIPS[_tip_index])
+	t.tween_callback(func() -> void: _tip.text = _tips[_tip_index])
 	t.tween_property(_tip, "modulate:a", 1.0, 0.3)
 
 

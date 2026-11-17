@@ -13,6 +13,8 @@ Los jugadores pueden hacerse amigos para teletransportarse a donde está un amig
   - **Ir:** te teletransporta a la posición actual del amigo (solo si está conectado y visible).
   - **Eliminar:** pide confirmación con un segundo clic.
 
+**En el mapa:** tocar a otro jugador abre su perfil (nivel, cifras, medallas recientes) con **Saludar** y **Agregar amigo** (o **Aceptar solicitud** si ya te la envió). Ventana: `apps/game/scenes/ui/game/player_panel.gd`.
+
 Si dos jugadores se envían solicitud el uno al otro, quedan como amigos directamente.
 
 Si estás conectado al multijugador, el servidor te avisa al momento (mensaje en pantalla) cuando alguien te envía una solicitud o acepta la tuya.
@@ -31,11 +33,15 @@ Para agregar una acción nueva con un amigo: el botón va en `FriendsSection._fr
 | ------ | ---- | ----------- |
 | GET    | `/` | `{ friends: [{ id, nickname, skin, online, friendshipId, since }], incoming, outgoing }` |
 | GET    | `/search?nickname=X` | `{ user: { id, nickname, skin, relation } }` · 404. `relation`: `none`, `friend`, `incoming`, `outgoing`, `self` |
-| POST   | `/requests` `{ nickname }` | 201 `{ status: 'sent' }` · 200 `{ status: 'accepted' }` si él ya te la había enviado · 404 · 409 · 422 |
+| POST   | `/requests` `{ nickname }` o `{ userId }` | 201 `{ status: 'sent' }` · 200 `{ status: 'accepted' }` si él ya te la había enviado · 404 · 409 · 422 |
 | POST   | `/requests/:id/accept` | Acepta una solicitud recibida |
 | DELETE | `/requests/:id` | Rechaza una recibida o cancela una enviada |
 | DELETE | `/:userId` | Deja de ser amigos |
 | GET    | `/:userId/location` | `{ lat, lon }` del amigo · 409 `friend_offline` si no está conectado o está en modo fantasma |
+
+`{ userId }` solo vale para un jugador que tienes cerca en el mapa (o con quien ya tienes relación); si no, 404, para que no se puedan enviar solicitudes probando ids.
+
+Perfil público: `GET /api/v1/players/:id` → `{ player: { id, nickname, skin, level, since, relation, requestId, counters, achievements: { unlocked, total, recent } } }`. Solo de jugadores cercanos, amigos o con solicitud pendiente; si no, 404.
 
 Por el WebSocket del multijugador llega `{ t: 'friends', e: 'request' | 'accepted', n: apodo }` (ver `apps/backend/app/realtime/protocol.ts`).
 

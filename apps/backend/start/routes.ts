@@ -21,6 +21,7 @@ const PlayerStatsController = () => import('#controllers/player_stats_controller
 const FriendsController = () => import('#controllers/friends_controller')
 const WebGameController = () => import('#controllers/web_game_controller')
 const GameController = () => import('#controllers/game_controller')
+const PlayersController = () => import('#controllers/players_controller')
 
 router.get('/', () => {
   return { name: 'UrbanCraft API', version: 'v1' }
@@ -116,6 +117,13 @@ router
       })
       .prefix('friends')
       .as('friends')
+      .use(middleware.auth())
+
+    // Perfil público de otro jugador (cercano, amigo o con solicitud pendiente).
+    router
+      .get('players/:id', [PlayersController, 'show'])
+      .where('id', router.matchers.number())
+      .as('players.show')
       .use(middleware.auth())
 
     /**
