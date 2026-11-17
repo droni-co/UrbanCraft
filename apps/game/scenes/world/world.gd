@@ -16,6 +16,10 @@ const INFO_SECONDS := 0.25
 const GPS_RETRY_SECONDS := 4.0
 ## Celdas a las que se alcanza algo para rebuscar (árbol, arbusto, banca…).
 const GATHER_REACH := 2.2
+## Cada cuánto se revisa si el jugador quedó encerrado entre edificios.
+const TRAPPED_CHECK_SECONDS := 2.0
+## Espera entre usos de "Estoy atascado" (para que no sirva de atajo).
+const UNSTUCK_COOLDOWN_SECONDS := 20.0
 
 @export var demo_map_size := Vector2i(64, 64)
 @export var demo_seed := 1337
@@ -93,6 +97,9 @@ var _objects: WorldObjectsLayer
 var _guide: TargetGuide
 var _sector := Vector2i(-99999, -99999)
 var _interacting := false
+var _trapped_elapsed := 0.0
+var _trapped_cell := Vector2i(-99999, -99999)
+var _unstuck_at := -INF
 ## Segundos desde que se actualizó el texto de la barra superior.
 var _info_elapsed := INFO_SECONDS
 var _intro_shown := false
@@ -138,6 +145,7 @@ func _ready() -> void:
 
 	hud.teleport.teleport_requested.connect(_teleport_to)
 	hud.teleport.home_requested.connect(_return_home)
+	hud.settings.unstuck_requested.connect(_unstuck)
 	hud.teleport.current_position_provider = _player_lat_lon
 	hud.friends.teleport_requested.connect(func(lat: float, lon: float, _nickname: String) -> void:
 		_teleport_to(lat, lon))
@@ -242,7 +250,7 @@ func _start_demo(message: String) -> void:
 
 
 func _spawn_player_at(cell: Vector2i) -> void:
-	var safe: Variant = pathfinder.nearest_walkable(cell, 16)
+	var safe: Variant = pathfinder.safe_cell(cell)
 	player.global_position = cell_to_world(safe if safe != null else cell)
 	_last_valid_position = player.global_position
 	camera.snap_to_target()
@@ -503,6 +511,7 @@ func _process(delta: float) -> void:
 			hud.set_location(map_labels.location_name(grid_position))
 			_district = _chunk_districts.get(chunks.chunk_of_global(chunks.local_to_global(player_cell)), "")
 		_send_online_state(grid_position)
+		_check_trapped(delta)
 	_info_elapsed += delta
 	if _info_elapsed < INFO_SECONDS:
 		return
@@ -522,6 +531,61 @@ func _process(delta: float) -> void:
 	if GameSettings.debug_info_visible:
 		parts.append("%d FPS" % Engine.get_frames_per_second())
 	hud.set_info(" · ".join(parts))
+
+
+## Red de seguridad: si el jugador quedó en un patio o rincón sin salida
+## (edificios del mapa real que lo encierran), lo lleva a la calle más cercana.
+func _check_trapped(delta: float) -> void:
+	_trapped_elapsed += delta
+	if _trapped_elapsed < TRAPPED_CHECK_SECONDS or not player.is_physics_processing():
+		return
+	_trapped_elapsed = 0.0
+	if player_cell == _trapped_cell:
+		return
+	_trapped_cell = player_cell
+	if not _is_trapped():
+		return
+	var street: Variant = pathfinder.nearest_street(player_cell, 48)
+	if street != null:
+		_move_player_to(street, "Estabas encerrado entre edificios: te llevamos a la calle.")
+
+
+## El jugador puede quedar parado en el borde de un árbol o una banca (celda
+## no transitable): cuenta la celda libre de al lado.
+func _is_trapped() -> bool:
+	var here: Variant = pathfinder.nearest_walkable(player_cell, 1)
+	return here == null or not pathfinder.has_exit(here)
+
+
+## "Estoy atascado" (Menú → Ajustes): a la calle más cercana si está
+## encerrado; si no, a la celda libre más cercana (por si se trabó en algo).
+func _unstuck() -> void:
+	hud.menu.close()
+	if not player.is_physics_processing():
+		return
+	var now := Time.get_ticks_msec() / 1000.0
+	if now - _unstuck_at < UNSTUCK_COOLDOWN_SECONDS:
+		hud.show_message("Espera unos segundos para volver a intentarlo.", 2.5)
+		return
+	_unstuck_at = now
+	var target: Variant = pathfinder.nearest_street(player_cell, 48) if _is_trapped() \
+		else pathfinder.nearest_walkable(player_cell, 4)
+	if target == null:
+		target = pathfinder.safe_cell(player_cell, 24)
+	if target == null:
+		hud.show_message("No encontramos una salida cerca. Prueba volver a tu ubicación.", 3.0)
+		return
+	_move_player_to(target, "Listo: ya puedes moverte.")
+
+
+func _move_player_to(cell: Vector2i, message: String) -> void:
+	player.stop()
+	player.global_position = cell_to_world(cell)
+	_last_valid_position = player.global_position
+	_trapped_cell = cell
+	camera.snap_to_target()
+	GameAudio.play("teleport")
+	hud.show_message(message, 3.0)
 
 
 func _online_label() -> String:

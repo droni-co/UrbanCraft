@@ -22,6 +22,7 @@ const BAG_BUTTON_SIZE := 32.0
 var menu: GameMenu
 ## Teletransporte libre: solo para depurar (se agrega al menú con la sección Depuración).
 var teleport: TeleportSection
+var settings: SettingsSection
 var missions: MissionsSection
 var territory: TerritorySection
 var achievements: AchievementsSection
@@ -123,7 +124,8 @@ func _build_menu() -> void:
 	menu.add_section("Amigos", friends, "friends")
 	Friends.changed.connect(_update_friends_badge)
 	Friends.notified.connect(_on_friends_notified)
-	menu.add_section("Ajustes", SettingsSection.new(), "settings")
+	settings = SettingsSection.new()
+	menu.add_section("Ajustes", settings, "settings")
 	account = AccountSection.new()
 	menu.add_section("Cuenta", account, "account")
 	if OS.is_debug_build():

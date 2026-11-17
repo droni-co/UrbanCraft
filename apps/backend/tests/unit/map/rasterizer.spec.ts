@@ -335,6 +335,39 @@ test.group('Map rasterizer', () => {
     assert.equal(py, 16)
   })
 
+  test('un local en un patio cerrado se marca donde se llega desde la calle', ({ assert }) => {
+    const grid = rasterize([
+      {
+        kind: 'line',
+        id: 'w1',
+        tags: { highway: 'residential' },
+        coords: line(C, [
+          [-5, 50.5],
+          [70, 50.5],
+        ]),
+      },
+      // Manzana con patio interior (anillo de edificio: no se puede entrar).
+      {
+        kind: 'area',
+        id: 'w2',
+        tags: { building: 'yes' },
+        rings: [rect(C, 16, 16, 44, 44), rect(C, 24, 24, 36, 36)],
+      },
+      {
+        kind: 'point',
+        id: 'n1',
+        tags: { shop: 'bakery', name: 'Panadería del Patio' },
+        coord: localToLonLat(C, 30.5, 30.5),
+      },
+    ])
+    assert.equal(at(grid.ground, 30, 30), Ground.GRASS, 'el patio existe y es transitable')
+    assert.lengthOf(grid.pois, 1)
+    const [px, py] = grid.pois[0].cell
+    assert.isFalse(BUILDING_GROUNDS.has(at(grid.ground, px, py)))
+    const outside = px < 16 || px >= 44 || py < 16 || py >= 44
+    assert.isTrue(outside, `quedó en ${px},${py}, dentro de la manzana`)
+  })
+
   test('pisos de cada edificio: de OSM, por altura o típicos según el tipo', ({ assert }) => {
     const building = (id: string, x: number, tags: Record<string, string>): Feature => ({
       kind: 'area',

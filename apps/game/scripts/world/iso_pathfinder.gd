@@ -11,6 +11,11 @@ extends RefCounted
 
 ## Lado máximo (en celdas) del área de búsqueda: limita el costo por toque.
 const MAX_SPAN := 160
+## Suelos de calle: desde ahí siempre se puede ir a otra parte.
+const STREET_GROUNDS: Array[int] = [WorldTiles.Ground.ASPHALT, WorldTiles.Ground.CROSSWALK, WorldTiles.Ground.CYCLEWAY]
+## Un área transitable de al menos tantas celdas cuenta como abierta (un parque,
+## una plaza) aunque no toque una calle.
+const OPEN_AREA := 400
 
 var ground: TileMapLayer
 var props: TileMapLayer
@@ -48,6 +53,67 @@ func nearest_walkable(cell: Vector2i, radius: int) -> Variant:
 				best = cell + Vector2i(dx, dy)
 				best_dist = d
 	return best
+
+
+func is_street(cell: Vector2i) -> bool:
+	return ground.get_cell_source_id(cell) != -1 \
+		and WorldTiles.ground_kind(ground.get_cell_atlas_coords(cell)) in STREET_GROUNDS \
+		and is_walkable(cell)
+
+
+## Si desde `cell` se puede salir caminando: llega a una calle, a un área
+## grande o al borde de lo cargado (lo que no se ve no cuenta como encierro).
+## false = patio o rincón cerrado entre edificios.
+func has_exit(cell: Vector2i, limit := OPEN_AREA) -> bool:
+	if not is_walkable(cell):
+		return false
+	var seen := {cell: true}
+	var queue: Array[Vector2i] = [cell]
+	var head := 0
+	while head < queue.size():
+		var c := queue[head]
+		head += 1
+		if is_street(c) or queue.size() >= limit:
+			return true
+		for step: Vector2i in [Vector2i.RIGHT, Vector2i.LEFT, Vector2i.DOWN, Vector2i.UP]:
+			var n := c + step
+			if seen.has(n):
+				continue
+			seen[n] = true
+			if ground.get_cell_source_id(n) == -1:
+				return true  # sin cargar: no se sabe, mejor no rescatar
+			if is_walkable(n):
+				queue.append(n)
+	return false
+
+
+## Calle transitable más cercana a `cell` (a `radius` celdas) o null.
+func nearest_street(cell: Vector2i, radius: int) -> Variant:
+	for r in range(0, radius + 1):
+		var best: Variant = null
+		var best_dist := INF
+		for dy in range(-r, r + 1):
+			for dx in range(-r, r + 1):
+				if maxi(absi(dx), absi(dy)) != r:
+					continue  # solo el anillo de este radio
+				var c := cell + Vector2i(dx, dy)
+				var d := Vector2(dx, dy).length()
+				if d < best_dist and is_street(c):
+					best = c
+					best_dist = d
+		if best != null:
+			return best
+	return null
+
+
+## Celda para poner al jugador cerca de `cell`: transitable y con salida. Si lo
+## más cercano es un patio cerrado, la calle más cercana.
+func safe_cell(cell: Vector2i, radius := 16) -> Variant:
+	var near: Variant = nearest_walkable(cell, radius)
+	if near != null and has_exit(near):
+		return near
+	var street: Variant = nearest_street(cell, 48)
+	return street if street != null else near
 
 
 ## Camino de celdas (incluye origen y destino) o [] si no hay o está muy lejos.

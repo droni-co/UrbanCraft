@@ -931,16 +931,23 @@ export class SourceRasterizer {
   #collectPois(ox: number, oy: number, size: number, ground: Uint8Array, props: Uint8Array): Poi[] {
     const pois: Poi[] = []
     const taken = new Set<number>()
+    const street = streetReachable(size, ground, props)
     for (const p of this.#points) {
       if (!p.tags.name) continue
       const key = POI_KEYS.find((k) => p.tags[k])
       if (!key) continue
       let i = this.#localIndex(p.x, p.y, ox, oy, size)
       if (i < 0) continue
-      // Un local dentro de un edificio (ahora con paredes) se marca en la
-      // puerta: la celda transitable más cercana, mejor al frente que detrás.
-      if (UNWALKABLE_GROUND.has(ground[i]) || props[i] !== NO_PROP || taken.has(i)) {
-        i = entranceCell(i, size, ground, props, taken)
+      // Un local dentro de un edificio (ahora con paredes), o en un patio
+      // cerrado, se marca en la puerta: la celda transitable más cercana que
+      // dé a la calle, mejor al frente que detrás.
+      if (
+        UNWALKABLE_GROUND.has(ground[i]) ||
+        props[i] !== NO_PROP ||
+        taken.has(i) ||
+        (street && !street[i])
+      ) {
+        i = entranceCell(i, size, ground, props, taken, street)
       }
       taken.add(i)
       const poi: Poi = {
@@ -962,10 +969,62 @@ export class SourceRasterizer {
 const CROSSING_RADIUS = 1.6
 /** Hasta dónde (celdas) se busca la entrada de un local que cae dentro de un edificio. */
 const ENTRANCE_SEARCH = 12
+/** Más lejos aún si lo cercano son patios cerrados: mejor caminar que no poder llegar. */
+const ENTRANCE_SEARCH_STREET = 24
+/** Suelos de calle desde los que se mide si una celda tiene salida. */
+const STREET_GROUNDS: ReadonlySet<number> = new Set([
+  Ground.ASPHALT,
+  Ground.CROSSWALK,
+  Ground.CYCLEWAY,
+])
+
+/**
+ * Celdas transitables (sin prop) conectadas con alguna calle del chunk: lo que
+ * queda fuera son patios y rincones encerrados entre edificios, donde un pin
+ * no se podría alcanzar. null si el chunk no tiene calles (un parque, un
+ * campo): ahí no hay con qué comparar y todo cuenta como alcanzable.
+ */
+export function streetReachable(
+  size: number,
+  ground: Uint8Array,
+  props: Uint8Array
+): Uint8Array | null {
+  const free = (i: number) => !UNWALKABLE_GROUND.has(ground[i]) && props[i] === NO_PROP
+  const seen = new Uint8Array(size * size)
+  const queue: number[] = []
+  for (let i = 0; i < seen.length; i++) {
+    if (STREET_GROUNDS.has(ground[i]) && free(i)) {
+      seen[i] = 1
+      queue.push(i)
+    }
+  }
+  if (queue.length === 0) return null
+  for (let head = 0; head < queue.length; head++) {
+    const i = queue[head]
+    const x = i % size
+    const y = (i - x) / size
+    for (const [dx, dy] of [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+    ]) {
+      const nx = x + dx
+      const ny = y + dy
+      if (nx < 0 || ny < 0 || nx >= size || ny >= size) continue
+      const n = ny * size + nx
+      if (seen[n] || !free(n)) continue
+      seen[n] = 1
+      queue.push(n)
+    }
+  }
+  return seen
+}
 
 /**
  * Celda libre (transitable y sin prop) más cercana a `home`, prefiriendo las de
- * delante (abajo en pantalla), que no quedan tapadas por el edificio. Si no
+ * delante (abajo en pantalla), que no quedan tapadas por el edificio. Con
+ * `street`, solo las que dan a la calle (si no hay ninguna, como antes). Si no
  * hay ninguna cerca, `home`.
  */
 function entranceCell(
@@ -973,17 +1032,44 @@ function entranceCell(
   size: number,
   ground: Uint8Array,
   props: Uint8Array,
-  taken: Set<number>
+  taken: Set<number>,
+  street: Uint8Array | null = null
+): number {
+  if (street) {
+    const outside = nearestEntrance(
+      home,
+      size,
+      ground,
+      props,
+      taken,
+      street,
+      ENTRANCE_SEARCH_STREET
+    )
+    if (outside >= 0) return outside
+  }
+  const any = nearestEntrance(home, size, ground, props, taken, null, ENTRANCE_SEARCH)
+  return any >= 0 ? any : home
+}
+
+function nearestEntrance(
+  home: number,
+  size: number,
+  ground: Uint8Array,
+  props: Uint8Array,
+  taken: Set<number>,
+  street: Uint8Array | null,
+  radius: number
 ): number {
   const cx = home % size
   const cy = Math.floor(home / size)
-  let best = home
+  let best = -1
   let bestCost = Infinity
-  for (let ly = cy - ENTRANCE_SEARCH; ly <= cy + ENTRANCE_SEARCH; ly++) {
-    for (let lx = cx - ENTRANCE_SEARCH; lx <= cx + ENTRANCE_SEARCH; lx++) {
+  for (let ly = cy - radius; ly <= cy + radius; ly++) {
+    for (let lx = cx - radius; lx <= cx + radius; lx++) {
       if (lx < 0 || ly < 0 || lx >= size || ly >= size) continue
       const i = ly * size + lx
       if (UNWALKABLE_GROUND.has(ground[i]) || props[i] !== NO_PROP || taken.has(i)) continue
+      if (street && !street[i]) continue
       const dx = lx - cx
       const dy = ly - cy
       const cost = dx * dx + dy * dy + (dx + dy < 0 ? 4 : 0)
