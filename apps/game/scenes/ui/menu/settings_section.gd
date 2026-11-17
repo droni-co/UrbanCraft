@@ -1,7 +1,10 @@
 class_name SettingsSection
 extends VBoxContainer
 ## Sección "Ajustes" del menú: volumen de la música y de los efectos, por
-## separado. Se guardan en el dispositivo (GameSettings).
+## separado (se guardan en el dispositivo, GameSettings), y "Estoy atascado".
+
+## El jugador no puede salir de donde está; el mundo lo lleva a la calle.
+signal unstuck_requested
 
 var _music_value: Label
 var _sfx_value: Label
@@ -33,6 +36,22 @@ func _ready() -> void:
 	hint.theme_type_variation = &"HintLabel"
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	add_child(hint)
+
+	var help := Label.new()
+	help.text = "Ayuda"
+	help.theme_type_variation = &"SectionTitle"
+	add_child(help)
+	var unstuck := Button.new()
+	unstuck.text = "Estoy atascado"
+	unstuck.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	unstuck.custom_minimum_size.y = 30
+	unstuck.pressed.connect(func() -> void: unstuck_requested.emit())
+	add_child(unstuck)
+	var unstuck_hint := Label.new()
+	unstuck_hint.text = "Si quedaste encerrado entre edificios o trabado en algo, te lleva a la calle más cercana."
+	unstuck_hint.theme_type_variation = &"HintLabel"
+	unstuck_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	add_child(unstuck_hint)
 	_refresh()
 
 

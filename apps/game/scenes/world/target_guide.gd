@@ -42,9 +42,17 @@ func _collect() -> void:
 	_targets.clear()
 	if player == null or not global_to_world.is_valid():
 		return
+	# Si el lugar ya está en el mapa, su marcador manda: el encargo guarda una
+	# copia de la celda y el mapa puede haber movido la entrada desde entonces.
+	var loaded := {}
+	if markers.is_valid():
+		for marker: PoiMarker in markers.call():
+			loaded[marker.poi_id] = marker
 	for entry: Dictionary in Game.active_steps():
 		var poi: Dictionary = entry.step.get("poi", {})
-		var position: Vector2 = global_to_world.call(float(poi.get("x", 0)) + 0.5, float(poi.get("y", 0)) + 0.5)
+		var marker: PoiMarker = loaded.get(str(poi.get("id", "")))
+		var position: Vector2 = marker.global_position if marker \
+			else global_to_world.call(float(poi.get("x", 0)) + 0.5, float(poi.get("y", 0)) + 0.5)
 		_targets.append({"position": position, "color": COLOR})
 	var talk := Game.talk_goal()
 	if not talk.is_empty() and markers.is_valid():
