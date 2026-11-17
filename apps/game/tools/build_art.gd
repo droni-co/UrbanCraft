@@ -270,20 +270,26 @@ func _quantile(list: Array, q: float) -> Dictionary:
 	return list[list.size() - 1]
 
 
-## Personajes (skins): cada PNG de characters/ es uno. Hoja de 5 x 8 frames de
-## 32x48 px del mundo, dibujada a x1 (pixel art) o a una escala entera (x2, x4…).
+## Personajes (skins): cada PNG de characters/ es uno. Dos formatos de frames
+## de 32x48 px del mundo, a x1 (pixel art) o a una escala entera (x2, x3…):
+## simple (5 x 8 frames) o animada (24 x 16, ver CharacterSkins).
 func _check_player() -> void:
 	var dir := ProjectSettings.globalize_path(ART + "/characters")
 	var sheets := Array(DirAccess.get_files_at(dir)).filter(func(f: String) -> bool: return f.get_extension() == "png")
 	if sheets.is_empty():
-		_errors.append("characters/: falta al menos una hoja de personaje (player01.png)")
+		_errors.append("characters/: falta al menos una hoja de personaje")
 		return
-	var logical := Vector2i(32 * 5, 48 * 8)
+	var simple := Vector2i(32 * 5, 48 * 8)
+	var animated := Vector2i(32 * CharacterSkins.ANIMATED_COLUMNS, 48 * CharacterSkins.ANIMATED_ROWS)
 	for file: String in sheets:
 		var img := Image.load_from_file(dir.path_join(file))
-		var k := img.get_width() / logical.x
-		if k < 1 or img.get_size() != logical * k:
-			_errors.append("characters/%s: mide %s y debe medir %dx%d (5 columnas x 8 filas de 32x48) o un múltiplo exacto (x2, x4…)" % [file, img.get_size(), logical.x, logical.y])
+		var ok := false
+		for logical: Vector2i in [simple, animated]:
+			var k := img.get_width() / logical.x
+			if k >= 1 and img.get_size() == logical * k:
+				ok = true
+		if not ok:
+			_errors.append("characters/%s: mide %s y debe medir %dx%d (simple: 5 x 8 frames de 32x48) o %dx%d (animada: 24 x 16), o un múltiplo exacto (x2, x3…)" % [file, img.get_size(), simple.x, simple.y, animated.x, animated.y])
 
 
 func _summary(table: Array) -> String:
