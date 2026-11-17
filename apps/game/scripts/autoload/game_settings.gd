@@ -183,6 +183,19 @@ func _ready() -> void:
 		Input.emulate_touch_from_mouse = true
 
 
+## Ayudas de primera vez ("toca aquí para…"): se recuerdan en este dispositivo.
+func has_seen(hint: String) -> bool:
+	var cfg := ConfigFile.new()
+	return cfg.load(SAVE_PATH) == OK and bool(cfg.get_value("hints", hint, false))
+
+
+func mark_seen(hint: String) -> void:
+	var cfg := ConfigFile.new()
+	cfg.load(SAVE_PATH)  # conserva lo demás que haya
+	cfg.set_value("hints", hint, true)
+	cfg.save(SAVE_PATH)
+
+
 func _load() -> void:
 	var cfg := ConfigFile.new()
 	if cfg.load(SAVE_PATH) != OK:

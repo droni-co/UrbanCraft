@@ -220,4 +220,44 @@ test.group('Amigos', (group) => {
     res = await client.get(`/api/v1/friends/${beto.id}/location`).loginAs(ana)
     res.assertStatus(409)
   })
+
+  test('perfil de un jugador cercano y solicitud por id', async ({ client, assert }) => {
+    const ana = await makeUser('Ana')
+    const beto = await makeUser('Beto')
+
+    // Lejos (o desconectados): no se ve el perfil ni se puede enviar por id.
+    let res: any = await client.get(`/api/v1/players/${beto.id}`).loginAs(ana)
+    res.assertStatus(404)
+    res = await client.post('/api/v1/friends/requests').json({ userId: beto.id }).loginAs(ana)
+    res.assertStatus(404)
+
+    const a = await goOnline(ana)
+    const b = await goOnline(beto)
+    a.send({ t: 'state', x: 4_957_000.5, y: 8_330_000.5, d: 2, m: 0 })
+    b.send({ t: 'state', x: 4_957_005.5, y: 8_330_003.5, d: 2, m: 0 })
+    await waitFor(() => realtime.canSee(ana.id, beto.id))
+
+    res = await client.get(`/api/v1/players/${beto.id}`).loginAs(ana)
+    res.assertStatus(200)
+    const player = res.body().player
+    assert.equal(player.nickname, 'Beto')
+    assert.equal(player.relation, 'none')
+    assert.isNumber(player.level)
+    assert.isArray(player.counters)
+    assert.isAbove(player.achievements.total, 0)
+    assert.notProperty(player, 'email')
+
+    res = await client.post('/api/v1/friends/requests').json({ userId: beto.id }).loginAs(ana)
+    res.assertStatus(201)
+    res = await client.get(`/api/v1/players/${ana.id}`).loginAs(beto)
+    assert.equal(res.body().player.relation, 'incoming')
+    assert.isNumber(res.body().player.requestId)
+
+    // Con solicitud pendiente se sigue viendo aunque ya no estén cerca.
+    b.send({ t: 'vis', v: false })
+    await waitFor(() => !realtime.canSee(ana.id, beto.id))
+    res = await client.get(`/api/v1/players/${beto.id}`).loginAs(ana)
+    res.assertStatus(200)
+    assert.equal(res.body().player.relation, 'outgoing')
+  })
 })

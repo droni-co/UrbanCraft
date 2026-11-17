@@ -62,6 +62,20 @@ func _collect() -> void:
 			_targets.append({"position": best.global_position, "color": STORY_COLOR})
 
 
+## Pin flotante con "!" sobre el destino, que sube y baja: se ve de lejos y
+## dice "aquí es" sin leer nada.
+func _draw_pin(at: Vector2, color: Color) -> void:
+	var bob := 3.0 * sin(_time * 3.0)
+	var center := at + Vector2(0, -30.0 + bob)
+	var outline := Color(0.1, 0.07, 0.02, 0.9)
+	var point := PackedVector2Array([center + Vector2(-5, 4), center + Vector2(5, 4), center + Vector2(0, 12)])
+	draw_colored_polygon(point, color)
+	draw_circle(center, 8.0, color)
+	draw_arc(center, 8.0, 0.0, TAU, 24, outline, 1.2, true)
+	var font := UiArt.FONT_BOLD
+	draw_string(font, center + Vector2(-2.5, 4.5), "!", HORIZONTAL_ALIGNMENT_LEFT, -1, 12, outline)
+
+
 func _draw() -> void:
 	if player == null or _targets.is_empty():
 		return
@@ -75,6 +89,7 @@ func _draw() -> void:
 		draw_arc(Vector2.ZERO, 12.0 + 4.0 * pulse, 0.0, TAU, 32, Color(target.color, 0.9 - 0.5 * pulse), 1.5, true)
 		draw_arc(Vector2.ZERO, 7.0, 0.0, TAU, 24, Color(target.color, 0.5), 1.0, true)
 		draw_set_transform(Vector2.ZERO)
+		_draw_pin(local, target.color)
 		var d: float = target.position.distance_to(player.global_position)
 		if d < nearest_distance:
 			nearest = target

@@ -76,6 +76,29 @@ func send_request(nickname: String) -> Dictionary:
 	return {"ok": true, "message": "Solicitud enviada a %s." % nick}
 
 
+## Solicitud a un jugador que tienes cerca (desde su perfil), por su id.
+func send_request_to(user_id: int) -> Dictionary:
+	var res: Dictionary = await Api.request_json(HTTPClient.METHOD_POST, PREFIX + "/requests",
+		{"userId": user_id})
+	if not res.ok:
+		return {"ok": false, "message": _message(res, "No se pudo enviar la solicitud")}
+	await refresh()
+	var nick := str(res.data.user.nickname)
+	if res.data.status == "accepted":
+		return {"ok": true, "message": "¡Ahora eres amigo de %s!" % nick}
+	return {"ok": true, "message": "Solicitud enviada a %s." % nick}
+
+
+## Perfil público de otro jugador (cercano, amigo o con solicitud pendiente):
+## { ok, player?: { id, nickname, skin, level, since, relation, requestId,
+##   counters: [{ key, value }], achievements: { unlocked, total, recent } }, message }.
+func profile(user_id: int) -> Dictionary:
+	var res: Dictionary = await Api.request_json(HTTPClient.METHOD_GET, "/api/v1/players/%d" % user_id)
+	if res.ok and res.data is Dictionary:
+		return {"ok": true, "player": res.data.player, "message": ""}
+	return {"ok": false, "message": _message(res, "No se pudo cargar su perfil")}
+
+
 func accept(request_id: int) -> Dictionary:
 	var res: Dictionary = await Api.request_json(HTTPClient.METHOD_POST,
 		"%s/requests/%d/accept" % [PREFIX, request_id])

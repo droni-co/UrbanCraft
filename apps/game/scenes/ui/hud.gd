@@ -32,6 +32,8 @@ var bag_button: Button
 var territory_badge: TerritoryBadge
 var place_panel: PlacePanel
 var object_panel: ObjectPanel
+## Perfil de otro jugador (al tocarlo en el mapa).
+var player_panel: PlayerPanel
 var map_window: MapWindow
 var dialog: DialogBox
 var toasts: Toasts
@@ -192,9 +194,11 @@ func _build_game_ui() -> void:
 	object_panel.name = "ObjectPanel"
 	map_window = MapWindow.new()
 	map_window.name = "MapWindow"
+	player_panel = PlayerPanel.new()
+	player_panel.name = "PlayerPanel"
 	dialog = DialogBox.new()
 	dialog.name = "Dialog"
-	for window: Control in [bag, place_panel, object_panel, map_window]:
+	for window: Control in [bag, place_panel, object_panel, map_window, player_panel]:
 		add_child(window)
 	minimap.pressed.connect(func() -> void:
 		if not menu.visible:
@@ -209,7 +213,7 @@ func _build_game_ui() -> void:
 	add_child(dialog)
 	move_child(toasts, dialog.get_index())
 	menu.opened.connect(func() -> void:
-		for window: GameWindow in [bag, place_panel, object_panel, map_window]:
+		for window: GameWindow in [bag, place_panel, object_panel, map_window, player_panel]:
 			window.close())
 	Game.events_received.connect(func(events: Array) -> void:
 		for event: Dictionary in events:

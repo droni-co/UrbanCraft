@@ -9,6 +9,12 @@ const nicknameValidator = vine.create({
   nickname: vine.string().trim().minLength(1).maxLength(20),
 })
 
+/** Solicitud por apodo (Menú → Amigos) o por id (perfil de un jugador cercano). */
+const requestValidator = vine.create({
+  nickname: vine.string().trim().minLength(1).maxLength(20).optional().requiredIfMissing('userId'),
+  userId: vine.number().withoutDecimals().positive().optional(),
+})
+
 const ERRORS: Record<FriendsError['code'], { status: number; message: string }> = {
   user_not_found: { status: 404, message: 'No hay ningún jugador con ese apodo' },
   self: { status: 422, message: 'No puedes enviarte una solicitud a ti mismo' },
@@ -23,6 +29,7 @@ const ERRORS: Record<FriendsError['code'], { status: number; message: string }> 
  *   GET    /                         → { friends, incoming, outgoing }
  *   GET    /search?nickname=X        → { user: { id, nickname, skin, relation } } · 404
  *   POST   /requests { nickname }    → { status: 'sent' | 'accepted', user }
+ *   POST   /requests { userId }      → igual, para un jugador que tienes cerca
  *   POST   /requests/:id/accept      → acepta una solicitud recibida
  *   DELETE /requests/:id             → rechaza una recibida o cancela una enviada
  *   DELETE /:userId                  → deja de ser amigos
@@ -55,10 +62,16 @@ export default class FriendsController {
 
   async store({ auth, request, response }: HttpContext) {
     const me = auth.getUserOrFail()
-    const { nickname } = await request.validateUsing(nicknameValidator)
+    const { nickname, userId } = await request.validateUsing(requestValidator)
     try {
-      const result = await this.friends.sendRequest(me.id, nickname)
       const realtime = await realtimeServer()
+      // Por id solo a quien tienes cerca (si no, se podría escribir a cualquiera
+      // probando ids); el perfil del jugador muestra el botón en ese caso.
+      if (userId !== undefined && userId !== me.id && !realtime.canSee(me.id, userId)) {
+        if ((await this.friends.relation(me.id, userId)) === 'none')
+          throw new FriendsError('user_not_found')
+      }
+      const result = await this.friends.sendRequest(me.id, userId ?? nickname!)
       if (result.status === 'accepted') realtime.friendshipChanged(me.id, result.user.id, true)
       realtime.notifyFriends(
         result.user.id,
